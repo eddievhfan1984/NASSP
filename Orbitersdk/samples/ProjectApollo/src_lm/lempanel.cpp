@@ -159,7 +159,7 @@ void LEM::RedrawPanel_AOTReticle(SURFHANDLE surf)
 void LEM::InitSwitches() {
 
 	AbortSwitch.Register     (PSH, "AbortSwitch", false);
-	AbortStageSwitch.Register(PSH, "AbortStageSwitch", false);
+	AbortStageSwitch.Register(PSH, "AbortStageSwitch", false, false);
 	AbortStageSwitchLight = false;
 
 	EngineArmSwitch.Register(PSH, "EngineArmSwitch", THREEPOSSWITCH_CENTER);

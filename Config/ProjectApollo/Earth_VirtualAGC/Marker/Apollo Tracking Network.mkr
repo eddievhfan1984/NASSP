@@ -1,0 +1,24 @@
+; Ground tracking stations for Project Apollo
+
+BEGIN_HEADER
+InitialState on
+ColourIdx 2
+ShapeIdx 2
+END_HEADER
+
+BEGIN_DATA
+
+-61.775833 +17.137222   : Antigua : ANT
+-14.37105 -7.94354      : Ascension Island : ASC
+-64.68563 +32.36864     : Bermuda : BDA
+-15.60077 +27.74055     : Grand Canary : CYI
++148.98144 -35.40282    : Honeysuckle : HSK
++113.72595 -24.90619    : Canarvon : CRO
+-97.37588 +27.65273     : Corpus Christi: TEX
+-116.87421 +35.33820    : Goldstone : GDS
+-78.35825 +26.62022     : Grand Bahama: GBM
++144.73694 +13.30929    : Guam : GWM
+-110.90846 +27.95029    : Guyamas : GYM
+-157.76307 +21.44719    : Hawaii : HAW
+-4.16990 40.45443       : Madrid : MAD
++47.27556 -19.00000     : Tananarive: TAN
