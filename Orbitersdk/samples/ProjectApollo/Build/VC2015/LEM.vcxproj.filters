@@ -284,6 +284,9 @@
     <ClInclude Include="..\..\src_lm\yaAGS\yaAEA.h">
       <Filter>yaAGS</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src_lm\lmresource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\Abort.bmp">
@@ -661,9 +664,6 @@
     <None Include="..\..\Bitmaps\LMAbortButton.bmp">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="..\..\LMAbortButton.bmp">
-      <Filter>Resource Files</Filter>
-    </None>
     <None Include="..\..\Bitmaps\LMDCAmps.bmp">
       <Filter>Resource Files</Filter>
     </None>
@@ -766,5 +766,13 @@
     <ResourceCompile Include="..\..\src_lm\LEMResources.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\Bitmaps\lem_FDAIRoll.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Bitmaps\LEMFDAI_needles.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

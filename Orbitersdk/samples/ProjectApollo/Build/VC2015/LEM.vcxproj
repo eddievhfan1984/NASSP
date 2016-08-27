@@ -356,6 +356,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src_lm\lmresource.h" />
     <ClInclude Include="..\..\src_sys\apolloguidance.h" />
     <ClInclude Include="..\..\src_aux\BasicExcelVC6.hpp" />
     <ClInclude Include="..\..\src_sys\cautionwarning.h" />
@@ -526,7 +527,6 @@
     <None Include="..\..\lights2.bmp" />
     <None Include="..\..\lm3posswitch.bmp" />
     <None Include="..\..\Bitmaps\LMAbortButton.bmp" />
-    <None Include="..\..\LMAbortButton.bmp" />
     <None Include="..\..\Bitmaps\LMDCAmps.bmp" />
     <None Include="..\..\Bitmaps\LMDCVolts.bmp" />
     <None Include="..\..\LMMFDFrame.bmp" />
@@ -566,6 +566,10 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">\Program Files\orbiter-nassp\Orbitersdk\samples\ProjectApollo;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\Bitmaps\LEMFDAI_needles.bmp" />
+    <Image Include="..\..\Bitmaps\lem_FDAIRoll.bmp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -44,7 +44,7 @@ public:
 
 	bool IsPowered();
 	void WireTo(e_object *dc, e_object *ac) { DCSource = dc; ACSource = ac; };
-	/// \todo temporary hack for the LM
+	void SetLM();
 	void WireTo(e_object *dc) { DCSource = dc; noAC = true; };
 
 protected:
@@ -56,6 +56,7 @@ protected:
 	VECTOR3 now, target, lastRates, lastErrors;
 	double lastPaintTime;
 	bool newRegistered;
+	bool LM_mode;
 
 	//some stuff for OpenGL
 	HDC hDC2;
