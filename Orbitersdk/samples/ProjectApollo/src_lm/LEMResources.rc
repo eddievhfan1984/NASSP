@@ -152,11 +152,19 @@ IDB_LEMROTARY           BITMAP                  "..\\Bitmaps\\LemRotationalSwitc
 IDB_CIRCUITBRAKER       BITMAP                  "..\\Bitmaps\\circuit_breaker.bmp"
 
 IDB_FDAI_ROLL           BITMAP                  "..\\Bitmaps\\FDAIRoll.bmp"
+<<<<<<< HEAD
 
+=======
+IDB_LEM_FDAI_ROLL       BITMAP                  "..\\Bitmaps\\lem_FDAIRoll.bmp"
+>>>>>>> origin/master
 IDB_FDAIOFFFLAG         BITMAP                  "..\\Bitmaps\\FDAI_off_flag.bmp"
 
 IDB_FDAI_ROLLINDICATOR  BITMAP                  "..\\Bitmaps\\FDAIRollindicator.bmp"
+<<<<<<< HEAD
 
+=======
+IDB_LEM_FDAI_NEEDLES    BITMAP                  "..\\Bitmaps\\LEMFDAI_needles.bmp"
+>>>>>>> origin/master
 IDB_BORDER_34x29        BITMAP                  "..\\Bitmaps\\border34x29.bmp"
 
 IDB_BORDER_34x39        BITMAP                  "..\\Bitmaps\\border34x39.bmp"

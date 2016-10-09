@@ -1061,19 +1061,15 @@ void LEM::RedrawPanel_Thrust (SURFHANDLE surf)
 	oapiBlt(surf,srf[SRF_NEEDLE],29,(int)(67-(DispValue)*67),8,0,7,7, SURF_PREDEF_CK);//
 }
 
-void LEM::RedrawPanel_XPointer (SURFHANDLE surf) {
+void LEM::RedrawPanel_XPointer (CrossPointer *cp, SURFHANDLE surf) {
 
 	int ix, iy;
 	double vx, vy;
 	HDC hDC;
 
 	//draw the crosspointers
-	if((RateErrorMonSwitch.GetState() == 1) && (RR.IsPowered()) )
-	{
-		vx = RR.GetRadarTrunnionVel();
-		vy = RR.GetRadarShaftVel();
-	} else
-		agc.GetHorizVelocity(vx, vy);
+	cp->GetVelocities(vx, vy);
+
 	ix = (int)(-3.0 * vx);
 	if(ix < -60) ix = -60;
 	if(ix > 60) ix = 60;
@@ -1087,7 +1083,6 @@ void LEM::RedrawPanel_XPointer (SURFHANDLE surf) {
 	MoveToEx(hDC, 67 + iy, 0, NULL);
 	LineTo(hDC, 67 + iy, 131);
 	oapiReleaseDC(surf, hDC);
-
 }
 
 void LEM::RedrawPanel_MFDButton(SURFHANDLE surf, int mfd, int side, int xoffset, int yoffset) {
@@ -1168,6 +1163,7 @@ void LEM::InitPanel (int panel)
 		srf[SRF_LMTHREEPOSLEVER]	= oapiCreateSurface (LOADBMP (IDB_LMTHREEPOSLEVER));
 		srf[SRF_LMTHREEPOSSWITCH]	= oapiCreateSurface (LOADBMP (IDB_LMTHREEPOSSWITCH));
 		srf[SRF_DSKYDISP]			= oapiCreateSurface (LOADBMP (IDB_DSKY_DISP));		
+<<<<<<< HEAD
 		//srf[SRF_FDAI]	        	= oapiCreateSurface (LOADBMP (IDB_FDAI));
 		srf[SRF_FDAIROLL]       	= oapiCreateSurface (LOADBMP (IDB_LM_FDAI_ROLL));
 		srf[SRF_CWSLIGHTS]			= oapiCreateSurface (LOADBMP (IDB_CWS_LIGHTS));
@@ -1175,6 +1171,15 @@ void LEM::InitPanel (int panel)
 		srf[SRF_LEMROTARY]			= oapiCreateSurface (LOADBMP (IDB_LEMROTARY));
 		srf[SRF_FDAIOFFFLAG]       	= oapiCreateSurface (LOADBMP (IDB_FDAIOFFFLAG));
 		srf[SRF_FDAINEEDLES]		= oapiCreateSurface (LOADBMP (IDB_LM_FDAI_NEEDLES));
+=======
+		//srf[SRF_FDAI]	        	= oapiCreateSurface (LOADBMP (IDB_FDAI));		//The LM FDAI texture doesn't need this
+		srf[SRF_FDAIROLL]			= oapiCreateSurface(LOADBMP(IDB_LEM_FDAI_ROLL));
+		srf[SRF_CWSLIGHTS]			= oapiCreateSurface(LOADBMP(IDB_CWS_LIGHTS));
+		srf[SRF_DSKYKEY]			= oapiCreateSurface(LOADBMP(IDB_DSKY_KEY));
+		srf[SRF_LEMROTARY]			= oapiCreateSurface(LOADBMP(IDB_LEMROTARY));
+		srf[SRF_FDAIOFFFLAG]		= oapiCreateSurface(LOADBMP(IDB_FDAIOFFFLAG));
+		srf[SRF_FDAINEEDLES]		= oapiCreateSurface(LOADBMP(IDB_LEM_FDAI_NEEDLES));
+>>>>>>> origin/master
 		srf[SRF_CIRCUITBRAKER]		= oapiCreateSurface (LOADBMP (IDB_CIRCUITBRAKER));
 		srf[SRF_BORDER_34x29]		= oapiCreateSurface (LOADBMP (IDB_BORDER_34x29));
 		srf[SRF_BORDER_34x61]		= oapiCreateSurface (LOADBMP (IDB_BORDER_34x61));
@@ -1359,15 +1364,22 @@ bool LEM::clbkLoadPanel (int id) {
 
 	switch (id) {
 	case LMPANEL_MAIN: // LEM Main panel
-		oapiRegisterPanelBackground (hBmp,PANEL_ATTACH_TOP|PANEL_ATTACH_BOTTOM|PANEL_ATTACH_LEFT|PANEL_MOVEOUT_RIGHT,  g_Param.col[4]);	
+		oapiRegisterPanelBackground(hBmp, PANEL_ATTACH_TOP | PANEL_ATTACH_BOTTOM | PANEL_ATTACH_LEFT | PANEL_MOVEOUT_RIGHT, g_Param.col[4]);
 
 		oapiRegisterMFD (MFD_LEFT,  mfds_left);
 		oapiRegisterMFD (MFD_RIGHT, mfds_right);
 		
+<<<<<<< HEAD
 		fdaiLeft.RegisterMe(AID_FDAI_LEFT, 233, 625); // Was 135,625
 		fdaiLeft.SetLM();
 		fdaiRight.RegisterMe(AID_FDAI_RIGHT, 1201, 625);
 		fdaiRight.SetLM();
+=======
+		fdaiLeft.RegisterMe(AID_FDAI_LEFT, 234, 625); // Was 135,625
+		fdaiLeft.SetLMmode();
+		fdaiRight.RegisterMe(AID_FDAI_RIGHT, 1202, 625);
+		fdaiRight.SetLMmode();
+>>>>>>> origin/master
 		hBmpFDAIRollIndicator = LoadBitmap(g_Param.hDLL, MAKEINTRESOURCE (IDB_FDAI_ROLLINDICATOR));
 
 		oapiRegisterPanelArea (AID_MFDLEFT,						    _R( 125, 1564,  550, 1918), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_LBDOWN,              PANEL_MAP_BACKGROUND);
@@ -1438,8 +1450,8 @@ bool LEM::clbkLoadPanel (int id) {
 		oapiRegisterPanelArea (AID_EXTERIORLTGSWITCH,				_R(1451, 1432, 1485, 1461), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
 		oapiRegisterPanelArea (AID_PANEL4LEFTSWITCHROW,				_R( 584, 1614,  618, 1794), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
 		oapiRegisterPanelArea (AID_PANEL4RIGHTSWITCHROW,			_R(1062, 1614, 1096, 1794), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_XPOINTERCDR,						_R( 163,  426,  300,  559), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	          PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_XPOINTERLMP,						_R(1400,  426, 1537,  559), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	          PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea (AID_XPOINTERCDR,						_R( 165,  426,  302,  559), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea (AID_XPOINTERLMP,						_R(1404, 426, 1541,   559), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
 		oapiRegisterPanelArea (AID_LMRADARSIGNALSTRENGTH,			_R( 342, 1229,  433, 1319), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	          PANEL_MAP_BACKGROUND);
 		oapiRegisterPanelArea (AID_LMRADARSLEWSWITCH,			    _R( 367, 1433,  408, 1472), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN|PANEL_MOUSE_UP, PANEL_MAP_BACKGROUND);
 		oapiRegisterPanelArea (AID_LM_EVENT_TIMER_SWITCHES,			_R(1013, 1233, 1214, 1264), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN|PANEL_MOUSE_UP, PANEL_MAP_BACKGROUND);
@@ -1452,54 +1464,75 @@ bool LEM::clbkLoadPanel (int id) {
 		break;	
 		
 	case LMPANEL_RIGHTWINDOW: // LEM Right Window
-		oapiRegisterPanelBackground (hBmp,PANEL_ATTACH_TOP|PANEL_ATTACH_BOTTOM|PANEL_ATTACH_LEFT|PANEL_MOVEOUT_RIGHT,  g_Param.col[4]);	
+		oapiRegisterPanelBackground(hBmp, PANEL_ATTACH_TOP | PANEL_ATTACH_BOTTOM | PANEL_ATTACH_LEFT | PANEL_MOVEOUT_RIGHT, g_Param.col[4]);
 
-		oapiRegisterPanelArea (AID_XPOINTERLMP,					_R( 235, 246, 372,  379), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	        PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_RIGHTMONITORSWITCHES,		_R( 333, 532, 368,  645), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,			PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_CLYCOLSUITFANROTARIES,		_R(  31, 746, 116,  951), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,			PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_QTYMONROTARY,				_R( 215, 806, 300,  891), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,			PANEL_MAP_BACKGROUND);
+		fdaiRight.RegisterMe(AID_FDAI_RIGHT, 36, 445);
+		fdaiRight.SetLMmode();
+		hBmpFDAIRollIndicator = LoadBitmap(g_Param.hDLL, MAKEINTRESOURCE(IDB_FDAI_ROLLINDICATOR));
+
+		oapiRegisterPanelArea(AID_XPOINTERLMP,						_R( 237,  246,  374,  379), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_RIGHTMONITORSWITCHES,				_R (333,  532,  368,  645), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_CLYCOLSUITFANROTARIES,			_R(  31,  746,  116,  951), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_QTYMONROTARY,						_R( 215,  806,  300,  891), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
 		
 		SetCameraDefaultDirection(_V(0.0, 0.0, 1.0));
 		oapiCameraSetCockpitDir(0,0);
 		break;
 
 	case LMPANEL_LEFTWINDOW: // LEM Left Window
-		oapiRegisterPanelBackground (hBmp,PANEL_ATTACH_TOP|PANEL_ATTACH_BOTTOM|PANEL_ATTACH_LEFT|PANEL_MOVEOUT_RIGHT,  g_Param.col[4]);
-		
-		oapiRegisterPanelArea (AID_LEM_COAS2,					_R( 555,    0, 1095,  540), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_LBDOWN,	PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_MISSION_CLOCK,				_R(1335,  106, 1477,  130), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_EVENT_TIMER,					_R(1551,  106, 1632,  128), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_CONTACTLIGHT1,				_R(1584,  246, 1633,  295), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_LEFTXPOINTERSWITCH,			_R(1592,  335, 1627,  365), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,		PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_LEFTMONITORSWITCHES,			_R(1313,  532, 1347,  645), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,		PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_XPOINTERCDR,					_R(1327,  246, 1464,  379), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_FDAILOWERSWITCHROW,			_R(1400,  740, 1576,  780), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,		PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_ENGINETHRUSTCONTSWITCHES,	_R(1472,  826, 1582,  938), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,		PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_MPS_REG_CONTROLS_LEFT,		_R(1616,  738, 1652,  945), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN|PANEL_MOUSE_UP, PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelBackground(hBmp, PANEL_ATTACH_TOP | PANEL_ATTACH_BOTTOM | PANEL_ATTACH_LEFT | PANEL_MOVEOUT_RIGHT, g_Param.col[4]);
+
+		fdaiLeft.RegisterMe(AID_FDAI_LEFT, 1517, 445); // Was 135,625
+		fdaiLeft.SetLMmode();
+		hBmpFDAIRollIndicator = LoadBitmap(g_Param.hDLL, MAKEINTRESOURCE(IDB_FDAI_ROLLINDICATOR));
+
+		oapiRegisterPanelArea(AID_LEM_COAS2,						_R( 675,    0, 1215,  540), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_LBDOWN,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_MISSION_CLOCK,					_R(1455,  106, 1597,  130), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_EVENT_TIMER,						_R(1671,  106, 1752,  128), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_CONTACTLIGHT1,					_R(1704,  246, 1753,  295), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_LEFTXPOINTERSWITCH,				_R(1712,  335, 1747,  365), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_LEFTMONITORSWITCHES,				_R(1433,  532, 1467,  645), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_XPOINTERCDR,						_R(1449,  246, 1586,  379), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_FDAILOWERSWITCHROW,				_R(1520,  740, 1696,  780), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_ENGINETHRUSTCONTSWITCHES,			_R(1592,  826, 1702,  938), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_MPS_REG_CONTROLS_LEFT,			_R(1736,  738, 1772,  945), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN|PANEL_MOUSE_UP, PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_RANGE_TAPE,						_R(1826,  480, 1870,  643), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_RATE_TAPE,						_R(1877,  480, 1915,  643), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_FUEL_DIGIT,						_R(1839,   65, 1878,  139), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
 		// 3 pos Engine Arm Lever
-	    oapiRegisterPanelArea (AID_ENG_ARM,						_R(1427,  898, 1461,  937), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,		PANEL_MAP_BACKGROUND);
-		
+		oapiRegisterPanelArea(AID_ENG_ARM,							_R(1547,  898, 1581,  937), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+
 		SetCameraDefaultDirection(_V(0.0, 0.0, 1.0));
-		oapiCameraSetCockpitDir(0,0);
+		oapiCameraSetCockpitDir(0, 0);
 		break;
 
-	case LMPANEL_LPDWINDOW: // LDP Window
-		oapiRegisterPanelBackground (hBmp,PANEL_ATTACH_TOP|PANEL_ATTACH_BOTTOM|PANEL_ATTACH_LEFT|PANEL_MOVEOUT_RIGHT,  g_Param.col[4]);
+	case LMPANEL_LPDWINDOW: // LPD Window
+		oapiRegisterPanelBackground(hBmp, PANEL_ATTACH_TOP | PANEL_ATTACH_BOTTOM | PANEL_ATTACH_LEFT | PANEL_MOVEOUT_RIGHT, g_Param.col[4]);
 
-		oapiRegisterPanelArea (AID_XPOINTER,		_R(822,  35,  959, 168), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,              PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_CONTACTLIGHT1,	_R(955, 713, 1004, 762), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,	PANEL_MAP_BACKGROUND);
+		fdaiLeft.RegisterMe(AID_FDAI_LEFT, 1320, 243); // Was 135,625
+		fdaiLeft.SetLMmode();
+		hBmpFDAIRollIndicator = LoadBitmap(g_Param.hDLL, MAKEINTRESOURCE(IDB_FDAI_ROLLINDICATOR));
+
+		oapiRegisterPanelArea(AID_XPOINTER,							_R(1252,   44, 1389,  177), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_CONTACTLIGHT1,					_R(1507,   44, 1556,   93), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_DSKY_DISPLAY,						_R(1410,  888, 1515, 1065), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_DSKY_LIGHTS,						_R(1266,  893, 1368, 1062), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_RANGE_TAPE,						_R(1629,  278, 1673,  441), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_RATE_TAPE,						_R(1680,  278, 1718,  441), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_FUEL_DIGIT,						_R(1574,  874, 1613,  948), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+
+		SetCameraDefaultDirection(_V(0.0, -sin(VIEWANGLE * RAD), cos(VIEWANGLE * RAD)));
+		oapiCameraSetCockpitDir(0, 0);
 		
-		SetCameraDefaultDirection(_V(0.0, -sin(VIEWANGLE * RAD), cos(VIEWANGLE * RAD)));			
-		oapiCameraSetCockpitDir(0,0);
 		break;
 
 	case LMPANEL_RNDZWINDOW: // LEM Rendezvous Window
-		oapiRegisterPanelBackground (hBmp,PANEL_ATTACH_TOP|PANEL_ATTACH_BOTTOM|PANEL_ATTACH_LEFT|PANEL_MOVEOUT_RIGHT,  g_Param.col[4]);	
+		oapiRegisterPanelBackground(hBmp, PANEL_ATTACH_TOP | PANEL_ATTACH_BOTTOM | PANEL_ATTACH_LEFT | PANEL_MOVEOUT_RIGHT, g_Param.col[4]);
 
-		oapiRegisterPanelArea (AID_LEM_COAS1,				_R( 739, 0, 1570, 831), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_LBDOWN,					   PANEL_MAP_BACKGROUND);
-		
+		oapiRegisterPanelArea(AID_LEM_COAS1, _R(833, 0, 1664, 831), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_LBDOWN, PANEL_MAP_BACKGROUND);
+
 		SetCameraDefaultDirection(_V(0.0, 1.0, 0.0));
-		oapiCameraSetCockpitDir(0,0);
+		oapiCameraSetCockpitDir(0, 0);
 		break;
 
 	case LMPANEL_LEFTPANEL: // LEM Left Panel
@@ -1557,15 +1590,15 @@ bool LEM::clbkLoadPanel (int id) {
 		break;
 
 	case LMPANEL_AOTVIEW: // LEM Alignment Optical Telescope View
-		oapiRegisterPanelBackground (hBmp,PANEL_ATTACH_TOP|PANEL_ATTACH_BOTTOM|PANEL_ATTACH_LEFT|PANEL_MOVEOUT_RIGHT,  g_Param.col[4]);	
+		oapiRegisterPanelBackground(hBmp, PANEL_ATTACH_TOP | PANEL_ATTACH_BOTTOM | PANEL_ATTACH_LEFT | PANEL_MOVEOUT_RIGHT, g_Param.col[4]);
 
-		oapiRegisterPanelArea (AID_AOT_RETICLE,                      _R( 572, 257, 1107,  792),  PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,						PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_AOT_RETICLE_KNOB,                 _R(1334, 694, 1409, 1021),  PANEL_REDRAW_ALWAYS, PANEL_MOUSE_PRESSED|PANEL_MOUSE_UP,      PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_AOT_SHAFT_KNOB,                   _R(1340,   0, 1403,  156),  PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,						PANEL_MAP_BACKGROUND);
-		oapiRegisterPanelArea (AID_RR_GYRO_SEL_SWITCH,               _R( 207,  66,  242,   96),  PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,						PANEL_MAP_BACKGROUND);
-		
+		oapiRegisterPanelArea(AID_AOT_RETICLE,						_R( 665,  257, 1199,  792), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_IGNORE,			  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_AOT_RETICLE_KNOB,					_R(1427,  694, 1502, 1021), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_PRESSED|PANEL_MOUSE_UP, PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_AOT_SHAFT_KNOB,					_R(1433,    0, 1496,  156), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+		oapiRegisterPanelArea(AID_RR_GYRO_SEL_SWITCH,				_R( 300,   66,  335,   96), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,				  PANEL_MAP_BACKGROUND);
+
 		SetCameraDefaultDirection(_V(1.0, 0.0, 0.0));
-		oapiCameraSetCockpitDir(0,0);
+		oapiCameraSetCockpitDir(0, 0);
 		break;
 	}
 
@@ -1644,7 +1677,7 @@ void LEM::SetSwitches(int panel) {
 
 			GuidContSwitchRow.Init(AID_GUIDCONTSWITCHROW, MainPanel);
 			GuidContSwitch.Init (0,   0, 34, 39, srf[SRF_LMTWOPOSLEVER], srf[SRF_BORDER_34x39], GuidContSwitchRow);
-			ModeSelSwitch.Init  (0,  83, 34, 29, srf[SRF_LMTHREEPOSSWITCH], srf[SRF_BORDER_34x29], GuidContSwitchRow);
+			ModeSelSwitch.Init  (0,  83, 34, 29, srf[SRF_LMTHREEPOSSWITCH], srf[SRF_BORDER_34x29], GuidContSwitchRow, &agc);
 			AltRngMonSwitch.Init(0, 167, 34, 29, srf[SRF_SWITCHUP], srf[SRF_BORDER_34x29], GuidContSwitchRow);
 
 			LeftMonitorSwitchRow.Init(AID_LEFTMONITORSWITCHES, MainPanel);
@@ -3356,15 +3389,15 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 		return true;
 
 	case AID_XPOINTER:
-		RedrawPanel_XPointer(surf);
+		RedrawPanel_XPointer(&crossPointerLeft, surf);
 		return true;
 
 	case AID_XPOINTERCDR:
-		RedrawPanel_XPointer(surf);
+		RedrawPanel_XPointer( &crossPointerLeft, surf);
 		return true;
 
 	case AID_XPOINTERLMP:
-		RedrawPanel_XPointer(surf);
+		RedrawPanel_XPointer(&crossPointerRight, surf);
 		return true;
 
 	case AID_CONTACTLIGHT1:
@@ -3404,14 +3437,17 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 		return true;
 
 	case AID_FDAI_LEFT:
-		if (!fdaiDisabled){			
+		if (!fdaiDisabled) {
 			VECTOR3 euler_rates;
 			VECTOR3 attitude;
 			VECTOR3 errors;
 			int no_att = 0;
 
+			GetAngularVel(euler_rates);
+
 			if (AttitudeMonSwitch.IsUp())	//PGNS
 			{
+<<<<<<< HEAD
 				GetAngularVel(euler_rates); //Rate testing cheat
 				attitude = gasta.GetTotalAttitude();
 				errors = _V(atca.lgc_err_x, atca.lgc_err_y, atca.lgc_err_z);
@@ -3419,62 +3455,35 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 			else							//AGS
 			{
 				GetAngularVel(euler_rates); //Rate testing cheat
+=======
+				attitude = gasta.GetTotalAttitude();
+			}
+			else							//AGS
+			{
+>>>>>>> origin/master
 				attitude = _V(0, 0, 0);
-				errors = _V(0, 0, 0);
 			}
 
-
-			/*
-			// *** DANGER WILL ROBINSON: FDAISourceSwitch and FDAISelectSwitch ARE REVERSED! ***
-			switch(FDAISourceSwitch.GetState()){
-				case THREEPOSSWITCH_UP:     // 1+2 - FDAI1 shows IMU ATT / CMC ERR
-					euler_rates = gdc.rates; 
-					euler_rates = _V(0,0,0);
-					attitude = imu.GetTotalAttitude();
-					errors = _V(0,0,0);
-					errors = eda.ReturnCMCErrorNeedles();
-					break;
-				case THREEPOSSWITCH_DOWN:   // 1 -- ALTERNATE DIRECT MODE
-					euler_rates = gdc.rates;					
-					switch(FDAISelectSwitch.GetState()){
-						case THREEPOSSWITCH_UP:   // IMU
-							attitude = imu.GetTotalAttitude();
-							errors = eda.ReturnCMCErrorNeedles();
-							break;
-						case THREEPOSSWITCH_CENTER: // ATT SET (ALTERNATE ATT-SET MODE)
-							// Get attutude
-							if(FDAIAttSetSwitch.GetState() == TOGGLESWITCH_UP){
-								attitude = imu.GetTotalAttitude();
-							}else{
-								attitude = gdc.attitude;
-							}
-							errors = eda.AdjustErrorsForRoll(attitude,eda.ReturnASCPError(attitude));
-							break;
-						case THREEPOSSWITCH_DOWN: // GDC
-							attitude = gdc.attitude;
-							errors = eda.ReturnBMAG1Error();
-							break;
-					}
-					break;				
-				case THREEPOSSWITCH_CENTER: // 2
-					attitude = _V(0,0,0);   // No
-					errors = _V(0,0,0);
-					euler_rates = gdc.rates;
-					// euler_rates = _V(0,0,0); // Does not disconnect rate inputs?
-					no_att = 1;
-					break;
+			if (RateErrorMonSwitch.GetState() == 1)
+			{
+				if (RR.IsPowered()) {
+					errors.z = RR.GetRadarTrunnionPos() * 41 / (180 * RAD);
+					errors.y = RR.GetRadarShaftPos() * 41 / (180 * RAD);
+				}
+				else
+				{
+					errors = _V(0, 0, 0);
+				}
 			}
-			// ERRORS IN PIXELS -- ENFORCE LIMITS HERE
-			if(errors.x > 41){ errors.x = 41; }else{ if(errors.x < -41){ errors.x = -41; }}
-			if(errors.y > 41){ errors.y = 41; }else{ if(errors.y < -41){ errors.y = -41; }}
-			if(errors.z > 41){ errors.z = 41; }else{ if(errors.z < -41){ errors.z = -41; }}
-			fdaiLeft.PaintMe(attitude, no_att, euler_rates, errors, FDAIScaleSwitch.GetState(), surf, srf[SRF_FDAI], srf[SRF_FDAIROLL], srf[SRF_FDAIOFFFLAG], srf[SRF_FDAINEEDLES], hBmpFDAIRollIndicator, fdaiSmooth);			
-			*/
-			if((RateErrorMonSwitch.GetState() == 1 ) && (RR.IsPowered()) ) {
-				errors.z = RR.GetRadarTrunnionPos() * 41 / (180 * RAD) ;
-				errors.y = RR.GetRadarShaftPos() * 41 / (180 * RAD) ;
+			else
+			{
+				errors = _V(atca.lgc_err_x, atca.lgc_err_y, atca.lgc_err_z);
 			}
+<<<<<<< HEAD
 			fdaiLeft.PaintMe(attitude, no_att, euler_rates, errors, RateScaleSwitch.GetState(), surf, srf[SRF_FDAI], srf[SRF_FDAIROLL], srf[SRF_FDAIOFFFLAG], srf[SRF_FDAINEEDLES], hBmpFDAIRollIndicator, fdaiSmooth);			
+=======
+			fdaiLeft.PaintMe(attitude, no_att, euler_rates, errors, RateScaleSwitch.GetState(), surf, srf[SRF_FDAI], srf[SRF_FDAIROLL], srf[SRF_FDAIOFFFLAG], srf[SRF_FDAINEEDLES], hBmpFDAIRollIndicator, fdaiSmooth);
+>>>>>>> origin/master
 		}
 		return true;
 
@@ -3484,19 +3493,34 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 			VECTOR3 attitude;
 			VECTOR3 errors;
 			int no_att = 0;
+
+			GetAngularVel(euler_rates);
+
 			if (RightAttitudeMonSwitch.IsUp())	//PGNS
 			{
-				euler_rates = _V(0, 0, 0);
 				attitude = gasta.GetTotalAttitude();
-				errors = _V(0, 0, 0);
 			}
 			else							//AGS
 			{
-				euler_rates = _V(0, 0, 0);
 				attitude = _V(0, 0, 0);
-				errors = _V(0, 0, 0);
 			}
-			fdaiRight.PaintMe(attitude, no_att, euler_rates, errors, 0, surf, srf[SRF_FDAI], srf[SRF_FDAIROLL], srf[SRF_FDAIOFFFLAG], srf[SRF_FDAINEEDLES], hBmpFDAIRollIndicator, fdaiSmooth);			
+
+			if (RightRateErrorMonSwitch.GetState() == 1)
+			{
+				if (RR.IsPowered()) {
+					errors.z = RR.GetRadarTrunnionPos() * 41 / (180 * RAD);
+					errors.y = RR.GetRadarShaftPos() * 41 / (180 * RAD);
+				}
+				else
+				{
+					errors = _V(0, 0, 0);
+				}
+			}
+			else
+			{
+				errors = _V(atca.lgc_err_x, atca.lgc_err_y, atca.lgc_err_z);
+			}
+			fdaiRight.PaintMe(attitude, no_att, euler_rates, errors, RateScaleSwitch.GetState(), surf, srf[SRF_FDAI], srf[SRF_FDAIROLL], srf[SRF_FDAIOFFFLAG], srf[SRF_FDAINEEDLES], hBmpFDAIRollIndicator, fdaiSmooth);
 		}
 		return true;
 

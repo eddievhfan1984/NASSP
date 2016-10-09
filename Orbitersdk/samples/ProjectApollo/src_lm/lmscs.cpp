@@ -42,9 +42,14 @@
 #include "papi.h"
 #include "LEM.h"
 
+#define DECA_AUTOTHRUST_STEP 0.00026828571
+
 // ATTITUDE & TRANSLATION CONTROL ASSEMBLY
 ATCA::ATCA(){
 	lem = NULL;
+	DirectPitchActive = false;
+	DirectYawActive = false;
+	DirectRollActive = false;
 }
 
 void ATCA::Init(LEM *vessel){
@@ -127,7 +132,7 @@ void ATCA::Timestep(double simt){
 		}
 		if(jet_stop[x] > 0 && (simt > jet_stop[x]+0.0075 && simt < jet_stop[x]+0.0175)){
 		    // Ramp down
-			power = 1-((simt-jet_stop[x])/0.0175);
+			power = 1.0 - ((simt - jet_stop[x] - 0.0075) / 0.01);
 		}
 		if(jet_stop[x] > 0 && simt > jet_stop[x]+0.0175){
 			// Thruster off
@@ -325,11 +330,13 @@ void DECA::Timestep(double simt) {
 	//Process Throttle Commands
 	if (lem->THRContSwitch.IsUp())
 	{
-		//TBD: Get LGC thrust command
-		//sprintf(oapiDebugString(), "Thrust pulses: %o", lem->agc.GetErasable(0, 055));
-		lgcAutoThrust = 0.0;
+		//Auto Thrust commands are generated in ProcessLGCThrustCommands()
 
 		dpsthrustcommand = lgcAutoThrust + lem->ttca_thrustcmd;
+		if (dpsthrustcommand > 0.925)
+		{
+			dpsthrustcommand = 0.925;
+		}
 	}
 	else
 	{
@@ -338,6 +345,38 @@ void DECA::Timestep(double simt) {
 	}
 
 	lem->DPS.thrustcommand = dpsthrustcommand;
+
+	//sprintf(oapiDebugString(), "engOn: %d engOff: %d Thrust: %f", engOn, engOff, dpsthrustcommand);
+}
+
+void DECA::ProcessLGCThrustCommands(int val) {
+
+	int pulses;
+	double thrust_cmd;
+
+	if (powered == 0) { return; }
+
+	if (val & 040000) { // Negative
+		pulses = -((~val) & 077777);
+	}
+	else {
+		pulses = val & 077777;
+	}
+
+	thrust_cmd = (DECA_AUTOTHRUST_STEP*pulses);
+
+	lgcAutoThrust += thrust_cmd;
+
+	if (lgcAutoThrust > 0.825)
+	{
+		lgcAutoThrust = 0.825;
+	}
+	else if (lgcAutoThrust < 0)
+	{
+		lgcAutoThrust = 0.0;
+	}
+
+	//sprintf(oapiDebugString(), "Thrust val: %o, Thrust pulses: %d, thrustchange: %f, lgcAutoThrust: %f", val, pulses, thrust_cmd, lgcAutoThrust);
 }
 
 void DECA::SystemTimestep(double simdt) {
@@ -383,6 +422,7 @@ void DECA::LoadState(FILEHANDLE scn) {
 
 GASTA::GASTA()
 {
+	imu_att = _V(0, 0, 0);
 	gasta_att = _V(0, 0, 0);
 }
 
@@ -415,8 +455,35 @@ void GASTA::Timestep(double simt)
 		return;
 	}
 
-	//This is all I do
-	gasta_att = imu->GetTotalAttitude();
+	//This is all I do. P.S. Now I do more!
+	imu_att = imu->GetTotalAttitude();
+
+	gasta_att.z = asin(-cos(imu_att.z)*sin(imu_att.x));
+	if (abs(sin(gasta_att.z)) != 1.0)
+	{
+		gasta_att.y = atan2(((sin(imu_att.y)*cos(imu_att.x) + cos(imu_att.y)*sin(imu_att.z)*sin(imu_att.x)) / cos(gasta_att.z)), (cos(imu_att.y)*cos(imu_att.x) - sin(imu_att.y)*sin(imu_att.z)*sin(imu_att.x)) / cos(gasta_att.z));
+	}
+
+	if (abs(sin(gasta_att.z)) != 1.0)
+	{
+		gasta_att.x = atan2(sin(imu_att.z), cos(imu_att.z)*cos(imu_att.x));
+	}
+
+	//Map angles between 0° and 360°, just to be sure
+	if (gasta_att.x < 0)
+	{
+		gasta_att.x += PI2;
+	}
+	if (gasta_att.y < 0)
+	{
+		gasta_att.y += PI2;
+	}
+	if (gasta_att.z < 0)
+	{
+		gasta_att.z += PI2;
+	}
+
+	//sprintf(oapiDebugString(), "OGA: %f, IGA: %f, MGA: %f, Roll: %f, Pitch: %f, Yaw: %f", imu_att.x*DEG, imu_att.y*DEG, imu_att.z*DEG, gasta_att.x*DEG, gasta_att.y*DEG, gasta_att.z*DEG);
 }
 
 void GASTA::SystemTimestep(double simdt)

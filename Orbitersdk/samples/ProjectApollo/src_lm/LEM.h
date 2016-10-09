@@ -213,7 +213,7 @@ public:
 class LEM_LR : public e_object{
 public:
 	LEM_LR();
-	void Init(LEM *s,e_object *dc_src);
+	void Init(LEM *s,e_object *dc_src, h_Radiator *ant, Boiler *anheat);
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
 	void TimeStep(double simdt);
@@ -227,8 +227,8 @@ public:
 	bool IsPowered(); 
 
 	LEM *lem;					// Pointer at LEM
-	h_Radiator antenna;			// Antenna (loses heat into space)
-	Boiler antheater;			// Antenna Heater (puts heat back into antenna)
+	h_Radiator *antenna;		// Antenna (loses heat into space)
+	Boiler *antheater;			// Antenna Heater (puts heat back into antenna)
     e_object *dc_source;		// Source of DC power
 	double range;				// Range in feet
 	double rate[3];				// Velocity X/Y/Z in feet/second
@@ -242,7 +242,7 @@ public:
 class LEM_RR : public e_object {
 public:
 	LEM_RR();
-	void Init(LEM *s,e_object *dc_src, e_object *ac_src);
+	void Init(LEM *s,e_object *dc_src, e_object *ac_src, h_Radiator *ant, Boiler *anheat);
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
 	void TimeStep(double simdt);
@@ -267,8 +267,8 @@ private:
 	VECTOR3 GetPYR2(VECTOR3 Pitch, VECTOR3 YawRoll);
 
 	LEM *lem;					// Pointer at LEM
-	h_Radiator antenna;			// Antenna (loses heat into space)
-	Boiler antheater;			// Antenna Heater (puts heat back into antenna)
+	h_Radiator *antenna;			// Antenna (loses heat into space)
+	Boiler *antheater;			// Antenna Heater (puts heat back into antenna)
     e_object *dc_source;
 	e_object *ac_source;
 	double tstime;
@@ -295,23 +295,50 @@ private:
 class LEM_RadarTape : public e_object {
 public:
 	LEM_RadarTape();
-	void Init(LEM *s);
+	void Init(LEM *s, e_object * dc_src, e_object *ac_src);
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
 	void TimeStep(double simdt);
 	void SystemTimeStep(double simdt);
-	void setRange(int range) { reqRange = range; };
-	void setRate(int rate) { reqRate = rate ; }; 
+	void setRange(double range) { reqRange = range; };
+	void setRate(double rate) { reqRate = rate ; }; 
 	void RenderRange(SURFHANDLE surf, SURFHANDLE tape);
 	void RenderRate(SURFHANDLE surf, SURFHANDLE tape);
+	void SetLGCAltitude(int val);
+	void SetLGCAltitudeRate(int val);
 
-
+	bool IsPowered();
 private:
 	LEM *lem;					// Pointer at LEM
-	int  reqRange;
-	int	 reqRate;
+	e_object *dc_source;
+	e_object *ac_source;
+	double reqRange;
+	double reqRate;
 	int  dispRange;
 	int  dispRate;
+	double lgc_alt, lgc_altrate;
+};
+
+class CrossPointer
+{
+public:
+	CrossPointer();
+	void Init(LEM *s, e_object *dc_src, ToggleSwitch *scaleSw, ToggleSwitch *rateErrMon);
+	void TimeStep(double simdt);
+	void SystemTimeStep(double simdt);
+	void GetVelocities(double &vx, double &vy);
+	void SetForwardVelocity(int val, ChannelValue ch12);
+	void SetLateralVelocity(int val, ChannelValue ch12);
+
+	bool IsPowered();
+protected:
+	LEM *lem;
+	e_object *dc_source;
+	ToggleSwitch *scaleSwitch;
+	ToggleSwitch *rateErrMonSw;
+
+	double vel_x, vel_y;
+	double lgc_forward, lgc_lateral;
 };
 
 
@@ -585,6 +612,9 @@ public:
 	void SetRCSJetLevelPrimary(int jet, double level);
 	void CheckRCS();
 
+	// DS20160916 Physical parameters updation
+	double CurrentFuelWeight, LastFuelWeight; // Fuel weights right now and at the last update
+
 	//
 	// These functions must be virtual so they can be called from the Saturn V or the LEVA
 	//
@@ -595,15 +625,28 @@ public:
 
 	char *getOtherVesselName() { return agc.OtherVesselName;};
 
+	///
+	/// Since we can now run with either the Virtual AGC emulator or the C++ AGC, this function
+	/// allows you to check which we're using.
+	/// \brief Are we running a Virtual AGC?
+	/// \return True for Virtual AGC, false for C++ AGC.
+	///
+	bool IsVirtualAGC() { return agc.IsVirtualAGC(); };
+
+	///
+	/// \brief Triggers Virtual AGC core dump
+	///
+	virtual void VirtualAGCCoreDump() { agc.VirtualAGCCoreDump("ProjectApollo LGC.core"); }
+
 	PROPELLANT_HANDLE ph_RCSA,ph_RCSB;   // RCS Fuel A and B, replaces ph_rcslm0
 	PROPELLANT_HANDLE ph_Dsc, ph_Asc; // handles for propellant resources
 	THRUSTER_HANDLE th_hover[2];               // handles for orbiter main engines,added 2 for "virtual engine"
 	// There are 16 RCS. 4 clusters, 4 per cluster.
 	THRUSTER_HANDLE th_rcs[16];
 	// These RCSes are for Orbiter's use and should be deleted once the internal guidance is working.
-	THRUSTER_HANDLE th_rcs_orbiter_rot[24];
-	THRUSTER_HANDLE th_rcs_orbiter_lin[16];
-	//THGROUP_HANDLE thg_hover;		          // handles for thruster groups
+	//THRUSTER_HANDLE th_rcs_orbiter_rot[24];
+	//THRUSTER_HANDLE th_rcs_orbiter_lin[16];
+	THGROUP_HANDLE thg_hover;		          // handles for thruster groups
 	SURFHANDLE exhaustTex;
 
 	double DebugLineClearTimer;			// Timer for clearing debug line
@@ -662,7 +705,7 @@ protected:
     PanelSDK Panelsdk;
 
 	void RedrawPanel_Thrust (SURFHANDLE surf);
-	void RedrawPanel_XPointer (SURFHANDLE surf);
+	void RedrawPanel_XPointer (CrossPointer *cp, SURFHANDLE surf);
 	void RedrawPanel_MFDButton(SURFHANDLE surf, int mfd, int side, int xoffset, int yoffset);
 	void MousePanel_MFDButton(int mfd, int event, int mx, int my);
 	void ReleaseSurfaces ();
@@ -687,6 +730,7 @@ protected:
 	void InitSwitches();
 	void DoFirstTimestep();
 	void LoadDefaultSounds();
+	void RCSSoundTimestep();
 	// void GetDockStatus();
 
 	bool CabinFansActive();
@@ -694,6 +738,7 @@ protected:
 
 	void SystemsTimestep(double simt, double simdt);
 	void SystemsInit();
+	void JoystickTimestep(double simdt);
 	bool ProcessConfigFileLine (FILEHANDLE scn, char *line);
 	//
 	// Save/Load support functions.
@@ -747,6 +792,8 @@ protected:
 	int fdaiDisabled;
 	int fdaiSmooth;
 
+	CrossPointer crossPointerLeft;
+
 	HBITMAP hBmpFDAIRollIndicator;
 
 	SwitchRow LeftXPointerSwitchRow;
@@ -762,7 +809,7 @@ protected:
 
 	SwitchRow GuidContSwitchRow;
 	ToggleSwitch GuidContSwitch;
-	ThreePosSwitch ModeSelSwitch;
+	ModeSelectSwitch ModeSelSwitch;
 	ToggleSwitch AltRngMonSwitch;
 
 	SwitchRow LeftMonitorSwitchRow;
@@ -804,6 +851,8 @@ protected:
 	/////////////////
 
 	FDAI fdaiRight;
+
+	CrossPointer crossPointerRight;
 
 	SwitchRow RCSIndicatorRow;
 	LMRCSATempInd LMRCSATempInd;
@@ -1576,13 +1625,14 @@ protected:
 	int Realism;
 	int ApolloNo;
 	int Landed;
+	bool OrbiterAttitudeDisabled;
 
 	int SwitchFocusToLeva;
 
 	DSKY dsky;
 	LEMcomputer agc;
-	Boiler imuheater; // IMU Standby Heater
-	h_Radiator imucase; // IMU Case
+	Boiler *imuheater; // IMU Standby Heater
+	h_Radiator *imucase; // IMU Case
 	IMU imu;	
 	LMOptics optics;
 
@@ -1633,6 +1683,8 @@ protected:
 	Sound Vox;
 	Sound Afire;
 	Sound Slanding;
+	Sound RCSFireSound;
+	Sound RCSSustainSound;
 
 	//
 	// Connectors.
@@ -1793,6 +1845,9 @@ protected:
 	friend class DECA;
 	friend class CommandedThrustInd;
 	friend class EngineThrustInd;
+	friend class CrossPointer;
+
+	friend class ApolloRTCCMFD;
 };
 
 extern void LEMLoadMeshes();

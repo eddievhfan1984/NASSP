@@ -230,6 +230,9 @@
 #define MST_C_COAST54		65
 #define MST_C_COAST55		66
 #define MST_C_COAST56		67
+#define MST_C_COAST57		68
+#define MST_C_COAST58		69
+#define MST_C_COAST59		70
 #define MST_C_ABORT			75
 // Entered on abort from orbit, works like COAST13, goes to MST_ORBIT_ENTRY
 
@@ -559,6 +562,33 @@ struct AP11MNV {
 
 	double LMWeight;	// LM weight
 };
+
+// APOLLO 11 LM - MANEUVER
+struct AP11LMMNV {
+	char purpose[64];	// PURPOSE
+	double GETI;		// TIG
+	VECTOR3 dV;			// P30 dV
+	double HA, HP;		// Predicted apogee/perigee after maneuver
+	double dVR;			// Total dV
+	double burntime;	// Burn time
+	VECTOR3 Att;		// Attitude at TIG (only Roll and Pitch)
+	VECTOR3 dV_AGS;		// AGS DV
+	int BSSStar;		// Boresight star
+	double SPA, SXP;	// Boresight star angles
+
+	char remarks[128];	// remarks
+	double LMWeight;	// Vehicle weight
+	double CSMWeight;	// CSM weight
+};
+
+// APOLLO 11 PDI PAD
+struct AP11PDIPAD {
+	double GETI;		// TIG PDI
+	double t_go;		// Time-to-go in P63
+	double CR;			// Crossrange
+	VECTOR3 Att;		// Attitude at TIG
+};
+
 
 // Mission Control Center class
 class MCC {	

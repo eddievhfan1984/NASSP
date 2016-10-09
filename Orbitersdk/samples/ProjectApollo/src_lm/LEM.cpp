@@ -209,8 +209,8 @@ LEM::LEM(OBJHANDLE hObj, int fmodel) : Payload (hObj, fmodel),
 	RadarSignalStrengthMeter(0.0, 5.0, 220.0, -50.0),
 	checkControl(soundlib),
 	MFDToPanelConnector(MainPanel, checkControl),
-	imucase("LM-IMU-Case",_vector3(0.013, 3.0, 0.03),0.03,0.04),
-	imuheater("LM-IMU-Heater",1,NULL,150,53,0,326,328,&imucase),
+	//imucase("LM-IMU-Case",_vector3(0.013, 3.0, 0.03),0.03,0.04),
+	//imuheater("LM-IMU-Heater",1,NULL,150,53,0,326,328,&imucase),
 	imu(agc, Panelsdk),
 	deda(this,soundlib, aea, 015),
 	DPS(th_hover)
@@ -308,8 +308,13 @@ void LEM::Init()
 	AscentFuelMassKg = 2345.0;
 
 	Realism = REALISM_DEFAULT;
+	OrbiterAttitudeDisabled = false;
 	ApolloNo = 0;
 	Landed = false;
+
+	// DS20160916 Physical parameters updation
+	CurrentFuelWeight = 0;
+	LastFuelWeight = 999999; // Ensure update at first opportunity
 
 	LEMToCSMConnector.SetType(CSM_LEM_DOCKING);
 	CSMToLEMPowerConnector.SetType(LEM_CSM_POWER);
@@ -434,6 +439,8 @@ void LEM::LoadDefaultSounds()
 	soundlib.LoadSound(CabinFans, "cabin.wav", INTERNAL_ONLY);
 	soundlib.LoadSound(Vox, "vox.wav");
 	soundlib.LoadSound(Afire, "des_abort.wav");
+	soundlib.LoadSound(RCSFireSound, RCSFIRE_SOUND, INTERNAL_ONLY);
+	soundlib.LoadSound(RCSSustainSound, RCSSUSTAIN_SOUND, INTERNAL_ONLY);
 
 // MODIF X15 manage landing sound
 #ifdef DIRECTSOUNDENABLED
@@ -649,6 +656,14 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 			case OAPI_KEY_E:
 				agc.SetInputChannelBit(016, MarkReject_LM, 1);  // Mark Reject
 				break;
+			case OAPI_KEY_MINUS:
+				//increase descent rate
+				agc.SetInputChannelBit(016, DescendMinus, 1);
+				break;
+			case OAPI_KEY_EQUALS:
+				//decrease descent rate
+				agc.SetInputChannelBit(016, DescendPlus, 1);
+				break;
 
 			case OAPI_KEY_NUMPAD0:
 				//TTCA Throttle up
@@ -675,6 +690,14 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 			case OAPI_KEY_E:
 				agc.SetInputChannelBit(016, MarkReject_LM, 0);  // Mark Reject
 				break;
+			case OAPI_KEY_MINUS:
+				//increase descent rate
+				agc.SetInputChannelBit(016, DescendMinus, 0);
+				break;
+			case OAPI_KEY_EQUALS:
+				//decrease descent rate
+				agc.SetInputChannelBit(016, DescendPlus, 0);
+				break;
 
 			case OAPI_KEY_NUMPAD0:
 				ttca_throttle_vel = 0;
@@ -689,6 +712,7 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 	if (KEYMOD_SHIFT(keystate) || KEYMOD_CONTROL(keystate) || !down) {
 		return 0; 
 	}
+
 	switch (key) {
 
 	case OAPI_KEY_K:
@@ -721,25 +745,25 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 
 	case OAPI_KEY_COMMA:
 		// move landing site left
-		agc.RedesignateTarget(1,1.0);
+		//agc.RedesignateTarget(1,1.0);
 		ButtonClick();
 		return 1;
 
 	case OAPI_KEY_PERIOD:
 		// move landing site right
-		agc.RedesignateTarget(1,-1.0);
+		//agc.RedesignateTarget(1,-1.0);
 		ButtonClick();
 		return 1;
 
 	case OAPI_KEY_HOME:
 		//move the landing site downrange
-		agc.RedesignateTarget(0,-1.0);
+		//agc.RedesignateTarget(0,-1.0);
 		ButtonClick();
 		return 1;
 
 	case OAPI_KEY_END:
 		//move the landing site closer
-		agc.RedesignateTarget(0,1.0);
+		//agc.RedesignateTarget(0,1.0);
 		ButtonClick();
 		return 1;
 
@@ -749,12 +773,12 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 
 	case OAPI_KEY_MINUS:
 		//increase descent rate
-		agc.ChangeDescentRate(-0.3077);
+		//agc.ChangeDescentRate(-0.3077);
 		return 1;
 
 	case OAPI_KEY_EQUALS:
 		//decrease descent rate
-		agc.ChangeDescentRate(0.3077);
+		//agc.ChangeDescentRate(0.3077);
 		return 1;	
 
 	//
@@ -829,6 +853,22 @@ void LEM::clbkPostStep(double simt, double simdt, double mjd)
 	MissionTime = MissionTime + deltat;
 	SystemsTimestep(MissionTime, deltat);
 
+	// DS20160916 Physical parameters updation
+	CurrentFuelWeight = 0;
+	if (ph_Asc != NULL) { CurrentFuelWeight += GetPropellantMass(ph_Asc); }
+	if (ph_Dsc != NULL) { CurrentFuelWeight += GetPropellantMass(ph_Dsc); }
+	if (ph_RCSA != NULL) { CurrentFuelWeight += GetPropellantMass(ph_RCSA); }
+	if (ph_RCSB != NULL) { CurrentFuelWeight += GetPropellantMass(ph_RCSB); }
+	// If the weight has changed by more than this value, update things.
+	// The value is to be adjusted such that the updates are not too frequent (impacting framerate)
+	//   but are sufficiently fine to keep the LGC happy.
+	if ((LastFuelWeight - CurrentFuelWeight) > 5) {
+		// Update physical parameters
+		// Use SetPMI, ShiftCentreOfMass, etc.
+		// All done!
+		LastFuelWeight = CurrentFuelWeight;
+	}
+
 	actualVEL = (sqrt(RVEL.x *RVEL.x + RVEL.y * RVEL.y + RVEL.z * RVEL.z)/1000*3600);
 	actualALT = GetAltitude() ;
 	if (actualALT < 1470){
@@ -880,6 +920,12 @@ void LEM::clbkPostStep(double simt, double simdt, double mjd)
 		Sswitch1=false;
 		Undock(0);
 		}
+
+	//
+	// Play RCS sound in case of Orbiter's attitude control is disabled
+	//
+
+	RCSSoundTimestep();
 
 	if (stage == 0)	{
 		if (EngineArmSwitch.IsDown()) { //  && !DESHE1switch && !DESHE2switch && ED1switch && ED2switch && ED5switch){
@@ -1307,6 +1353,24 @@ void LEM::clbkLoadStateEx (FILEHANDLE scn, void *vs)
 
 	agc.SetMissionInfo(ApolloNo, Realism);
 
+
+	//
+	// Realism Mode Settings
+	//
+
+	// Enable Orbiter's attitude control for unmanned missions
+	// as long as they rely on Orbiter's navmodes (killrot etc.)
+
+	if (!Crewed) {
+		OrbiterAttitudeDisabled = false;
+	}
+
+	// Disable it when not in Quickstart mode
+
+	else if (Realism) {
+		OrbiterAttitudeDisabled = true;
+	}
+
 	//
 	// Load sounds, this is mandatory if loading in cockpit view, 
 	// because OrbiterSound crashes when loading sounds during clbkLoadPanel
@@ -1388,7 +1452,13 @@ void LEM::clbkSetClassCaps (FILEHANDLE cfg) {
 bool LEM::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 
 {
-	if (!strnicmp (line, "MULTITHREAD", 11)) {
+	if (!strnicmp(line, "FDAIDISABLED", 12)) {
+		sscanf(line + 12, "%i", &fdaiDisabled);
+	}
+	else if (!strnicmp(line, "FDAISMOOTH", 10)) {
+			sscanf(line + 10, "%i", &fdaiSmooth);
+	}
+	else if (!strnicmp (line, "MULTITHREAD", 11)) {
 		int value;
 		sscanf (line+11, "%d", &value);
 		isMultiThread=(value>0)?true:false;
@@ -1671,6 +1741,29 @@ void LEM::SetRCSJetLevelPrimary(int jet, double level) {
 	// This applies to the SM as well, someone should probably tell them about this.
 	// RCS pressurized?
 
+	//Direct override
+	if (atca.GetDirectRollActive())
+	{
+		if (jet == 0 || jet == 3 || jet == 4 || jet == 7 || jet == 8 || jet == 11 || jet == 12 || jet == 15)
+		{
+			return;
+		}
+	}
+	if (atca.GetDirectPitchActive())
+	{
+		if (jet == 0 || jet == 3 || jet == 4 || jet == 7 || jet == 8 || jet == 11 || jet == 12 || jet == 15)
+		{
+			return;
+		}
+	}
+	if (atca.GetDirectYawActive())
+	{
+		if (jet == 1 || jet == 2 || jet == 5 || jet == 6 || jet == 9 || jet == 10 || jet == 13 || jet == 14)
+		{
+			return;
+		}
+	}
+
 	// Is this thruster on?	
 	switch(jet){
 		// SYS A
@@ -1713,3 +1806,31 @@ void LEM::SetRCSJetLevelPrimary(int jet, double level) {
 	SetThrusterLevel(th_rcs[jet], level);
 }
 
+void LEM::RCSSoundTimestep() {
+
+	// In case of disabled Orbiter attitude thruster groups OrbiterSound plays no
+	// engine sound, so this needs to be done manually
+
+	int i;
+	bool on = false;
+	if (OrbiterAttitudeDisabled) {
+		// LM RCS
+		for (i = 0; i < 16; i++) {
+			if (th_rcs[i]) {
+				if (GetThrusterLevel(th_rcs[i])) on = true;
+			}
+		}
+		// Play/stop sounds
+		if (on) {
+			if (RCSFireSound.isPlaying()) {
+				RCSSustainSound.play(LOOP);
+			}
+			else if (!RCSSustainSound.isPlaying()) {
+				RCSFireSound.play();
+			}
+		}
+		else {
+			RCSSustainSound.stop();
+		}
+	}
+}

@@ -199,9 +199,13 @@
 #define IDB_AOT_SHAFT_KNOB              321
 #define IDB_BITMAP1                     323
 #define IDB_DEDA_LIGHTS                 323
+<<<<<<< HEAD
 #define IDB_LM_FDAI_ROLL                324
 #define IDB_BITMAP2                     325
 #define IDB_LM_FDAI_NEEDLES             325
+=======
+#define IDB_LEM_FDAI_NEEDLES            327
+>>>>>>> origin/master
 #define AID_FUELCELLRADIATORSINDICATORS 403
 #define AID_FUELCELLREACTANTSSWITCHES   410
 #define ADI_MAINBUSAINDICATORS          411
@@ -754,14 +758,19 @@
 #define IDB_RADAR_TAPE                  1026
 #define AID_RANGE_TAPE                  1027
 #define AID_RATE_TAPE                   1028
+#define IDB_LEM_FDAI_ROLL               10006
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
+<<<<<<< HEAD
 #define _APS_NEXT_RESOURCE_VALUE        326
+=======
+#define _APS_NEXT_RESOURCE_VALUE        329
+>>>>>>> origin/master
 #define _APS_NEXT_COMMAND_VALUE         40001
 #define _APS_NEXT_CONTROL_VALUE         1000
-#define _APS_NEXT_SYMED_VALUE           10006
+#define _APS_NEXT_SYMED_VALUE           10007
 #endif
 #endif
