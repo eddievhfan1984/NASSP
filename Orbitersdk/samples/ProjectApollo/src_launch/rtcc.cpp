@@ -210,6 +210,12 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		else
 		{
 			sprintf(form->purpose, "TLI+4");
+
+			//Save parameters for further use
+			SplashLatitude = res.latitude;
+			SplashLongitude = res.longitude;
+			calcParams.TEI = res.P30TIG;
+			calcParams.EI = res.GET400K;
 		}
 	}
 	break;
@@ -303,6 +309,12 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		form->RTGO = res.RTGO;
 		form->VI0 = res.VIO / 0.3048;
 		form->GET05G = res.GET05G;
+
+		//Save parameters for further use
+		SplashLatitude = res.latitude;
+		SplashLongitude = res.longitude;
+		calcParams.TEI = res.P30TIG;
+		calcParams.EI = res.GET400K;
 	}
 	break;
 	case 20: // MISSION CP MCC1
@@ -563,6 +575,12 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		form->RTGO = res.RTGO;
 		form->VI0 = res.VIO / 0.3048;
 		form->GET05G = res.GET05G;
+
+		//Save parameters for further use
+		SplashLatitude = res.latitude;
+		SplashLongitude = res.longitude;
+		calcParams.TEI = res.P30TIG;
+		calcParams.EI = res.GET400K;
 	}
 	break;
 	case 41:	// MISSION CP PC+2 MANEUVER
@@ -632,6 +650,12 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		form->RTGO = res.RTGO;
 		form->VI0 = res.VIO / 0.3048;
 		form->GET05G = res.GET05G;
+
+		//Save parameters for further use
+		SplashLatitude = res.latitude;
+		SplashLongitude = res.longitude;
+		calcParams.TEI = res.P30TIG;
+		calcParams.EI = res.GET400K;
 	}
 	break;
 	case 50:	// MISSION CP TEI-1 (Pre LOI)
@@ -682,6 +706,12 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		form->RTGO = res.RTGO;
 		form->VI0 = res.VIO / 0.3048;
 		form->GET05G = res.GET05G;
+
+		//Save parameters for further use
+		SplashLatitude = res.latitude;
+		SplashLongitude = res.longitude;
+		calcParams.TEI = res.P30TIG;
+		calcParams.EI = res.GET400K;
 	}
 	break;
 	case 102:	// MISSION CP LOI-2 MANEUVER
@@ -858,18 +888,21 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		}
 		else if (fcn == 200)
 		{
-			//Save parameters for further use
-			SplashLatitude = res.latitude;
-			SplashLongitude = res.longitude;
-			calcParams.TEI = res.P30TIG;
-			calcParams.EI = res.GET400K;
-
-			sprintf(uplinkdata, "%s%s%s", CMCStateVectorUpdate(sv, true, AGCEpoch), CMCStateVectorUpdate(sv, false, AGCEpoch), CMCExternalDeltaVUpdate(res.P30TIG, res.dV_LVLH));
+			sprintf(uplinkdata, "%s%s%s", CMCStateVectorUpdate(sv, true, AGCEpoch), CMCStateVectorUpdate(sv, false, AGCEpoch), CMCRetrofireExternalDeltaVUpdate(res.latitude, res.longitude, res.P30TIG, res.dV_LVLH));
 			if (upString != NULL) {
 				// give to mcc
 				strncpy(upString, uplinkdata, 1024 * 3);
 				sprintf(upDesc, "CSM and LM state vectors, target load");
 			}
+		}
+
+		if (fcn != 201)	//Don't save it for TEI-11
+		{
+			//Save parameters for further use
+			SplashLatitude = res.latitude;
+			SplashLongitude = res.longitude;
+			calcParams.TEI = res.P30TIG;
+			calcParams.EI = res.GET400K;
 		}
 	}
 	break;
@@ -897,6 +930,7 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 	case 204: //MISSION CP MCC6
 	case 205: //MISSION CP PRELIMINARY MCC7
 	case 206: //MISSION CP MCC7
+	case 300: //MISSION CP Generic MCC
 	{
 		EntryOpt entopt;
 		EntryResults res;
@@ -929,10 +963,15 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 			MCCtime = calcParams.TEI + 33.0*3600.0;
 			sprintf(manname, "MCC-6");
 		}
-		else
+		else if (fcn == 205 || fcn == 206)
 		{
 			MCCtime = calcParams.EI - 2.0*3600.0;
 			sprintf(manname, "MCC-7");
+		}
+		else
+		{
+			MCCtime = calcParams.TEI + 5.0*3600.0;
+			sprintf(manname, "MCC");
 		}
 
 		//Only corridor control after EI-24h
@@ -1024,9 +1063,6 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 			form->VI0 = res.VIO / 0.3048;
 			form->GET05G = res.GET05G;
 
-			SplashLatitude = res.latitude;
-			SplashLongitude = res.longitude;
-
 			if (fcn == 203)//MCC5
 			{
 				sprintf(uplinkdata, "%s%s%s", CMCStateVectorUpdate(sv, false, AGCEpoch), CMCRetrofireExternalDeltaVUpdate(res.latitude, res.longitude, res.P30TIG, res.dV_LVLH), CMCREFSMMATUpdate(REFSMMAT, AGCEpoch));
@@ -1063,12 +1099,23 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 					sprintf(upDesc, "CSM state vector, target load, Entry REFSMMAT");
 				}
 			}
+			else if (fcn == 300)//generic MCC
+			{
+				sprintf(uplinkdata, "%s%s%s", CMCStateVectorUpdate(sv, true, AGCEpoch), CMCRetrofireExternalDeltaVUpdate(res.latitude, res.longitude, res.P30TIG, res.dV_LVLH), CMCDesiredREFSMMATUpdate(REFSMMAT, AGCEpoch));
+				if (upString != NULL) {
+					// give to mcc
+					strncpy(upString, uplinkdata, 1024 * 3);
+					sprintf(upDesc, "CSM state vector, target load, Desired Entry REFSMMAT");
+				}
+			}
 		}
 
 		//Save for further use
 		calcParams.EI = res.GET400K;
 		DeltaV_LVLH = res.dV_LVLH;
 		TimeofIgnition = res.P30TIG;
+		SplashLatitude = res.latitude;
+		SplashLongitude = res.longitude;
 	}
 	break;
 	case 207: //MISSION CP PRELIMINARY ENTRY PAD
@@ -1126,11 +1173,11 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		LunarEntryPAD(&entopt, *form);
 		sprintf(form->Area[0], "MIDPAC");
 
-		sprintf(uplinkdata, "%s%s", CMCStateVectorUpdate(sv, true, AGCEpoch), CMCStateVectorUpdate(sv, false, AGCEpoch));
+		sprintf(uplinkdata, "%s%s%s", CMCStateVectorUpdate(sv, true, AGCEpoch), CMCStateVectorUpdate(sv, false, AGCEpoch), CMCEntryUpdate(SplashLatitude, SplashLongitude));
 		if (upString != NULL) {
 			// give to mcc
 			strncpy(upString, uplinkdata, 1024 * 3);
-			sprintf(upDesc, "CSM and LM state vectors");
+			sprintf(upDesc, "CSM and LM state vectors, entry target");
 		}
 	}
 	break;
@@ -1330,20 +1377,22 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 	{
 		LambertMan lambert;
 		AP7ManPADOpt opt;
-		double P30TIG;
+		double P30TIG, GETBase;
 		VECTOR3 dV_LVLH;
 		SV sv_A, sv_P;
+
+		GETBase = getGETBase();
 
 		sv_A = StateVectorCalc(calcParams.src); //State vector for uplink
 		sv_P = StateVectorCalc(calcParams.tgt); //State vector for uplink
 
 		AP7MNV * form = (AP7MNV *)pad;
 
-		lambert = set_lambertoptions(calcParams.src, calcParams.tgt, getGETBase(), OrbMech::HHMMSSToSS(26, 25, 0), OrbMech::HHMMSSToSS(28, 0, 0), 1, RTCC_LAMBERT_MULTIAXIS, RTCC_LAMBERT_PERTURBED, _V(0, 0, 8 * 1852), -1.32*RAD, RTCC_NONIMPULSIVE);
+		lambert = set_lambertoptions(calcParams.src, calcParams.tgt, GETBase, OrbMech::HHMMSSToSS(26, 25, 0), OrbMech::HHMMSSToSS(28, 0, 0), 1, RTCC_LAMBERT_MULTIAXIS, RTCC_LAMBERT_PERTURBED, _V(0, 0, 8 * 1852), -1.32*RAD, RTCC_NONIMPULSIVE);
 
 		LambertTargeting(&lambert, dV_LVLH, P30TIG);
 
-		opt.GETbase = getGETBase();
+		opt.GETbase = GETBase;
 		opt.vessel = calcParams.src;
 		opt.TIG = P30TIG;
 		opt.dV_LVLH = dV_LVLH;
@@ -1354,7 +1403,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		{
 			REFSMMATOpt refsopt;
 
-			refsopt.GETbase = getGETBase();
+			refsopt.GETbase = GETBase;
 			refsopt.REFSMMATdirect = true;
 			refsopt.REFSMMATopt = 2;
 			refsopt.REFSMMATTime = 23 * 60 * 60 + 24 * 60 + 8;
@@ -4411,11 +4460,12 @@ double RTCC::CDHcalc(CDHOpt *opt, VECTOR3 &dV_LVLH, double &P30TIG)			//Calculat
 	return dh_CDH;
 }
 
-LambertMan RTCC::set_lambertoptions(VESSEL* vessel, VESSEL* target, double GETbase, double T1, double T2, int N, int axis, int Perturbation, VECTOR3 Offset, double PhaseAngle, int impulsive)
+LambertMan RTCC::set_lambertoptions(VESSEL* vessel, VESSEL* target, double GETbase, double T1, double T2, int N, int axis, int Perturbation, VECTOR3 Offset, double PhaseAngle, int impulsive, bool csmlmdocked)
 {
 	LambertMan opt;
 
 	opt.axis = axis;
+	opt.csmlmdocked = csmlmdocked;
 	opt.GETbase = GETbase;
 	opt.impulsive = impulsive;
 	opt.N = N;
@@ -6068,4 +6118,24 @@ double RTCC::GetDockedVesselMass(VESSEL *vessel)
 	}
 
 	return LMmass;
+}
+
+double RTCC::PericynthionTime(VESSEL *vessel)
+{
+	OBJHANDLE gravref;
+	VECTOR3 R_A, V_A, R0, V0;
+	double SVMJD, mu, dt, GETbase;
+
+	GETbase = getGETBase();
+	gravref = AGCGravityRef(vessel);
+
+	mu = GGRAV*oapiGetMass(gravref);
+	vessel->GetRelativePos(gravref, R_A);
+	vessel->GetRelativeVel(gravref, V_A);
+	SVMJD = oapiGetSimMJD();
+	R0 = _V(R_A.x, R_A.z, R_A.y);
+	V0 = _V(V_A.x, V_A.z, V_A.y);
+
+	dt = OrbMech::timetoperi(R0, V0, mu);
+	return (SVMJD-GETbase)*24.0*3600.0 + dt;
 }

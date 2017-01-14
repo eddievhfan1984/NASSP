@@ -308,6 +308,8 @@ ARCore::ARCore(VESSEL* v)
 	tlipad.VI = 0.0;
 	tlipad.SepATT = _V(0.0, 0.0, 0.0);
 	tlipad.IgnATT = _V(0.0, 0.0, 0.0);
+	R_TLI = _V(0, 0, 0);
+	V_TLI = _V(0, 0, 0);
 
 	subThreadMode = 0;
 	subThreadStatus = 0;
@@ -320,6 +322,10 @@ ARCore::ARCore(VESSEL* v)
 	LmkRange = 0;
 	LmkN89Alt = 0;
 	LmkN89Lat = 0;
+
+	VECdirection = 0;
+	VECbody = NULL;
+	VECangles = _V(0, 0, 0);
 
 	earthentrypad.Att400K[0] = _V(0, 0, 0);
 	earthentrypad.BankAN[0] = 0;
@@ -1077,6 +1083,59 @@ VECTOR3 ARCore::finealignLMtoCSM(VECTOR3 lmn20, VECTOR3 csmn20) //LM noun 20 and
 	return OrbMech::CALCGTA(mul(OrbMech::transpose_matrix(expmat), lmmat));
 }
 
+void ARCore::VecPointCalc()
+{
+	VECTOR3 vPos, pPos, relvec, UX, UY, UZ, loc;
+	MATRIX3 M, M_R;
+	double p_T, y_T;
+
+	p_T = 0;
+	y_T = 0;
+	
+	if (VECdirection == 1)
+	{
+		p_T = PI;
+		y_T = 0;
+	}
+	else if (VECdirection == 2)
+	{
+		p_T = 0;
+		y_T = PI05;
+	}
+	else if (VECdirection == 3)
+	{
+		p_T = 0;
+		y_T = -PI05;
+	}
+	else if (VECdirection == 4)
+	{
+		p_T = -PI05;
+		y_T = 0;
+	}
+	else if (VECdirection == 5)
+	{
+		p_T = PI05;
+		y_T = 0;
+	}
+
+	vessel->GetGlobalPos(vPos);
+	oapiGetGlobalPos(VECbody, &pPos);
+	vessel->GetRelativePos(gravref, loc);
+
+	relvec = unit(pPos - vPos);
+	relvec = _V(relvec.x, relvec.z, relvec.y);
+	loc = _V(loc.x, loc.z, loc.y);
+	
+	UX = relvec;
+	UY = unit(crossp(UX, -loc));
+	UZ = unit(crossp(UX, crossp(UX, -loc)));
+
+	M_R = _M(UX.x, UX.y, UX.z, UY.x, UY.y, UY.z, UZ.x, UZ.y, UZ.z);
+	M = _M(cos(y_T)*cos(p_T), sin(y_T), -cos(y_T)*sin(p_T), -sin(y_T)*cos(p_T), cos(y_T), sin(y_T)*sin(p_T), sin(p_T), 0.0, cos(p_T));
+
+	VECangles = OrbMech::CALCGAR(REFSMMAT, mul(OrbMech::transpose_matrix(M), M_R));
+}
+
 int ARCore::startSubthread(int fcn) {
 	if (subThreadStatus < 1) {
 		// Punt thread
@@ -1298,8 +1357,8 @@ int ARCore::subThread()
 
 			hMoon = oapiGetObjectByName("Moon");
 
-			vessel->GetRelativePos(hMoon, R_A);
-			vessel->GetRelativeVel(hMoon, V_A);
+			vessel->GetRelativePos(gravref, R_A);
+			vessel->GetRelativeVel(gravref, V_A);
 			SVMJD = oapiGetSimMJD();
 			R0B = _V(R_A.x, R_A.z, R_A.y);
 			V0B = _V(V_A.x, V_A.z, V_A.y);
@@ -1307,6 +1366,7 @@ int ARCore::subThread()
 			OrbMech::oneclickcoast(R0B, V0B, SVMJD, TLCC_TIG - (SVMJD - GETbase)*24.0*3600.0, RV1.R, RV1.V, gravref, hMoon);
 			RV1.gravref = hMoon;
 			RV1.MJD = GETbase + TLCC_TIG / 24.0 / 3600.0;
+			RV1.mass = vessel->GetMass();
 			opt.useSV = true;
 
 			UY = unit(crossp(RV1.V, RV1.R));
