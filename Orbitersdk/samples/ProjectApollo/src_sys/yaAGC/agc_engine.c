@@ -288,6 +288,11 @@
 				 to get an erasable parity fail, because I
 				 haven't come up with a program that can cause
 				 one to happen.
+		01/08/17 MAS	Corrected behavior of the EDRUPT instruction
+				 (it really is just a generic interrupt request).
+				 Along the way, re-enabled BRUPT substitution by
+				 default and allowed interrupts to happen after
+				 INDEXes.
 		01/29/17 MAS	Hard-wired the DKSY's RSET button to turning
 				 off the RESTART light (the button had its
 				 own discrete to reset the RESTART flip flop
@@ -301,6 +306,9 @@
 				 process improved DSKY light latency. Last,
 			     added a new channel 163 bit that indicates
 				 power for the DSKY EL panel is switched off.
+		03/11/17 MAS	Further improved DSKY light responsiveness,
+				 and split the logic out to its own function
+				 as a bit of housekeeping.
   
   The technical documentation for the Apollo Guidance & Navigation (G&N) system,
   or more particularly for the Apollo Guidance Computer (AGC) may be found at 
@@ -1615,6 +1623,55 @@ BurstOutput (agc_t *State, int DriveBitMask, int CounterRegister, int Channel)
     CountCDUZ = DriveCountSaved;
   return (DriveCountSaved);
 }      
+
+static void
+UpdateDSKY(agc_t *State)
+  {
+	unsigned LastChannel163 = DskyChannel163;
+
+	DskyChannel163 &= ~(DSKY_KEY_REL | DSKY_VN_FLASH | DSKY_OPER_ERR | DSKY_RESTART | DSKY_STBY);
+
+	if (State->InputChannel[013] & 01000)
+	  // The light test is active. Light RESTART and STBY.
+	  DskyChannel163 |= DSKY_RESTART | DSKY_STBY; // 
+
+	// If we're in standby, light the standby light
+	if (State->Standby)
+	  DskyChannel163 |= DSKY_STBY;
+
+	// Make the RESTART light mirror RestartLight.
+	if (RestartLight)
+	  DskyChannel163 |= DSKY_RESTART;
+
+	// Set KEY REL and OPER ERR according to channel 11
+	if (State->InputChannel[011] & DSKY_KEY_REL)
+	  DskyChannel163 |= DSKY_KEY_REL;
+	if (State->InputChannel[011] & DSKY_OPER_ERR)
+	  DskyChannel163 |= DSKY_OPER_ERR;
+
+	// Update the DSKY flash counter based on the DSKY timer
+	while (DskyTimer >= DSKY_OVERFLOW)
+	  {
+		DskyTimer -= DSKY_OVERFLOW;
+		DskyFlash = (DskyFlash + 1) % DSKY_FLASH_PERIOD;
+	  }
+
+	// Flashing lights on the DSKY have a period of 1.28s, and a 75% duty cycle
+	if (!State->Standby && DskyFlash == 0)
+	  {
+		// If V/N FLASH is high, then the lights are turned off
+		if (State->InputChannel[011] & DSKY_VN_FLASH)
+		  DskyChannel163 |= DSKY_VN_FLASH;
+
+		// Flash off the KEY REL and OPER ERR lamps
+		DskyChannel163 &= ~DSKY_KEY_REL;
+		DskyChannel163 &= ~DSKY_OPER_ERR;
+	  }
+
+    // Send out updated display information, if something on the DSKY changed
+    if (DskyChannel163 != LastChannel163)
+	  ChannelOutput(State, 0163, DskyChannel163);
+  }
       
 //-----------------------------------------------------------------------------
 // Execute one machine-cycle of the simulation.  Use agc_engine_init prior to 
@@ -1678,7 +1735,7 @@ agc_engine (agc_t * State)
   /// \todo (tschachim): See declaration of ChannelRoutineCount
   /// static int Count = 0;
 
-  uint16_t ProgramCounter, Instruction, OpCode, QuarterCode, sExtraCode;
+  uint16_t ProgramCounter, Instruction, /*OpCode,*/ QuarterCode, sExtraCode;
   int16_t *WhereWord;
   uint16_t Address12, Address10, Address9;
   int ValueK, KeepExtraCode = 0;
@@ -1751,61 +1808,13 @@ agc_engine (agc_t * State)
     ChannelRoutine (State);
   ChannelRoutineCount = ((ChannelRoutineCount + 1) & 017777);
 
+  // Update the various hardware-driven DSKY lights
+  UpdateDSKY(State);
+
   // Get data from input channels.  Return immediately if a unprogrammed 
   // counter-increment was performed.
   if (ChannelInput (State))
     return (0);
-
-  // Update DSKY lights before we potentially leave due to 
-  // --debug-dsky mode
-  unsigned LastChannel163 = DskyChannel163;
-
-  if (State->InputChannel[013] & 01000)
-    // The light test is active. Light RESTART and STBY.
-	DskyChannel163 |= DSKY_RESTART | DSKY_STBY; // 
-  else
-    {
-	  // Otherwise, if we're not in standby, clear the STBY light.
-	  if (!State->Standby)
-		DskyChannel163 &= ~DSKY_STBY;
-
-	  // Make the RESTART light mirror RestartLight.
-	  if (RestartLight)
-	    DskyChannel163 |= DSKY_RESTART;
-	  else
-		DskyChannel163 &= ~DSKY_RESTART;
-	}
-
-  // Check for timing-related DSKY changes
-  while (DskyTimer >= DSKY_OVERFLOW)
-    {
-	  DskyTimer -= DSKY_OVERFLOW;
-	  DskyFlash = (DskyFlash + 1) % DSKY_FLASH_PERIOD;
-	  DskyChannel163 &= ~(DSKY_KEY_REL | DSKY_VN_FLASH | DSKY_OPER_ERR);
-
-	  // Flashing lights on the DSKY have a period of 1.28s, and a 75% duty cycle
-	  if (!State->Standby)
-	    {
-		  if (DskyFlash == 0)
-		    {
-			  // If V/N FLASH is high, then the lights are turned off
-			  if (State->InputChannel[011] & DSKY_VN_FLASH)
-			    DskyChannel163 |= DSKY_VN_FLASH;
-			 }
-		  else
-			{
-			  // If KEY REL or OPER ERR are high, those lights are turned on
-			  if (State->InputChannel[011] & DSKY_KEY_REL)
-			    DskyChannel163 |= DSKY_KEY_REL;
-			  if (State->InputChannel[011] & DSKY_OPER_ERR)
-				DskyChannel163 |= DSKY_OPER_ERR;
-			 }
-		}
-	}
-
-  // Send out updated display information, if something on the DSKY changed
-  if (DskyChannel163 != LastChannel163)
-    ChannelOutput(State, 0163, DskyChannel163);
 
   // If in --debug-dsky mode, don't want to take the chance of executing
   // any AGC code, since there isn't any loaded anyway.
@@ -2209,30 +2218,36 @@ agc_engine (agc_t * State)
   // Fetch the instruction itself.
   //Instruction = *WhereWord;
   if (State->SubstituteInstruction)
-    {
-      Instruction = c (RegBRUPT);
-      if (0100000 & Instruction)
-        sExtraCode = 1;
-      Instruction &= 077777;
-    }
+	Instruction = c(RegBRUPT);
   else
     {
       // The index is sometimes positive and sometimes negative.  What to
       // do if the result has overflow, I can't say.  I arbitrarily 
       // overflow-correct it.
-      sExtraCode = State->ExtraCode;
-      Instruction =
-	OverflowCorrected (AddSP16
-			   (SignExtend (State->IndexValue),
-			    SignExtend (*WhereWord)));
-      Instruction &= 077777;
-      // Handle interrupts.
-      if (DebuggerInterruptMasks[0] && !State->InIsr && State->AllowInterrupt 
-		  && !State->ExtraCode && State->IndexValue == 0 && !State->PendFlag
-		  && !Overflow &&  //ProgramCounter > 060 && 
-	  Instruction != 3 && Instruction != 4 && Instruction != 6)
-	{
+      Instruction =	OverflowCorrected (
+		  AddSP16(SignExtend(State->IndexValue), SignExtend(*WhereWord)));
+    }
+  Instruction &= 077777;
+
+  sExtraCode = State->ExtraCode;
+
+  ExtendedOpcode = Instruction >> 9;	//2;
+  if (sExtraCode)
+    ExtendedOpcode |= 0100;
+
+  QuarterCode = Instruction & ~MASK10;
+  Address12 = Instruction & MASK12;
+  Address10 = Instruction & MASK10;
+  Address9 = Instruction & MASK9;
+
+  // Handle interrupts.
+  if ((DebuggerInterruptMasks[0] && !State->InIsr && State->AllowInterrupt
+	  && !State->ExtraCode && !State->PendFlag && !Overflow
+	  && Instruction != 3 && Instruction != 4 && Instruction != 6)
+	  || ExtendedOpcode == 0107) // Always check if the instruction is EDRUPT.
+    {
 	  int i;
+	  int InterruptRequested = 0;
 	  // Interrupt vectors are ordered by their priority, with the lowest
 	  // address corresponding to the highest priority interrupt. Thus,
 	  // we can simply search through them in order for the next pending
@@ -2241,36 +2256,52 @@ agc_engine (agc_t * State)
 	  // Search for the next interrupt request.
 	  for (i = 1; i <= NUM_INTERRUPT_TYPES; i++)
 	    {
-	      if (State->InterruptRequests[i] && DebuggerInterruptMasks[i])
-		{
-		  BacktraceAdd (State, i);
-		  // Clear the interrupt request.
-		  State->InterruptRequests[i] = 0;
-		  State->InterruptRequests[0] = i;
+		  if (State->InterruptRequests[i] && DebuggerInterruptMasks[i])
+		    {
+			  // Clear the interrupt request.
+			  State->InterruptRequests[i] = 0;
+			  State->InterruptRequests[0] = i;
+
+			  NextZ = 04000 + 4 * i;
+
+			  InterruptRequested = 1;
+			  break;
+			}
+		}
+
+	  // If no pending interrupts and we're dealing with EDRUPT, fall
+	  // back to address 0 (A) as the interrupt vector
+	  if (!InterruptRequested && ExtendedOpcode == 0107)
+	    {
+		  NextZ = 0;
+		  InterruptRequested = 1;
+		}
+
+	  if (InterruptRequested)
+	    {
+		  BacktraceAdd(State, i);
 		  // Set up the return stuff.
-		  c (RegZRUPT) = ProgramCounter + 1;
-		  c (RegBRUPT) = Instruction;
+		  c(RegZRUPT) = ProgramCounter + 1;
+		  c(RegBRUPT) = Instruction;
+		  // Clear various metadata. Extracode is cleared (this can only
+		  // really happen with EDRUPT), and the index value and substituted
+		  // instruction were both applied earlier and their effects were
+		  // saved in BRUPT.
+		  State->ExtraCode = 0;
+		  State->IndexValue = AGC_P0;
+		  State->SubstituteInstruction = 0;
 		  // Vector to the interrupt.
 		  State->InIsr = 1;
-		  NextZ = 04000 + 4 * i;
 		  State->ExtraDelay++;
 		  goto AllDone;
 		}
-	    }
 	}
-    }
-
-  //State->IndexValue = AGC_P0;         // Do AFTER the deley below.
-  OpCode = Instruction & ~MASK12;
-  QuarterCode = Instruction & ~MASK10;
-  Address12 = Instruction & MASK12;
-  Address10 = Instruction & MASK10;
-  Address9 = Instruction & MASK9;
 
   // Add delay for multi-MCT instructions.  Works for all instructions 
-  // except EDRUPT, BZF, and BZMF.  For those, an extra cycle is added
+  // except EDRUPT, BZF, and BZMF.  For BZF and BZMF, an extra cycle is added
   // AFTER executing the instruction -- not because it's more logically
-  // correct, just because it's easier.
+  // correct, just because it's easier. EDRUPT's timing is handled with
+  // the interrupt logic.
   if (!State->PendFlag)
     {
       int i;
@@ -2314,9 +2345,6 @@ agc_engine (agc_t * State)
 
   // Parse the instruction.  Refer to p.34 of 1689.pdf for an easy 
   // picture of what follows.
-  ExtendedOpcode = Instruction >> 9;	//2;
-  if (sExtraCode)
-    ExtendedOpcode |= 0100;
   switch (ExtendedOpcode)
     {
     case 000:			// TC.  
@@ -2593,10 +2621,7 @@ agc_engine (agc_t * State)
 	    BacktraceAdd (State, 0);
 	  NextZ = c(RegZRUPT) - 1;
 	  State->InIsr = 0;
-// Remove ifdef because Luminary131 LM Autopilot code is using that feature
-//#ifdef ALLOW_BSUB
 	  State->SubstituteInstruction = 1;
-//#endif
 	}
       else
 	{
@@ -2798,27 +2823,9 @@ agc_engine (agc_t * State)
 	}
       break;
     case 0107:			// EDRUPT
-      //State->InIsr = 0;
-      //State->SubstituteInstruction = 1;
-      //if (State->InIsr)
-      //  State->InterruptRequests[State->InterruptRequests[0]] = 0;
-      c (RegZRUPT) = c (RegZ);
-      State->InIsr = 1;
-      BacktraceAdd (State, 0);
-#if 0
-      if (State->InIsr)
-        {
-	  static int Count = 0;
-	  printf ("EDRUPT w/ ISR %d\n", ++Count);  
-	}
-      else 
-        {
-	  static int Count = 0;
-	  printf ("EDRUPT w/o ISR %d\n", ++Count);
-	}
-#endif // 0
-      NextZ = 0;
-      break;
+	// It shouldn't be possible to get here, since EDRUPT is treated
+	// as an interrupt above.
+	break;
     case 0110:			// DV
     case 0111:
       {
