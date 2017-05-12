@@ -117,12 +117,6 @@
     <ClCompile Include="..\..\src_saturn\Saturn5.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src_saturn\saturn5ap.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src_saturn\saturnap.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src_csm\saturnmesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -184,6 +178,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src_rtccmfd\OrbMech.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src_sys\MechanicalAccelerometer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -339,6 +336,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src_launch\mcc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src_sys\MechanicalAccelerometer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

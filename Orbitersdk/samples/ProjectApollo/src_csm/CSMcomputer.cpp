@@ -36,7 +36,6 @@
 #include "dsky.h"
 #include "csmcomputer.h"
 #include "IMU.h"
-#include "lvimu.h"
 #include "toggleswitch.h"
 #include "saturn.h"
 #include "ioChannels.h"
@@ -50,12 +49,6 @@ CSMcomputer::CSMcomputer(SoundLib &s, DSKY &display, DSKY &display2, IMU &im, Pa
 	isLGC = false;
 
 	VesselStatusDisplay = 0;
-
-	//
-	// Generic thrust decay value. This still needs tweaking.
-	//
-
-	ThrustDecayDV = 6.1;
 
 	//
 	// Last RCS settings.
@@ -404,7 +397,6 @@ void CSMcomputer::Liftoff(double simt)
 
 	SetOutputChannelBit(012, 9, false);
 	Saturn *Sat = (Saturn *)OurVessel;
-	Sat->SetAutopilot(true);
 }
 
 void CSMcomputer::SetInputChannelBit(int channel, int bit, bool val){

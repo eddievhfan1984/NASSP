@@ -53,6 +53,7 @@
 #include "ecs.h"
 #include "csmrcs.h"
 #include "ORDEAL.h"
+#include "MechanicalAccelerometer.h"
 #include "checklistController.h"
 #include "payload.h"
 
@@ -538,8 +539,6 @@ public:
 	union LaunchFailures {
 		struct {
 			unsigned Init:1;					///< Flags have been initialised.
-			unsigned EarlySICenterCutoff:1;		///< The first stage center engine will shut down early.
-			unsigned EarlySIICenterCutoff:1;	///< The second stage center engine will shut down early.
 			unsigned LETAutoJetFail:1;			///< The LES auto jettison will fail.
 			unsigned LESJetMotorFail:1;			///< The LET jettison motor will fail.
 			unsigned SIIAutoSepFail:1;			///< Stage two will fail to seperate automatically from stage one.
@@ -597,20 +596,6 @@ public:
 		unsigned long word;
 
 		LightState() { word = 0; };
-	};
-
-	///
-	/// \ingroup ScenarioState
-	/// \brief State which is only required through the launch process.
-	///
-	union LaunchState {
-		struct {
-			unsigned autopilot:1;
-			unsigned TLIEnabled:1;
-		};
-		unsigned long word;
-
-		LaunchState() { word = 0; };
 	};
 
 	///
@@ -682,7 +667,7 @@ public:
 			unsigned FirePCM:1;						///< Pitch Control Motor has been fired.
 			unsigned PayloadDataTransfer:1;			///< Have we transfered setup data to the SIVB for the payload?
 			unsigned PostSplashdownPlayed:1;		///< Have we played the post-splashdown sound?
-			unsigned IGMEnabled:1;					///< Is the IGM guidance enabled?
+			unsigned unused:1;						///< Unused bit for backwards compatibility. Can be used for other things.
 			unsigned TLISoundsLoaded:1;				///< Have we loaded the TLI sounds?
 			unsigned MissionTimerEnabled:1;			///< Is the Mission Timer enabled?
 			unsigned EventTimerEnabled:1;			///< Is the Event Timer enabled?
@@ -716,20 +701,6 @@ public:
 	/// \brief Destructor.
 	///
 	virtual ~Saturn();
-
-	///
-	/// Turn the autopilot on or off.
-	/// \brief Set the autopilot state.
-	/// \param ap Autopilot on or off?
-	///
-	void SetAutopilot(bool ap) { autopilot = ap; };
-
-	///
-	/// Check whether the autopilot is enabled.
-	/// \brief Get the autopilot state.
-	/// \return Is the autopilot enabled?
-	///
-	bool GetAutopilot() { return autopilot; };
 
 	///
 	/// Turn on the SII Seperation light on the control panel.
@@ -1001,7 +972,7 @@ public:
 	void EPSTimestep();
 	void GetAGCWarningStatus(AGCWarningStatus &aws);
 	void GetRCSStatus(int index, RCSStatus &rs);
-	double GetAccelG() { return aZAcc / G; };
+	double GetAccelG() { return mechanicalAccelerometer.GetXAccel() / G; };
 	virtual void GetECSStatus(ECSStatus &ecs);
 	virtual void SetCrewNumber(int number);
 	virtual void SetPrimECSTestHeaterPowerW(double power);
@@ -1019,13 +990,6 @@ public:
 	/// \brief Check SM systems state.
 	///
 	void CheckSMSystemsState();
-
-	///
-	/// Check whether the pyros are armed.
-	/// \brief Are pyros armed?
-	/// \return True if armed, false if not.
-	///
-	bool PyrosArmed();
 
 	///
 	/// If the scenario specified AUTOSLOW and time acceleration is enabled, slow it
@@ -1275,20 +1239,6 @@ protected:
 	void ClearLVRateLight();
 
 	///
-	/// Check whether the Earth Landing System is active.
-	/// \brief Is ELS Active?
-	/// \return True if active, false if not.
-	///
-	bool ELSActive();
-
-	///
-	/// Check whether the Earth Landing System is in AUTO mode.
-	/// \brief Is ELS in AUTO?
-	/// \return True if AUTO, false if not.
-	///
-	bool ELSAuto();
-
-	///
 	/// Check whether the Saturn vehicle has a CSM. Some, like Apollo 5, flew without a CSM for
 	/// LEM testing.
 	/// \brief Do we have a CSM?
@@ -1307,12 +1257,6 @@ protected:
 	//
 
 	char StagesString[256];
-
-	///
-	/// Autopilot flag. True if autopilot enabled.
-	/// \brief Autopilot flag.
-	///
-	bool autopilot;
 
 	///
 	/// SII Sep light. True if light should be lit.
@@ -1472,39 +1416,18 @@ protected:
 	SaturnEventTimer SaturnEventTimer306Display;	//Dummy for checklist controller
 	
 	//
-	// Center engine shutdown times for first and
-	// second stage.
+	// Engine failure times for first stage.
 	//
 
-	double FirstStageCentreShutdownTime;
-	double SecondStageCentreShutdownTime;
+	bool EarlySICutoff[8];
+	double FirstStageFailureTime[8];
 
 	//
-	// Interstage jettison time.
+	// Engine failure times for first stage.
 	//
 
-	double InterstageSepTime;
-
-	//
-	// Mixture-ratio shift time for second stage.
-	//
-
-	double SecondStagePUShiftTime;
-
-	//
-	// Stage shutdown times.
-	//
-
-	double FirstStageShutdownTime;
-	double SecondStageShutdownTime;
-
-	//
-	// Iterative Guidance Mode start time, when we stop following the pitch program and start aiming for
-	// the correct orbit.
-	//
-
-	double IGMStartTime;
-	bool IGMEnabled;
+	bool EarlySIICutoff[5];
+	double SecondStageFailureTime[5];
 
 	///
 	/// Flag for use of low-res meshes to reduce graphics lag.
@@ -1579,30 +1502,6 @@ protected:
 	SwitchFailures SwitchFail;
 
 	//
-	// Pitch table.
-	//
-
-	#define PITCH_TABLE_SIZE	16
-
-	///
-	/// Table of Mission Times for pitch changes.
-	/// \brief Pitch change times.
-	///
-	double met[PITCH_TABLE_SIZE];
-
-	///
-	/// Table of pitch values at the specified mission times. The correct pitch will be
-	/// interpolated between these values.
-	/// \brief Pitch table values.
-	///
-	double cpitch[PITCH_TABLE_SIZE];
-
-	//
-	// *** LVDC++ ITEMS ***
-	//
-	bool use_lvdc; // LVDC use flag
-
-	//
 	// Ground Systems
 	//
 	MCC *pMCC;
@@ -1666,6 +1565,7 @@ protected:
 
 	SwitchRow AccelGMeterRow;
 	SaturnAccelGMeter AccelGMeter;
+	MechanicalAccelerometer mechanicalAccelerometer;
 
 	SwitchRow THCRotaryRow;
 	THCRotarySwitch THCRotary;
@@ -3474,10 +3374,7 @@ protected:
 	// And state that doesn't need to be saved.
 	//
 
-	double aVAcc;
-	double aVSpeed;
 	double aHAcc;
-	double aZAcc;
 
 	///
 	/// Mesh offset for BPC and LET.
@@ -3491,13 +3388,10 @@ protected:
 	///
 	double S4Offset;
 
-	double actualVEL;
-	double actualALT;
 	double actualFUEL;
 
 	#define LASTVELOCITYCOUNT 50
 	VECTOR3 LastVelocity[LASTVELOCITYCOUNT];
-	double LastVerticalVelocity[LASTVELOCITYCOUNT];
 	double LastSimt[LASTVELOCITYCOUNT];
 	int LastVelocityFilled;
 
@@ -3707,9 +3601,17 @@ protected:
 	Pyro CMSMPyros;
 	Pyro CMDockingRingPyros;
 	Pyro CSMLVPyros;
+	Pyro ApexCoverPyros;
+	Pyro DrogueChutesDeployPyros;
+	Pyro MainChutesDeployPyros;
+	Pyro MainChutesReleasePyros;
 	PowerMerge CMSMPyrosFeeder;
 	PowerMerge CMDockingRingPyrosFeeder;
 	PowerMerge CSMLVPyrosFeeder;
+	PowerMerge ApexCoverPyrosFeeder;
+	PowerMerge DrogueChutesDeployPyrosFeeder;
+	PowerMerge MainChutesDeployPyrosFeeder;
+	PowerMerge MainChutesReleasePyrosFeeder;
 
 
 	//
@@ -3732,47 +3634,6 @@ protected:
 	bool AutoSlow;
 
 	int SIVBPayload;
-
-	//
-	// CSM seperation info for unmanned flights.
-	//
-
-	bool CSMSepSet;
-	double CSMSepTime;
-	bool CMSepSet;
-	double CMSepTime;
-
-	//
-	// Payload deploy time for unmanned flights with no CSM.
-	//
-
-	bool PayloadDeploySet;
-	double PayloadDeployTime;
-
-	//
-	// SIVB burn info for unmanned flights.
-	//
-
-	double SIVBBurnStart;
-	double SIVBApogee;
-
-	//
-	// CSM burn information in unmanned flights.
-	//
-
-	bool CSMBurn;
-	double CSMBurnStart;
-	double CSMApogee;
-	double CSMPerigee;
-
-	//
-	// Pre-entry CSM acceleration and end time for unmanned flights.
-	//
-
-	bool CSMAccelSet;
-	double CSMAccelTime;
-	double CSMAccelEnd;
-	double CSMAccelPitch;
 
 	//
 	// VAGC Mode settings
@@ -3969,7 +3830,6 @@ protected:
 
 	void AddRCSJets(double TRANZ,double MaxThrust);
 	void AddRCS_S4B();
-	void SaturnTakeoverMode();
 	void SetRecovery();
 	void InitPanel(int panel);
 	void SetSwitches(int panel);
@@ -3992,7 +3852,6 @@ protected:
 	void FuelCellHeaterSwitchToggled(ToggleSwitch *s, int *pump);
 	void FuelCellReactantsSwitchToggled(ToggleSwitch *s, CircuitBrakerSwitch *cb, CircuitBrakerSwitch *cbLatch, int *start);
 	void MousePanel_MFDButton(int mfd, int event, int mx, int my);
-	double SetPitchApo();
 	void SetStage(int s);
 	void initSaturn();
 	void SwitchClick();
@@ -4019,9 +3878,9 @@ protected:
 	void FireLaunchEscapeMotor();
 	void FireTowerJettisonMotor();
 	void FirePitchControlMotor();
+	void MoveTHC(bool dir);
 	void AttitudeLaunchSIVB();
 	void LinearGuidance(VECTOR3 &target, double &pitch, double &yaw);
-	virtual void AutoPilot(double autoT) = 0;
 
 	void RenderS1bEngineLight(bool EngineOn, SURFHANDLE dest, SURFHANDLE src, int xoffs, int yoffs);
 
@@ -4036,7 +3895,6 @@ protected:
 	void JostleViewpoint(double amount);
 	double CalculateApogeeTime();
 	void UpdatePayloadMass();
-	double GetCPitch(double t);
 	double GetJ2ISP(double ratio);
 	void GetPayloadName(char *s);
 	void GetApolloName(char *s);
@@ -4046,7 +3904,6 @@ protected:
 	// Systems functions.
 	//
 
-	bool AutopilotActive();
 	bool CabinFansActive();
 	bool CabinFan1Active();
 	bool CabinFan2Active();
@@ -4069,8 +3926,6 @@ protected:
 	void SetMainState(int s);
 	int GetAttachState();
 	void SetAttachState(int s);
-	int GetLaunchState();
-	void SetLaunchState(int s);
 	int GetSLAState();
 	void SetSLAState(int s);
 
@@ -4104,7 +3959,6 @@ protected:
 	// Mission stage functions.
 	//
 
-	void DoLaunch(double simt);
 	void StageSeven(double simt);
 	void StageEight(double simt);
 	void SetChuteStage1();
@@ -4118,7 +3972,6 @@ protected:
 	void SetReentryMeshes();
 	void AddRCS_CM(double MaxThrust, double offset = 0.0, bool createThrusterGroups = true);
 	void GenericTimestepStage(double simt, double simdt);
-	bool CheckForLaunchShutdown();
 	void SetGenericStageState();
 	void DestroyStages(double simt);
 	void SIVBBoiloff();
@@ -4468,6 +4321,8 @@ protected:
 	friend class MESC;
 	friend class RCSC;
 	friend class ELS;
+	friend class ELSC;
+	friend class PCVB;
 	friend class CrewStatus;
 	friend class OpticsHandcontrollerSwitch;
 	friend class MinImpulseHandcontrollerSwitch;

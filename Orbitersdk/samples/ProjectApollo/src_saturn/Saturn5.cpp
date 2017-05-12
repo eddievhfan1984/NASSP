@@ -42,7 +42,6 @@
 #include "csmcomputer.h"
 #include "ioChannels.h"
 #include "IMU.h"
-#include "lvimu.h"
 
 #include "saturn.h"
 #include "saturnv.h"
@@ -75,18 +74,6 @@ const double BASE_SII_MASS = 42400 + 3490;		// Stage + SII/SIVB interstage
 
 GDIParams g_Param;
 
-//
-// Default pitch program.
-//
-/*
-const double default_met[PITCH_TABLE_SIZE]    = { 0, 13.2, 58, 70, 80,  110, 130, 160, 170, 205, 450, 480, 490, 500, 535, 700};   // MET in sec
-const double default_cpitch[PITCH_TABLE_SIZE] = {90, 88,   75, 60, 50,   40,  35,  30,  30,  30,  25,  20,  10 ,  5,  -2,   0};	// Commanded pitch in °
-
-const double default_met[PITCH_TABLE_SIZE]    = { 0, 13.2, 58,   70, 80,  110,   130, 160, 170, 205, 450, 480, 490, 500, 535, 700};   // MET in sec
-const double default_cpitch[PITCH_TABLE_SIZE] = {90, 88,   81.5, 56, 50,   35.5,  30,  28,  27,  25,  10,   10, 10 ,  5,  -2,   0};	// Commanded pitch in °
-*/
-const double default_met[PITCH_TABLE_SIZE]    = { 0, 13.2, 58,   70, 80,  110,   130, 160, 170, 205, 450, 480, 490, 500, 535, 700};   // MET in sec
-const double default_cpitch[PITCH_TABLE_SIZE] = {90, 88,   81.6, 56, 50,   35.5,  30,  28,  27,  25,  10,   10, 10 ,  5,  -2,   0};	// Commanded pitch in °
 // 3 was 80.5
 //
 // SaturnV constructor, derived from basic Saturn class.
@@ -190,15 +177,6 @@ void SaturnV::initSaturnV()
 	soundlib.LoadSound(DockS, "docking.wav");
 
 	soundlib.LoadSound(SRover, "LRover.WAV");
-
-	//
-	// Pitch program.
-	//
-
-	for (int i = 0; i < PITCH_TABLE_SIZE; i++) {
-		met[i] = default_met[i];
-		cpitch[i] = default_cpitch[i];
-	}
 
 	// Moved to instantiation time
 	// lvdc_init();
@@ -602,10 +580,8 @@ void SaturnV::Timestep(double simt, double simdt, double mjd)
 	if (stage < CSM_LEM_STAGE) {
 
 		// LVDC++
-		if (use_lvdc) {
-			if (lvdc != NULL) {
-				lvdc->TimeStep(simt, simdt);
-			}
+		if (lvdc != NULL) {
+			lvdc->TimeStep(simt, simdt);
 		}
 	} else {
 		
@@ -614,7 +590,6 @@ void SaturnV::Timestep(double simt, double simdt, double mjd)
 			// This saves memory and declutters the scenario file.
 			delete lvdc;
 			lvdc = NULL;
-			use_lvdc = false;
 		}
 		
 		GenericTimestepStage(simt, simdt);
@@ -744,18 +719,16 @@ void SaturnV::SaveVehicleStats(FILEHANDLE scn)
 }
 
 void SaturnV::SaveLVDC(FILEHANDLE scn){
-	if (use_lvdc && lvdc != NULL){ lvdc->SaveState(scn); }
+	if (lvdc != NULL){ lvdc->SaveState(scn); }
 }
 
 void SaturnV::LoadLVDC(FILEHANDLE scn){
-	if (use_lvdc){
-		// If the LVDC does not yet exist, create it.
-		if(lvdc == NULL){
-			lvdc = new LVDC;
-			lvdc->Init(this);
-		}
-		lvdc->LoadState(scn);
+	// If the LVDC does not yet exist, create it.
+	if(lvdc == NULL){
+		lvdc = new LVDC;
+		lvdc->Init(this);
 	}
+	lvdc->LoadState(scn);
 }
 
 void SaturnV::clbkLoadStateEx (FILEHANDLE scn, void *status)
@@ -771,7 +744,7 @@ void SaturnV::clbkLoadStateEx (FILEHANDLE scn, void *status)
 	// DS20150720 LVDC++ ON WHEELS
 	// If GetScenarioState has set the use_lvdc flag but not created the LVDC++, we need to do that here.
 	// This happens if the USE_LVDC flag is set but no LVDC section is present.
-	if(use_lvdc && lvdc == NULL){
+	if(lvdc == NULL){
 		lvdc = new LVDC;
 		lvdc->Init(this);
 	}
@@ -1033,9 +1006,6 @@ void SaturnV::SwitchSelector(int item){
 		}
 		break;
 	case 16:
-		SetThrusterResource(th_main[4], NULL); // Should stop the engine
-		SShutS.play(NOLOOP,235);
-		SShutS.done();
 		// Clear liftoff light now - Apollo 15 checklist item
 		ClearLiftoffLight();
 		break;

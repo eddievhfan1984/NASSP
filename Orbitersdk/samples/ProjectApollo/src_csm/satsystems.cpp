@@ -37,7 +37,6 @@
 #include "dsky.h"
 #include "csmcomputer.h"
 #include "IMU.h"
-#include "lvimu.h"
 #include "saturn.h"
 #include "ioChannels.h"
 #include "tracer.h"
@@ -187,7 +186,11 @@ void Saturn::SystemsInit() {
 	// Pyros
 	CMSMPyros.WireTo(&CMSMPyrosFeeder);  
 	CMDockingRingPyros.WireTo(&CMDockingRingPyrosFeeder);
-	CSMLVPyros.WireTo(&CSMLVPyrosFeeder);	 
+	CSMLVPyros.WireTo(&CSMLVPyrosFeeder);
+	ApexCoverPyros.WireTo(&ApexCoverPyrosFeeder);
+	DrogueChutesDeployPyros.WireTo(&DrogueChutesDeployPyrosFeeder);
+	MainChutesDeployPyros.WireTo(&MainChutesDeployPyrosFeeder);
+	MainChutesReleasePyros.WireTo(&MainChutesReleasePyrosFeeder);
 
 	//
 	// SECS Logic buses
@@ -366,6 +369,7 @@ void Saturn::SystemsInit() {
 	eca.Init(this);
 	ems.Init(this, &EMSMnACircuitBraker, &EMSMnBCircuitBraker, &NumericRotarySwitch, &LightingNumIntLMDCCB);
 	ordeal.Init(&ORDEALEarthSwitch, &OrdealAc2CircuitBraker, &OrdealMnBCircuitBraker, &ORDEALAltSetRotary, &ORDEALModeSwitch, &ORDEALSlewSwitch, &ORDEALFDAI1Switch, &ORDEALFDAI2Switch);
+	mechanicalAccelerometer.Init(this);
 
 	// Telecom initialization
 	pmp.Init(this);
@@ -543,6 +547,7 @@ void Saturn::SystemsTimestep(double simt, double simdt, double mjd) {
 		secs.Timestep(MissionTime, simdt);
 		els.Timestep(MissionTime, simdt);
 		ordeal.Timestep(simdt);
+		mechanicalAccelerometer.TimeStep(simdt);
 		fdaiLeft.Timestep(MissionTime, simdt);
 		fdaiRight.Timestep(MissionTime, simdt);
 		SPSPropellant.Timestep(MissionTime, simdt);
@@ -2070,15 +2075,6 @@ void Saturn::CheckSMSystemsState()
 	}
 }
 
-bool Saturn::AutopilotActive()
-
-{
-	ChannelValue val12;
-	val12 = agc.GetOutputChannel(012);
-
-	return autopilot && !val12[EnableSIVBTakeover];
-}
-
 bool Saturn::CabinFansActive()
 
 {
@@ -3245,28 +3241,6 @@ void Saturn::GetAGCWarningStatus(AGCWarningStatus &aws)
 	// Temp alarm
 	if (val11[LightTempCaution])
 		aws.PGNSWarning = true;
-}
-
-//
-// Check whether the ELS is active and whether it's in auto mode.
-//
-
-bool Saturn::ELSActive()
-
-{
-	return (ELSLogicSwitch.IsUp() && (SECSLogicBusA.Voltage() > SP_MIN_DCVOLTAGE || SECSLogicBusB.Voltage() > SP_MIN_DCVOLTAGE));
-}
-
-bool Saturn::ELSAuto()
-
-{
-	return (ELSActive() && ELSAutoSwitch.IsUp());
-}
-
-bool Saturn::PyrosArmed()
-
-{
-	return (PyroBusA.Voltage() > SP_MIN_DCVOLTAGE || PyroBusB.Voltage() > SP_MIN_DCVOLTAGE);
 }
 
 bool Saturn::LETAttached()

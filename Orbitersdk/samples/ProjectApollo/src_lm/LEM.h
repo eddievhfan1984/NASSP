@@ -54,7 +54,7 @@
 
 #include "lemswitches.h"
 #include "missiontimer.h"
-
+#include "MechanicalAccelerometer.h"
 #include "connector.h"
 #include "checklistController.h"
 #include "payload.h"
@@ -578,6 +578,7 @@ public:
 		SRF_RADAR_TAPE,
 		SRF_ORDEAL_PANEL,
 		SRF_ORDEAL_ROTARY,
+		SRF_TW_NEEDLE,
 
 		//
 		// NSURF MUST BE THE LAST ENTRY HERE. PUT ANY NEW SURFACE IDS ABOVE THIS LINE
@@ -770,9 +771,8 @@ protected:
 
 	SwitchRow AbortSwitchesRow;
 
-	PushSwitch AbortSwitch;
-	PushSwitch AbortStageSwitch;
-	bool AbortStageSwitchLight;
+	LMAbortButton AbortSwitch;
+	LMAbortStageButton AbortStageSwitch;
 
 	
 	SwitchRow RRGyroSelSwitchRow;
@@ -800,6 +800,9 @@ protected:
 	MainFuelPressInd MainFuelPressInd;
 	MainOxidizerTempInd MainOxidizerTempInd;
 	MainOxidizerPressInd MainOxidizerPressInd;
+
+	SwitchRow ThrustWeightIndRow;
+	ThrustWeightInd ThrustWeightInd;
 
 	SwitchRow GuidContSwitchRow;
 	ToggleSwitch GuidContSwitch;
@@ -1795,6 +1798,7 @@ protected:
 	LEM_RR RR;
 	GASTA gasta;
 	ORDEAL ordeal;
+	MechanicalAccelerometer mechanicalAccelerometer;
 
 	LEM_RadarTape RadarTape;
 	LEM_CWEA CWEA;
@@ -1860,8 +1864,11 @@ protected:
 	friend class DECA;
 	friend class CommandedThrustInd;
 	friend class EngineThrustInd;
+	friend class ThrustWeightInd;
 	friend class CrossPointer;
 	friend class LEMPanelOrdeal;
+	friend class LMAbortButton;
+	friend class LMAbortStageButton;
 
 	friend class ApolloRTCCMFD;
 	friend class ProjectApolloMFD;

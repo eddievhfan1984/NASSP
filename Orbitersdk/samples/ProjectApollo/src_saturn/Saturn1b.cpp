@@ -78,13 +78,6 @@ Saturn1b::~Saturn1b()
 	ReleaseSurfaces();
 }
 
-//
-// Default pitch program (according to the Apollo 7 Saturn IB Report, NTRS ID 19900067467)
-//
-
-const double default_met[PITCH_TABLE_SIZE]    = { 0, 10, 20, 30, 40, 60, 80, 100, 120, 130,  135,  145,  200,  300,  400,  500};   // MET in sec
-const double default_cpitch[PITCH_TABLE_SIZE] = {90, 89, 88, 85, 80, 70, 58,  47,  38,  33, 30.7, 30.7, 30.7, 30.7, 30.7, 30.7};   // Commanded pitch in °
-
 
 void Saturn1b::initSaturn1b()
 
@@ -110,34 +103,6 @@ void Saturn1b::initSaturn1b()
 	{
 		ASTPMission = true;
 	}
-
-	//
-	// Pitch program.
-	//
-
-	for (int i = 0; i < PITCH_TABLE_SIZE; i++)
-	{
-		met[i] = default_met[i];
-		cpitch[i] = default_cpitch[i];
-	}
-
-	//
-	// Typical center engine shutdown time.
-	//
-
-	FirstStageCentreShutdownTime = 140.0;
-
-	//
-	// PU shift time.
-	//
-
-	SecondStagePUShiftTime = 450.0;
-
-	//
-	// IGM Start time.
-	//
-
-	IGMStartTime = 170;
 
 	//
 	// Apollo 7 ISP and thrust values.
@@ -356,10 +321,8 @@ void Saturn1b::Timestep (double simt, double simdt, double mjd)
 	GenericTimestep(simt, simdt, mjd);
 
 	if (stage < CSM_LEM_STAGE) {
-		if (use_lvdc) {
-			if (lvdc != NULL) {
-				lvdc->TimeStep(simt, simdt);
-			}
+		if (lvdc != NULL) {
+			lvdc->TimeStep(simt, simdt);
 		}
 	} else {
 
@@ -368,7 +331,6 @@ void Saturn1b::Timestep (double simt, double simdt, double mjd)
 			// This saves memory and declutters the scenario file.
 			delete lvdc;
 			lvdc = NULL;
-			use_lvdc = false;
 		}
 
 		GenericTimestepStage(simt, simdt);
@@ -510,18 +472,16 @@ void Saturn1b::SaveVehicleStats(FILEHANDLE scn){
 }
 
 void Saturn1b::SaveLVDC(FILEHANDLE scn){
-	if (use_lvdc && lvdc != NULL){ lvdc->SaveState(scn); }
+	if (lvdc != NULL){ lvdc->SaveState(scn); }
 }
 
 void Saturn1b::LoadLVDC(FILEHANDLE scn){
-	if (use_lvdc){
-		// If the LVDC does not yet exist, create it.
-		if(lvdc == NULL){
-			lvdc = new LVDC1B;
-			lvdc->init(this);
-		}
-		lvdc->LoadState(scn);
+	// If the LVDC does not yet exist, create it.
+	if(lvdc == NULL){
+		lvdc = new LVDC1B;
+		lvdc->init(this);
 	}
+	lvdc->LoadState(scn);
 }
 
 void Saturn1b::clbkLoadStateEx (FILEHANDLE scn, void *vs){
@@ -532,7 +492,7 @@ void Saturn1b::clbkLoadStateEx (FILEHANDLE scn, void *vs){
 	// DS20150804 LVDC++ ON WHEELS
 	// If GetScenarioState has set the use_lvdc flag but not created the LVDC++, we need to do it here.
 	// This happens if the USE_LVDC flag is set but there is no LVDC section in the scenario file.
-	if(use_lvdc && lvdc == NULL){
+	if(lvdc == NULL){
 		lvdc = new LVDC1B;
 		lvdc->init(this);
 	}

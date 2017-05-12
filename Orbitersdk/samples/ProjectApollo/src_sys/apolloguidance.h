@@ -116,8 +116,6 @@ public:
 	///
 	void SetDesiredLanding(double latitude, double longitude, double altitude);
 
-	void EquToRel(double vlat, double vlon, double vrad, VECTOR3 &pos);
-
 	///
 	/// \brief Force the AGC to restart.
 	///
@@ -388,8 +386,6 @@ protected:
 	bool GenericReadMemory(unsigned int loc, int &val);
 	void GenericWriteMemory(unsigned int loc, int val);
 
-	void KillAllThrusters();
-
 	int16_t ConvertDecimalToAGCOctal(double x, bool highByte);
 
 	///
@@ -445,11 +441,6 @@ protected:
 	double DesiredAzimuth;
 
 	///
-	/// \brief Desired Inclination for launch.
-	///
-	double DesiredInclination;
-
-	///
 	/// \brief Desired latitude for landing (Earth for CSM or Moon for LEM).
 	///
 	double LandingLatitude;
@@ -464,10 +455,6 @@ protected:
 	///
 	double LandingAltitude;
 
-	///
-	/// \brief Estimated delta-V for SIVb engine shutdown thrust.
-	///
-	double ThrustDecayDV;
 
 #define MAX_INPUT_CHANNELS	0200
 #define MAX_OUTPUT_CHANNELS	0200

@@ -76,6 +76,7 @@ LVDC1B::LVDC1B(){
 	poweredflight = false;
 	S1B_Engine_Out = false;
 	S1B_TwoEngines_Out = false;
+	S1B_CECO_Commanded = false;
 	S4B_IGN = false;
 	theta_N_op = false;
 	TerminalConditions = false;
@@ -773,25 +774,49 @@ void LVDC1B::TimeStep(double simt, double simdt) {
 
 				// Below here are timed events that must not be dependent on the iteration delay.
 
-				// S1B CECO TRIGGER:
-				if(owner->MissionTime > 140.86){ // Apollo 7
-					owner->SetThrusterResource(owner->th_main[4], NULL);
-					owner->SetThrusterResource(owner->th_main[5], NULL);
-					owner->SetThrusterResource(owner->th_main[6], NULL);
-					owner->SetThrusterResource(owner->th_main[7], NULL);
-					owner->SShutS.play(NOLOOP,235);
-					owner->SShutS.done();
-					// Clear liftoff light now - Apollo 15 checklist item
+				if (owner->secs.BECO())
+				{
+					if (t_clock > 40.0)
+					{
+						owner->SetEngineLevel(ENGINE_MAIN, 0);			// Kill the engines
+					}
+					owner->agc.SetInputChannelBit(030, SIVBSeperateAbort, true);	// Notify the AGC of the abort
+					owner->agc.SetInputChannelBit(030, LiftOff, true);	// and the liftoff, if it's not set already
+					LVDC_Stop = true;
+				}
+
+				//Timebase 2 initiated at certain fuel level
+
+				if (owner->stage == LAUNCH_STAGE_ONE && owner->GetPropellantMass(owner->ph_1st) <= 24000.0) {
 					owner->ClearLiftoffLight();
-					S1B_Engine_Out = true;
 					TwoEngOutAutoAbortDeactivate = true;
+
 					// Begin timebase 2
 					LVDC_Timebase = 2;
 					LVDC_TB_ETime = 0;
 				}
+
 				break;
 
 			case 2:
+				// S1B CECO TRIGGER:
+				if (LVDC_TB_ETime > 3.2 && !S1B_CECO_Commanded) { // Apollo 7
+					owner->SetThrusterResource(owner->th_main[4], NULL);
+					owner->SetThrusterResource(owner->th_main[5], NULL);
+					owner->SetThrusterResource(owner->th_main[6], NULL);
+					owner->SetThrusterResource(owner->th_main[7], NULL);
+					owner->SShutS.play(NOLOOP, 235);
+					owner->SShutS.done();
+					S1B_Engine_Out = true;
+					S1B_CECO_Commanded = true;
+				}
+
+				if (owner->secs.BECO())
+				{
+					owner->SetEngineLevel(ENGINE_MAIN, 0);			// Kill the engines
+					LVDC_Stop = true;
+				}
+				
 				// S1B OECO TRIGGER
 				// Done by low-level sensor.
 				if (owner->stage == LAUNCH_STAGE_ONE && owner->GetFuelMass() <= 0){
@@ -841,6 +866,24 @@ void LVDC1B::TimeStep(double simt, double simdt) {
 					owner->SwitchSelector(23);
 					MRS = true;
 				}
+
+				//Manual S-IVB Shutdown
+				if (S4B_IGN == true && (owner->secs.BECO() || owner->GetThrusterLevel(owner->th_main[0]) == 0))
+				{
+					S4B_IGN = false;
+					LVDC_Timebase = 4;
+					LVDC_TB_ETime = 0;
+
+					//HSL Exit settings
+					GATE = false;
+					GATE5 = false;
+					Tt_T = 1000;
+					HSL = false;
+					BOOST = false;
+
+					fprintf(lvlog, "SIVB CUTOFF! TAS = %f \r\n", TAS);
+				}
+
 				break;
 
 			case 4:
@@ -1875,6 +1918,48 @@ minorloop: //minor loop;
 			}
 		}*/
 
+		//Engine failure code
+		if (LVDC_Timebase == 1)
+		{
+			for (int i = 0;i < 8;i++)
+			{
+				if (owner->EarlySICutoff[i] && (t_clock > owner->FirstStageFailureTime[i]) && (owner->GetThrusterResource(owner->th_main[i]) != NULL))
+				{
+					owner->SetThrusterResource(owner->th_main[i], NULL); // Should stop the engine
+					S1B_Engine_Out = true;
+				}
+			}
+		}
+
+		//EDS
+
+		if (LVDC_Timebase == 1)
+		{
+			int enginesout = 0;
+
+			if (owner->GetThrusterLevel(owner->th_main[0]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[1]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[2]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[3]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[4]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[5]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[6]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[7]) < 0.65) enginesout++;
+
+			if (enginesout >= 2)
+			{
+				S1B_TwoEngines_Out = true;
+			}
+			else
+			{
+				S1B_TwoEngines_Out = false;
+			}
+		}
+		else
+		{
+			S1B_TwoEngines_Out = false;
+		}
+
 		//Auto Abort
 		//LV Rates light
 		if (abs(AttRate.y) > 4.0*RAD || abs(AttRate.z) > 9.2*RAD || abs(AttRate.x) > 20.0*RAD)
@@ -1911,17 +1996,6 @@ minorloop: //minor loop;
 			owner->secs.SetEDSAbort1(true);
 			owner->secs.SetEDSAbort2(true);
 			owner->secs.SetEDSAbort3(true);
-		}
-
-		if (owner->secs.BECO())
-		{
-			if (t_clock > 40.0)
-			{
-				owner->SetEngineLevel(ENGINE_MAIN, 0);			// Kill the engines
-			}
-			owner->agc.SetInputChannelBit(030, SIVBSeperateAbort, true);	// Notify the AGC of the abort
-			owner->agc.SetInputChannelBit(030, LiftOff, true);	// and the liftoff, if it's not set already
-			LVDC_Stop = true;
 		}
 
 		if (owner->stage == LAUNCH_STAGE_ONE && owner->MissionTime < 12.5) {
@@ -2011,6 +2085,7 @@ void LVDC1B::SaveState(FILEHANDLE scn) {
 	oapiWriteScenario_int(scn, "LVDC_LVDC_Stop", LVDC_Stop);
 	oapiWriteScenario_int(scn, "LVDC_MRS", MRS);
 	oapiWriteScenario_int(scn, "LVDC_poweredflight", poweredflight);
+	oapiWriteScenario_int(scn, "LVDC_S1B_CECO_Commanded", S1B_CECO_Commanded);
 	oapiWriteScenario_int(scn, "LVDC_S1B_Engine_Out", S1B_Engine_Out);
 	oapiWriteScenario_int(scn, "LVDC_S1B_TwoEngines_Out", S1B_TwoEngines_Out);
 	oapiWriteScenario_int(scn, "LVDC_S4B_IGN", S4B_IGN);
@@ -2383,6 +2458,7 @@ void LVDC1B::LoadState(FILEHANDLE scn){
 		papiReadScenario_bool(line, "LVDC_LVDC_Stop", LVDC_Stop);
 		papiReadScenario_bool(line, "LVDC_MRS", MRS);
 		papiReadScenario_bool(line, "LVDC_poweredflight", poweredflight);
+		papiReadScenario_bool(line, "LVDC_S1B_CECO_Commanded", S1B_CECO_Commanded);
 		papiReadScenario_bool(line, "LVDC_S1B_Engine_Out", S1B_Engine_Out);
 		papiReadScenario_bool(line, "LVDC_S1B_TwoEngines_Out", S1B_TwoEngines_Out);
 		papiReadScenario_bool(line, "LVDC_S4B_IGN", S4B_IGN);
@@ -2715,6 +2791,7 @@ LVDC::LVDC(){
 	directstagereset = false;
 	AutoAbortInitiate = false;
 	TwoEngOutAutoAbortDeactivate = false;
+	IGM_Failed = false;
 	first_op = false;
 	TerminalConditions = false;
 	GATE = false;
@@ -3147,6 +3224,7 @@ void LVDC::Init(Saturn* vs){
 	directstagereset = true;
 	AutoAbortInitiate = false;
 	TwoEngOutAutoAbortDeactivate = false;
+	IGM_Failed = false;
 	//PRE_IGM GUIDANCE
 	B_11 = -0.62;							// Coefficients for determining freeze time after S1C engine failure
 	B_12 = 40.9;							// dto.
@@ -3469,6 +3547,7 @@ void LVDC::SaveState(FILEHANDLE scn) {
 	oapiWriteScenario_int(scn, "LVDC_GATE5", GATE5);
 	oapiWriteScenario_int(scn, "LVDC_GATE6", GATE6);
 	oapiWriteScenario_int(scn, "LVDC_HSL", HSL);
+	oapiWriteScenario_int(scn, "LVDC_IGM_Failed", IGM_Failed);
 	oapiWriteScenario_int(scn, "LVDC_INH", INH);
 	oapiWriteScenario_int(scn, "LVDC_INH1", INH1);
 	oapiWriteScenario_int(scn, "LVDC_INH2", INH2);
@@ -4135,6 +4214,7 @@ void LVDC::LoadState(FILEHANDLE scn){
 		papiReadScenario_bool(line, "LVDC_GATE5", GATE5);
 		papiReadScenario_bool(line, "LVDC_GATE6", GATE6);
 		papiReadScenario_bool(line, "LVDC_HSL", HSL);
+		papiReadScenario_bool(line, "LVDC_IGM_Failed", IGM_Failed);
 		papiReadScenario_bool(line, "LVDC_INH", INH);
 		papiReadScenario_bool(line, "LVDC_INH1", INH1);
 		papiReadScenario_bool(line, "LVDC_INH2", INH2);
@@ -4804,7 +4884,12 @@ void LVDC::TimeStep(double simt, double simdt) {
 		switch(LVDC_Timebase){//this is the sequential event control logic
 			case -1: // LOOP WAITING FOR PTL
 				// Limit time accel to 100x
-				if(oapiGetTimeAcceleration() > 100){ oapiSetTimeAcceleration(100); } 
+				if (oapiGetTimeAcceleration() > 100) { oapiSetTimeAcceleration(100); }
+				// Orbiter 2016 fix
+				// Force GetWeightVector() to the correct value at LVDC initiation
+				if (simt > 1 && simt < 2) {
+					owner->AddForce(_V(0, 0, -1.0), _V(0, 0, 0));
+				}
 
 				// Prelaunch tank venting between -3:00h and engine ignition
 				// No clue if the venting start time is correct
@@ -4841,8 +4926,6 @@ void LVDC::TimeStep(double simt, double simdt) {
 				}else{
 					LVDC_Timebase = 0;
 					LVDC_TB_ETime = 0;
-
-					owner->AddForce(_V(0, 0, -1.0), _V(0, 0, 0));
 					break;
 				}			
 
@@ -4961,12 +5044,30 @@ void LVDC::TimeStep(double simt, double simdt) {
 				  owner->AddForce(_V(0, 0, -(owner->THRUST_FIRST_VAC * PinDragFactor)), _V(0, 0, 0));
 				}
 
+				if (owner->secs.BECO())
+				{
+					if (t_clock > 30.0)
+					{
+						owner->SetEngineLevel(ENGINE_MAIN, 0);			// Kill the engines
+					}
+					owner->agc.SetInputChannelBit(030, SIVBSeperateAbort, true);	// Notify the AGC of the abort
+					owner->agc.SetInputChannelBit(030, LiftOff, true);	// and the liftoff, if it's not set already
+					LVDC_Stop = true;
+				}
+
 				// S1C CECO TRIGGER:
 				// I have multiple conflicting leads as to the CECO trigger.
 				// One says it happens at 4G acceleration and another says it happens by a timer at T+135.5			
 				if(owner->MissionTime > 125.9){ 
 					// Apollo 11
 					owner->SwitchSelector(16);
+					if (!S1_Engine_Out)
+					{
+						owner->SetThrusterResource(owner->th_main[4], NULL); // Should stop the engine
+						owner->SShutS.play(NOLOOP, 235);
+						owner->SShutS.done();
+					}
+
 					S1_Engine_Out = true;
 					TwoEngOutAutoAbortDeactivate = true;
 					// Begin timebase 2
@@ -4978,6 +5079,13 @@ void LVDC::TimeStep(double simt, double simdt) {
 				break;
 
 			case 2:
+
+				if (owner->secs.BECO())
+				{
+					owner->SetEngineLevel(ENGINE_MAIN, 0);			// Kill the engines
+					LVDC_Stop = true;
+				}
+
 				// S1B/C OECO TRIGGER
 				// Done by low-level sensor.
 				// Apollo 8 cut off at 32877, Apollo 11 cut off at 31995.
@@ -5018,6 +5126,12 @@ void LVDC::TimeStep(double simt, double simdt) {
 					owner->SwitchSelector(21);
 					owner->SIISepState = false;
 				}	
+
+				if (owner->secs.BECO())
+				{
+					owner->SetEngineLevel(ENGINE_MAIN, 0);			// Kill the engines
+					LVDC_Stop = true;
+				}
 
 				// IECO
 				/*if (LVDC_TB_ETime >= 30.7)
@@ -5093,7 +5207,7 @@ void LVDC::TimeStep(double simt, double simdt) {
 				}
 
 				//Manual S-IVB Shutdown
-				if (S4B_IGN == true && ((owner->SIISIVBSepSwitch.GetState() == TOGGLESWITCH_UP && directstagereset) || owner->GetThrusterLevel(owner->th_main[0]) == 0))
+				if (S4B_IGN == true && ((owner->SIISIVBSepSwitch.GetState() == TOGGLESWITCH_UP && directstagereset) || owner->GetThrusterLevel(owner->th_main[0]) == 0 || owner->secs.BECO()))
 				{
 					S4B_IGN = false;
 					TB5 = TAS;//-simdt;
@@ -5197,7 +5311,9 @@ void LVDC::TimeStep(double simt, double simdt) {
 				}
 
 				//Manual S-IVB Shutdown
-				if (S4B_REIGN == true && ((owner->SIISIVBSepSwitch.GetState() == TOGGLESWITCH_UP && directstagereset) || owner->GetThrusterLevel(owner->th_main[0]) == 0))
+				if (S4B_REIGN == true && ((owner->SIISIVBSepSwitch.GetState() == TOGGLESWITCH_UP && directstagereset) 
+					|| owner->GetThrusterLevel(owner->th_main[0]) == 0 || owner->secs.BECO() 
+					|| (owner->LVGuidanceSwitch.IsDown() && owner->agc.GetInputChannelBit(012, SIVBCutoff))))
 				{
 					S4B_REIGN = false;
 					TB7 = TAS;//-simdt;
@@ -5580,6 +5696,19 @@ void LVDC::TimeStep(double simt, double simdt) {
 				R = length(PosS);
 				V = length(DotS);
 
+				if (OrbNavCycle == 1) //State Vector update
+				{
+					VECTOR3 pos, vel;
+					MATRIX3 mat;
+					double day;
+					modf(oapiGetSimMJD(), &day);
+					mat = OrbMech::Orbiter2PACSS13(day + T_L / 24.0 / 3600.0, 28.6082888*RAD, -80.6041140*RAD, Azimuth);
+					owner->GetRelativePos(owner->GetGravityRef(), pos);
+					owner->GetRelativeVel(owner->GetGravityRef(), vel);
+					PosS = mul(mat, pos);
+					DotS = mul(mat, vel);
+				}
+
 				CG = pow((pow(ddotG_act.x, 2) + pow(ddotG_act.y, 2) + pow(ddotG_act.z, 2)), 0.5);
 				R = pow(pow(PosS.x, 2) + pow(PosS.y, 2) + pow(PosS.z, 2), 0.5);
 				V = pow(pow(DotS.x, 2) + pow(DotS.y, 2) + pow(DotS.z, 2), 0.5);
@@ -5617,7 +5746,21 @@ GuidanceLoop:
 		if(BOOST == false){//i.e. we're either in orbit or boosting out of orbit
 			if(TAS - TB7<0){
 				if(TAS - TB5 < TI5F2){ goto minorloop; }
-				if(TAS - TB6 - T_IGM<0){goto restartprep;}else{goto IGM;};
+				if(TAS - TB6 - T_IGM<0)
+				{
+					goto restartprep;
+				}
+				else
+				{
+					if (!IGM_Failed)
+					{
+						goto IGM;
+					}
+					else
+					{
+						goto minorloop;
+					}
+				};
 			}else{
 				if (TAS - TB7 < 20) { goto minorloop; }else{goto orbitalguidance;}
 			}
@@ -5888,6 +6031,14 @@ chitilde:	Pos4 = mul(MX_G,PosS);
 
 			Lt_3 = V_ex3 * log(tau3 / (tau3-Tt_3));
 			fprintf(lvlog,"Lt_3 = %f, tau3 = %f, Tt_3 = %f\r\n",Lt_3,tau3,Tt_3);
+
+			if (isnan(Lt_3))
+			{
+				IGM_Failed = true;
+				owner->SetLVGuidLight();
+				fprintf(lvlog, "IGM Error Detected! \r\n");
+				goto minorloop;
+			}
 
 			Jt_3 = (Lt_3 * tau3) - (V_ex3 * Tt_3);
 			fprintf(lvlog,"Jt_3 = %f",Jt_3);
@@ -6436,7 +6587,14 @@ orbatt: Pos4 = mul(MX_G,PosS); //here we compute the steering angles...
 
 restartprep:
 		{
-			// TLI restart & targeting logic; TBD;
+			// TLI restart & targeting logic;
+
+			//Manual TB6 Initiation
+			if (owner->LVGuidanceSwitch.IsDown() && owner->agc.GetInputChannelBit(012, SIVBIgnitionSequenceStart))
+			{
+				fprintf(lvlog, "CMC has commanded S-IVB Ignition Sequence Start! \r\n");
+				goto INHcheck;
+			}
 
 			//Determine if XLUNAR-INHIBIT
 			if (GATE0)	//Restart prep enabled?
@@ -7004,6 +7162,57 @@ minorloop:
 			owner->ENGIND[4] = false;
 		}
 
+		//Engine failure code
+		if (LVDC_Timebase == 1)
+		{
+			for (int i = 0;i < 5;i++)
+			{
+				if (owner->EarlySICutoff[i] && (t_clock > owner->FirstStageFailureTime[i]) && (owner->GetThrusterResource(owner->th_main[i]) != NULL))
+				{
+					owner->SetThrusterResource(owner->th_main[i], NULL); // Should stop the engine
+					S1_Engine_Out = true;
+				}
+			}
+		}
+
+		if (LVDC_Timebase == 3)
+		{
+			for (int i = 0;i < 5;i++)
+			{
+				if (owner->EarlySIICutoff[i] && (LVDC_TB_ETime > owner->SecondStageFailureTime[i]) && (owner->GetThrusterResource(owner->th_main[i]) != NULL))
+				{
+					owner->SetThrusterResource(owner->th_main[i], NULL); // Should stop the engine
+					S2_ENGINE_OUT = true;
+				}
+			}
+		}
+
+		//EDS
+
+		if (LVDC_Timebase == 1)
+		{
+			int enginesout = 0;
+
+			if (owner->GetThrusterLevel(owner->th_main[0]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[1]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[2]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[3]) < 0.65) enginesout++;
+			if (owner->GetThrusterLevel(owner->th_main[4]) < 0.65) enginesout++;
+
+			if (enginesout >= 2)
+			{
+				S1_TwoEngines_Out = true;
+			}
+			else
+			{
+				S1_TwoEngines_Out = false;
+			}
+		}
+		else
+		{
+			S1_TwoEngines_Out = false;
+		}
+
 		//Auto Abort
 		//LV Rates light
 		if (abs(AttRate.y) > 4.0*RAD || abs(AttRate.z) > 9.2*RAD || abs(AttRate.x) > 20.0*RAD)
@@ -7040,17 +7249,6 @@ minorloop:
 			owner->secs.SetEDSAbort1(true);
 			owner->secs.SetEDSAbort2(true);
 			owner->secs.SetEDSAbort3(true);
-		}
-
-		if (owner->secs.BECO())
-		{
-			if (t_clock > 30.0)
-			{
-				owner->SetEngineLevel(ENGINE_MAIN, 0);			// Kill the engines
-			}
-			owner->agc.SetInputChannelBit(030, SIVBSeperateAbort, true);	// Notify the AGC of the abort
-			owner->agc.SetInputChannelBit(030, LiftOff, true);	// and the liftoff, if it's not set already
-			LVDC_Stop = true;
 		}
 
 		// End of test for LVDC_Stop
