@@ -4418,11 +4418,13 @@ double RTCC::CDHcalc(CDHOpt *opt, VECTOR3 &dV_LVLH, double &P30TIG)			//Calculat
 	}
 	else
 	{
+		int n = 0;
+
 		dt = opt->TIG - (SVMJD - opt->GETbase) * 24 * 60 * 60;
 
 		dt2 = dt + 10.0;							//A secant search method is used to find the time, when the desired delta height is reached. Other values might work better.
 
-		while (abs(dt2 - dt) > 0.1)					//0.1 seconds accuracy should be enough
+		while (abs(dt2 - dt) > 0.1 && n <= 20)					//0.1 seconds accuracy should be enough
 		{
 			c1 = OrbMech::NSRsecant(RA0, VA0, RP0, VP0, SVMJD, dt, opt->DH, gravref);		//c is the difference between desired and actual DH
 			c2 = OrbMech::NSRsecant(RA0, VA0, RP0, VP0, SVMJD, dt2, opt->DH, gravref);
@@ -4430,6 +4432,7 @@ double RTCC::CDHcalc(CDHOpt *opt, VECTOR3 &dV_LVLH, double &P30TIG)			//Calculat
 			dt2_apo = dt2 - (dt2 - dt) / (c2 - c1)*c2;						//secant method
 			dt = dt2;
 			dt2 = dt2_apo;
+			n++;
 		}
 
 		CDHtime_cor = dt2 + (SVMJD - opt->GETbase) * 24 * 60 * 60;		//the new, calculated CDH time
@@ -7499,22 +7502,33 @@ void RTCC::LaunchTimePredictionProcessor(LunarLiftoffTimeOpt *opt, LunarLiftoffR
 	DH = 15.0*1852.0;
 	E = 26.6*RAD;
 
+	t_CSI = 0;
+	t_CDH = 0;
+
 	opt->vessel->GetEquPos(lng, lat, r);
 
 	R_LS = OrbMech::r_from_latlong(lat, lng, r);
 
-	double ttoMidnight;
-	OBJHANDLE hSun;
+	if (opt->opt == 0)
+	{
+		double ttoMidnight;
+		OBJHANDLE hSun;
 
-	hSun = oapiGetObjectByName("Sun");
+		hSun = oapiGetObjectByName("Sun");
 
-	sv_TPI = coast(sv_P, (opt->GETbase - sv_P.MJD)*24.0*3600.0 + opt->t_TPIguess);
+		sv_TPI = coast(sv_P, (opt->GETbase - sv_P.MJD)*24.0*3600.0 + opt->t_TPIguess);
 
-	ttoMidnight = OrbMech::sunrise(sv_TPI.R, sv_TPI.V, sv_TPI.MJD, hMoon, hSun, 1, 1, false);
-	t_TPI = opt->t_TPIguess + ttoMidnight;
+		ttoMidnight = OrbMech::sunrise(sv_TPI.R, sv_TPI.V, sv_TPI.MJD, hMoon, hSun, 1, 1, false);
+		t_TPI = opt->t_TPIguess + ttoMidnight;
 
-	OrbMech::LunarLiftoffTimePredictionCFP(R_LS, sv_P.R, sv_P.V, sv_P.MJD, opt->GETbase, hMoon, dt_1, h_1, theta_1, theta_Ins, DH, E, t_TPI, theta_F, t_IG, t_CSI, t_CDH, t_TPF, v_LH, v_LV);
+		OrbMech::LunarLiftoffTimePredictionCFP(R_LS, sv_P.R, sv_P.V, sv_P.MJD, opt->GETbase, hMoon, dt_1, h_1, theta_1, theta_Ins, DH, E, t_TPI, theta_F, t_IG, t_CSI, t_CDH, t_TPF, v_LH, v_LV);
+	}
+	else
+	{
+		t_TPI = opt->t_TPIguess;
 
+		OrbMech::LunarLiftoffTimePredictionDT(R_LS, sv_P.R, sv_P.V, sv_P.MJD, opt->GETbase, hMoon, dt_1, h_1, theta_1, theta_Ins, DH, E, t_TPI, theta_F, t_IG, t_TPF, v_LH, v_LV);
+	}
 	res->t_L = t_IG;
 	res->t_Ins = t_IG + dt_1;
 	res->t_CSI = t_CSI;
