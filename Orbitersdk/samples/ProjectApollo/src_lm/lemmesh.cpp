@@ -416,7 +416,10 @@ void LEM::SetLmAscentHoverStage()
 	AFEED4switch=true;
 
 	// Descent stage detached.
-	agc.SetInputChannelBit(030, DescendStageAttached, false);
+	if(this->ApolloNo==5)
+	{agc.SetInputChannelBit(030, DescendStageAttached, true);}
+	else
+	{agc.SetInputChannelBit(030, DescendStageAttached, false);}
 
 	CheckRCS();
 }
