@@ -147,6 +147,7 @@ public:
 	void menuSetAGCEpoch();
 	void set_AGCEpoch(double mjd);
 	void menuChangeVesselType();
+	void menuUpdateLiftoffTime();
 	void cycleREFSMMATupl();
 	void set_svtarget();
 	void offvecdialogue();
@@ -195,6 +196,7 @@ public:
 	void menuTranslunarPage();
 	void menuSetLunarLiftoffPage();
 	void menuSetEMPPage();
+	void menuSetNavCheckPADPage();
 	void cycleVECDirOpt();
 	void vecbodydialogue();
 	void set_vecbody(OBJHANDLE body);
@@ -205,8 +207,11 @@ public:
 	void set_LSAlt(double alt);
 	void menuSetDOIRevs();
 	void set_DOIRevs(int N);
+	void menuSetDOIPeriAng();
+	void set_DOIPeriAng(double ang);
 	void menuDOICalc();
 	void menuSetDOIPage();
+	void menuDOIOption();
 	void menuTLANDUpload();
 	void menuSetSkylabPage();
 	void menuSwitchSkylabManeuver();
@@ -253,6 +258,9 @@ public:
 	void menuTerrainModelCalc();
 	void set_TLand(double time);
 	void menuTLCCCalc();
+	void menuNavCheckPADCalc();
+	void menuSetNavCheckGET();
+	void set_NavCheckGET(double time);
 
 protected:
 	oapi::Font *font;
