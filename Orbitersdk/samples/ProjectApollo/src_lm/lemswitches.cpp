@@ -38,7 +38,6 @@
 #include "apolloguidance.h"
 #include "dsky.h"
 #include "LEMcomputer.h"
-#include "IMU.h"
 #include "lm_channels.h"
 
 #include "LEM.h"
@@ -1489,4 +1488,94 @@ void LEMPanelOrdeal::SetState(int value) {
 	if (value == 0) value = -1;
 
 	lem->ordealEnabled = value;
+}
+
+RadarSignalStrengthAttenuator::RadarSignalStrengthAttenuator(char *i_name, double minIn, double maxIn, double minOut, double maxOut) :
+	VoltageAttenuator(i_name, minIn, maxIn, minOut, maxOut)
+{
+}
+
+void RadarSignalStrengthAttenuator::Init(LEM *l, RotationalSwitch *testmonitorselectorswitch, e_object *Instrum)
+{
+	lem = l;
+	TestMonitorRotarySwitch = testmonitorselectorswitch;
+
+	WireTo(Instrum);
+}
+
+double RadarSignalStrengthAttenuator::GetValue()
+{
+	double val = 0.0;
+
+	switch (TestMonitorRotarySwitch->GetState())
+	{
+	case 0:	//ALT XMTR
+		val = 0.0;
+		break;
+	case 1:	//VEL XMTR
+		val = 0.0;
+		break;
+	case 2:	//AGC
+		val = lem->RR.GetSignalStrength();
+		break;
+	case 3:	//XMTR PWR
+		val = 0.0;
+		break;
+	case 4:	//SHAFT ERR
+		val = lem->RR.GetShaftErrorSignal();
+		break;
+	case 5:	//TRUN ERR
+		val = lem->RR.GetTrunnionErrorSignal();
+		break;
+	}
+
+	return val;
+}
+
+void LEMSteerableAntennaPitchMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
+double LEMSteerableAntennaPitchMeter::QueryValue() {
+	return lem->SBandSteerable.GetPitch();
+}
+
+void LEMSteerableAntennaPitchMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface) {
+	v = (210.0 - v) * 0.75;
+	DrawNeedle(drawSurface, 91 / 2, 90 / 2, 25.0, v * RAD);
+	oapiBlt(drawSurface, FrameSurface, 0, 0, 0, 0, 91, 90, SURF_PREDEF_CK);
+}
+
+void LEMSteerableAntennaYawMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
+double LEMSteerableAntennaYawMeter::QueryValue() {
+	return lem->SBandSteerable.GetYaw();
+}
+
+void LEMSteerableAntennaYawMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface) {
+	v = (120.0 - v) * 0.75;
+	DrawNeedle(drawSurface, 91 / 2, 90 / 2, 25.0, v * RAD);
+	oapiBlt(drawSurface, FrameSurface, 0, 0, 0, 0, 91, 90, SURF_PREDEF_CK);
+}
+
+void LEMSBandAntennaStrengthMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
+double LEMSBandAntennaStrengthMeter::QueryValue() {
+	return lem->SBand.rcvr_agc_voltage;
+}
+
+void LEMSBandAntennaStrengthMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface) {
+	v = 220.0 - 2.7*v;
+	DrawNeedle(drawSurface, 91 / 2, 90 / 2, 25.0, v * RAD);
+	oapiBlt(drawSurface, FrameSurface, 0, 0, 0, 0, 91, 90, SURF_PREDEF_CK);
 }

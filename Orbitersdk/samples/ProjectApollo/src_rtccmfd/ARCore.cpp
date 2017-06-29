@@ -407,7 +407,7 @@ ARCore::ARCore(VESSEL* v)
 		LOIazi = -91.0*RAD;
 		TLCCEMPLat = -4.933294*RAD;
 		TLCCPeriGET = OrbMech::HHMMSSToSS(75.0, 49.0, 40.2);
-		t_Land = OrbMech::HHMMSSToSS(100.0, 38.0, 30.9);
+		t_Land = OrbMech::HHMMSSToSS(100.0, 46.0, 19.0);
 	}
 	else if (mission == 11)
 	{
@@ -1754,7 +1754,16 @@ int ARCore::subThread()
 		opt.P30TIG2 = LOI_TIG;
 		opt.REFSMMATdirect = REFSMMATdirect;
 		opt.REFSMMATopt = REFSMMATopt;
-		opt.REFSMMATTime = REFSMMATTime;
+
+		if (REFSMMATopt == 5 || REFSMMATopt == 8)
+		{
+			opt.REFSMMATTime = t_Land;
+		}
+		else
+		{
+			opt.REFSMMATTime = REFSMMATTime;
+		}
+
 		opt.vessel = vessel;
 		opt.HeadsUp = REFSMMATHeadsUp;
 

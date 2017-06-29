@@ -31,9 +31,10 @@
 // DS20060413 Include DirectInput
 #define DIRECTINPUT_VERSION 0x0800
 #include "dinput.h"
-// DS20060730 Include LM SCS
+#include "dsky.h"
+#include "imu.h"
+#include "cdu.h"
 #include "lmscs.h"
-// DS20090905 Include LM AGS and telecom
 #include "lm_ags.h"
 #include "lm_telecom.h"
 #include "pyro.h"
@@ -239,23 +240,21 @@ public:
 	void TimeStep(double simdt);
 	void SystemTimeStep(double simdt);
 	double GetAntennaTempF();
-	void RRTrunionDrive(int val,ChannelValue ch12);
-	void RRShaftDrive(int val, ChannelValue ch12);
-	double GetRadarTrunnionVel() { return trunnionVel ; } ;
+	double GetRadarTrunnionVel() { return -trunnionVel ; } ;
 	double GetRadarShaftVel() { return shaftVel ; } ;
-	double GetRadarTrunnionPos() { return trunnionAngle ; } ;
+	double GetRadarTrunnionPos();
 	double GetRadarShaftPos() { return shaftAngle ; } ;
 	double GetRadarRange() { return range; } ;
 	double GetRadarRate() { return rate ; };
+	double GetSignalStrength() { return SignalStrength*4.0; }
+	double GetShaftErrorSignal();
+	double GetTrunnionErrorSignal();
 	
 	bool IsPowered(); 
 	bool IsDCPowered(); 
 	bool IsRadarDataGood() { return radarDataGood;};
 
 private:
-	void CalculateRadarData(double &pitch, double &yaw);
-	VECTOR3 GetPYR(VECTOR3 Pitch, VECTOR3 YawRoll);
-	VECTOR3 GetPYR2(VECTOR3 Pitch, VECTOR3 YawRoll);
 
 	LEM *lem;					// Pointer at LEM
 	h_Radiator *antenna;			// Antenna (loses heat into space)
@@ -268,18 +267,22 @@ private:
 	int    isTracking;
 	bool   radarDataGood;
 	double trunnionAngle;
-	double trunnionMoved;
 	double shaftAngle;
-	double shaftMoved;
-	double lastTrunnionAngle;
-	double lastShaftAngle;
 	double trunnionVel;
 	double shaftVel;
 	double range;
 	double rate;
 	int ruptSent;				// Rupt sent
 	int scratch[2];             // Scratch data
-
+	int mode;					//Mode I = false, Mode II = true
+	double hpbw_factor;			//Beamwidth factor
+	double SignalStrength;
+	double SignalStrengthQuadrant[4];
+	VECTOR3 U_RRL[4];
+	bool AutoTrackEnabled;
+	double ShaftErrorSignal;
+	double TrunnionErrorSignal;
+	VECTOR3 GyroRates;
 };
 
 
@@ -320,13 +323,8 @@ public:
 	void TimeStep(double simdt);
 	void SystemTimeStep(double simdt);
 	void GetVelocities(double &vx, double &vy);
-	void SetForwardVelocity(int val, ChannelValue ch12);
-	void SetLateralVelocity(int val, ChannelValue ch12);
-	void ZeroLGCVelocity() {lgc_forward = 0.0;lgc_lateral = 0.0;}
 
 	bool IsPowered();
-
-	bool lgcErrorCountersEnabled;
 protected:
 	LEM *lem;
 	e_object *dc_source;
@@ -664,6 +662,7 @@ public:
 	bool thc_auto;						  ///< THC Z-axis auto detection
 	bool rhc_thctoggle;					  ///< Enable RHC/THC toggle
 	int rhc_thctoggle_id;				  ///< RHC button id for RHC/THC toggle
+	bool rhc_thctoggle_pressed;			  ///< Button pressed flag
 	int rhc_pos[3];                       // RHC x/y/z positions
 	int ttca_mode;                        // TTCA Throttle/Jets Mode
 #define TTCA_MODE_THROTTLE 0
@@ -1001,6 +1000,7 @@ protected:
 
 	SwitchRow RaderSignalStrengthMeterRow;
 	DCVoltMeter RadarSignalStrengthMeter;
+	RadarSignalStrengthAttenuator RadarSignalStrengthAttenuator;
 
 
 	/////////////////
@@ -1418,7 +1418,7 @@ protected:
 	ThreePosSwitch Panel12AntTrackModeSwitch;
 
 	SwitchRow Panel12SignalStrengthMeterRow;
-	DCVoltMeter Panel12SignalStrengthMeter;
+	LEMSBandAntennaStrengthMeter Panel12SignalStrengthMeter;
 
 	SwitchRow Panel12VHFAntSelSwitchRow;
 	RotationalSwitch Panel12VHFAntSelKnob;
@@ -1435,15 +1435,11 @@ protected:
 	SwitchRow AGSOperateSwitchRow;
 	ThreePosSwitch AGSOperateSwitch;
 
-	//
-	// Currently these are just 0-5V meters; at some point we may want
-	// to change them to a different class.
-	//
 	SwitchRow ComPitchMeterRow;
-	DCVoltMeter ComPitchMeter;
+	LEMSteerableAntennaPitchMeter ComPitchMeter;
 
 	SwitchRow ComYawMeterRow;
-	DCVoltMeter ComYawMeter;
+	LEMSteerableAntennaYawMeter ComYawMeter;
 
 	//////////////////
 	// LEM panel 16 //
@@ -1609,7 +1605,9 @@ protected:
 	LEMcomputer agc;
 	Boiler *imuheater; // IMU Standby Heater
 	h_Radiator *imucase; // IMU Case
-	IMU imu;	
+	IMU imu;
+	CDU tcdu;
+	CDU scdu;
 	LMOptics optics;
 
 	//Pyros
@@ -1630,6 +1628,8 @@ protected:
 
 	double DescentFuelMassKg;	///< Mass of fuel in descent stage of LEM.
 	double AscentFuelMassKg;	///< Mass of fuel in ascent stage of LEM.
+	double DescentEmptyMassKg;
+	double AscentEmptyMassKg;
 
 #define LMPANEL_MAIN			0
 #define LMPANEL_RIGHTWINDOW		1
@@ -1787,6 +1787,8 @@ protected:
 
 	// COMM
 	LEM_SteerableAnt SBandSteerable;
+	LM_OMNI omni_fwd;
+	LM_OMNI omni_aft;
 	LM_VHF VHF;
 	LM_SBAND SBand;
 
@@ -1855,6 +1857,10 @@ protected:
 	friend class LEMPanelOrdeal;
 	friend class LMAbortButton;
 	friend class LMAbortStageButton;
+	friend class RadarSignalStrengthAttenuator;
+	friend class LEMSteerableAntennaPitchMeter;
+	friend class LEMSteerableAntennaYawMeter;
+	friend class LEMSBandAntennaStrengthMeter;
 
 	friend class ApolloRTCCMFD;
 	friend class ProjectApolloMFD;

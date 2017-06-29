@@ -477,3 +477,40 @@ public:
 protected:
 	LEM *lem;
 };
+
+class RadarSignalStrengthAttenuator : public VoltageAttenuator {
+public:
+	RadarSignalStrengthAttenuator(char *i_name, double minIn, double maxIn, double minOut, double maxOut);
+	void Init(LEM* l, RotationalSwitch *testmonitorselectorswitch, e_object *Instrum);
+	double GetValue();
+protected:
+	LEM *lem;
+	RotationalSwitch *TestMonitorRotarySwitch;
+};
+
+class LEMSteerableAntennaPitchMeter : public LEMRoundMeter {
+public:
+	void Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface);
+	double QueryValue();
+	void DoDrawSwitch(double v, SURFHANDLE drawSurface);
+protected:
+	SURFHANDLE FrameSurface;
+};
+
+class LEMSteerableAntennaYawMeter : public LEMRoundMeter {
+public:
+	void Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface);
+	double QueryValue();
+	void DoDrawSwitch(double v, SURFHANDLE drawSurface);
+protected:
+	SURFHANDLE FrameSurface;
+};
+
+class LEMSBandAntennaStrengthMeter : public LEMRoundMeter {
+public:
+	void Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface);
+	double QueryValue();
+	void DoDrawSwitch(double v, SURFHANDLE drawSurface);
+protected:
+	SURFHANDLE FrameSurface;
+};

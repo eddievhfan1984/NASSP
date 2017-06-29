@@ -39,9 +39,7 @@
 
 #include "toggleswitch.h"
 #include "apolloguidance.h"
-#include "dsky.h"
 #include "lemcomputer.h"
-#include "imu.h"
 
 #include "payload.h"
 #include "sivb.h"
@@ -255,6 +253,8 @@ void SIVB::InitS4b()
 
 	LMDescentFuelMassKg = 8375.0;
 	LMAscentFuelMassKg = 2345.0;
+	LMAscentEmptyMassKg = 2150.0;
+	LMDescentEmptyMassKg = 2224.0;
 	Payloaddatatransfer = false;
 
 	//
@@ -791,6 +791,8 @@ void SIVB::clbkSaveState (FILEHANDLE scn)
 		}
 		oapiWriteScenario_float (scn, "LMDSCFUEL", LMDescentFuelMassKg);
 		oapiWriteScenario_float (scn, "LMASCFUEL", LMAscentFuelMassKg);
+		oapiWriteScenario_float(scn, "LMDSCEMPTY", LMDescentEmptyMassKg);
+		oapiWriteScenario_float(scn, "LMASCEMPTY", LMAscentEmptyMassKg);
 		if (LMPadCount > 0 && LMPad) {
 			oapiWriteScenario_int (scn, "LMPADCNT", LMPadCount);
 			char str[64];
@@ -1210,6 +1212,14 @@ void SIVB::clbkLoadStateEx (FILEHANDLE scn, void *vstatus)
 			sscanf(line + 9, "%f", &flt);
 			LMAscentFuelMassKg = flt;
 		}
+		else if (!strnicmp(line, "LMDSCEMPTY", 10)) {
+			sscanf(line + 10, "%f", &flt);
+			LMDescentEmptyMassKg = flt;
+		}
+		else if (!strnicmp(line, "LMASCEMPTY", 10)) {
+			sscanf(line + 10, "%f", &flt);
+			LMAscentEmptyMassKg = flt;
+		}
 		else if (!strnicmp (line, "LMPADCNT", 8)) {
 			if (!LMPad) {
 				sscanf (line+8, "%d", &LMPadCount);
@@ -1383,6 +1393,8 @@ void SIVB::SetState(SIVBSettings &state)
 
 		LMDescentFuelMassKg = state.LMDescentFuelMassKg;
 		LMAscentFuelMassKg = state.LMAscentFuelMassKg;
+		LMDescentEmptyMassKg = state.LMDescentEmptyMassKg;
+		LMAscentEmptyMassKg = state.LMAscentEmptyMassKg;
 
 		//
 		// Copy LM PAD data across.
@@ -1643,6 +1655,8 @@ void SIVB::StartSeparationPyros()
 
 	ps.DescentFuelKg = LMDescentFuelMassKg;
 	ps.AscentFuelKg = LMAscentFuelMassKg;
+	ps.DescentEmptyKg = LMDescentEmptyMassKg;
+	ps.AscentEmptyKg = LMAscentEmptyMassKg;
 	sprintf(ps.checklistFile, LEMCheck);
 	ps.checkAutoExecute = LEMCheckAuto;
 

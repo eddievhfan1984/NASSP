@@ -37,7 +37,6 @@
 #include "apolloguidance.h"
 #include "lm_channels.h"
 #include "LEMcomputer.h"
-#include "IMU.h"
 #include "dsky.h"
 
 #include "LEM.h"
@@ -226,6 +225,7 @@ void LEM::InitSwitches() {
 	LandingAntSwitch.Register(PSH, "LandingAntSwitch", THREEPOSSWITCH_UP);
 	EngGimbalEnableSwitch.Register(PSH, "EngGimbalEnableSwitch", TOGGLESWITCH_UP);
 	RadarTestSwitch.Register(PSH, "RadarTestSwitch",  THREEPOSSWITCH_CENTER);
+	RadarSignalStrengthMeter.Register(PSH, "RadarSignalStrengthMeter", 0.0, 5.0, 3);
 	SlewRateSwitch.Register(PSH, "SlewRateSwitch", true);
 	DeadBandSwitch.Register(PSH, "DeadBandSwitch", false);
 	LMSuitTempMeter.Register(PSH,"LMSuitTempMeter",40,100,2);
@@ -563,6 +563,10 @@ void LEM::InitSwitches() {
 	Panel12AntYawKnob.AddPosition(11,75);
 	Panel12AntYawKnob.AddPosition(12,90);
 	Panel12AntYawKnob.Register(PSH, "Panel12AntYawKnob", 5);
+
+	ComPitchMeter.Register(PSH, "ComPitchMeter", -75, 255, 5, -75);
+	Panel12SignalStrengthMeter.Register(PSH, "Panel12SignalStrengthMeter", 0, 100, 5);
+	ComYawMeter.Register(PSH, "ComYawMeter", -75, 75, 5, -75);
 
 	// CIRCUIT BREAKERS
 	// Panel 11, Row 1
@@ -1930,8 +1934,10 @@ void LEM::SetSwitches(int panel) {
 			RightACA4JetSwitch.Init   (0,   0, 34, 39, srf[SRF_LMTWOPOSLEVER], srf[SRF_BORDER_34x39], Panel4RightSwitchRow);
 			RightTTCATranslSwitch.Init(0, 141, 34, 39, srf[SRF_LMTWOPOSLEVER], srf[SRF_BORDER_34x39], Panel4RightSwitchRow);
 
+			RadarSignalStrengthAttenuator.Init(this, &TestMonitorRotary, &PGNS_SIG_STR_DISP_CB);
+
 			RaderSignalStrengthMeterRow.Init(AID_LMRADARSIGNALSTRENGTH, MainPanel);
-			RadarSignalStrengthMeter.Init(g_Param.pen[4], g_Param.pen[4], RaderSignalStrengthMeterRow, 0);
+			RadarSignalStrengthMeter.Init(g_Param.pen[4], g_Param.pen[4], RaderSignalStrengthMeterRow, &RadarSignalStrengthAttenuator);
 			RadarSignalStrengthMeter.SetSurface(srf[SRF_LMSIGNALSTRENGTH], 91, 90);
 
 			RadarSlewSwitchRow.Init(AID_LMRADARSLEWSWITCH, MainPanel);
@@ -2152,15 +2158,12 @@ void LEM::SetSwitches(int panel) {
 			TapeRecorderTB.Init(  841-636, 1214-1189, 23, 23, srf[SRF_INDICATOR], Panel12CommSwitchRow3);
 			TapeRecorderSwitch.Init(892-636, 1212-1189, 34, 29, srf[SRF_SWITCHUP], srf[SRF_BORDER_34x29], Panel12CommSwitchRow3);
 
-			ComPitchMeterRow.Init(AID_LMPITCHDEGS, MainPanel);
-			ComPitchMeter.Init(g_Param.pen[4], g_Param.pen[4], ComPitchMeterRow, 0);
-			ComPitchMeter.SetSurface(srf[SRF_LMPITCHDEGS], 91, 90);
-			ComYawMeterRow.Init(AID_LMYAWDEGS, MainPanel);
-			ComYawMeter.Init(g_Param.pen[4], g_Param.pen[4], ComYawMeterRow, 0);
-			ComYawMeter.SetSurface(srf[SRF_LMYAWDEGS], 91, 90);
-			Panel12SignalStrengthMeterRow.Init(AID_LMSIGNALSTRENGTH, MainPanel);
-			Panel12SignalStrengthMeter.Init(g_Param.pen[4], g_Param.pen[4], Panel12SignalStrengthMeterRow, 0);
-			Panel12SignalStrengthMeter.SetSurface(srf[SRF_LMSIGNALSTRENGTH], 91, 90);
+			ComPitchMeterRow.Init(AID_LMPITCHDEGS, MainPanel, &COMM_DISP_CB);
+			ComPitchMeter.Init(g_Param.pen[4], g_Param.pen[4], ComPitchMeterRow, this, srf[SRF_LMPITCHDEGS]);
+			ComYawMeterRow.Init(AID_LMYAWDEGS, MainPanel, &COMM_DISP_CB);
+			ComYawMeter.Init(g_Param.pen[4], g_Param.pen[4], ComYawMeterRow, this, srf[SRF_LMYAWDEGS]);
+			Panel12SignalStrengthMeterRow.Init(AID_LMSIGNALSTRENGTH, MainPanel, &COMM_DISP_CB);
+			Panel12SignalStrengthMeter.Init(g_Param.pen[4], g_Param.pen[4], Panel12SignalStrengthMeterRow, this, srf[SRF_LMSIGNALSTRENGTH]);
 
 			Panel12AntTrackModeSwitchRow.Init(AID_LM_P12_COMM_ANT_TRACK_MODE_SWITCH,MainPanel);
 			Panel12AntTrackModeSwitch.Init(0, 0, 34, 29,srf[SRF_LMTHREEPOSSWITCH], srf[SRF_BORDER_34x29], Panel12AntTrackModeSwitchRow);
