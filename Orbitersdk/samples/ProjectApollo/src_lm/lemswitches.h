@@ -392,13 +392,14 @@ protected:
 class MainFuelPressInd : public MeterSwitch {
 public:
 	MainFuelPressInd();
-	void Init(SURFHANDLE surf, SwitchRow &row, LEM *s);
+	void Init(SURFHANDLE surf, SwitchRow &row, LEM *s, ThreePosSwitch *temppressmonswitch);
 	double QueryValue();
 	void DoDrawSwitch(double v, SURFHANDLE drawSurface);
 
 protected:
 	LEM *lem;
 	SURFHANDLE NeedleSurface;
+	ThreePosSwitch *monswitch;
 };
 
 class MainOxidizerTempInd : public MeterSwitch {
@@ -416,20 +417,22 @@ protected:
 class MainOxidizerPressInd : public MeterSwitch {
 public:
 	MainOxidizerPressInd();
-	void Init(SURFHANDLE surf, SwitchRow &row, LEM *s);
+	void Init(SURFHANDLE surf, SwitchRow &row, LEM *s, ThreePosSwitch *temppressmonswitch);
 	double QueryValue();
 	void DoDrawSwitch(double v, SURFHANDLE drawSurface);
 
 protected:
 	LEM *lem;
 	SURFHANDLE NeedleSurface;
+	ThreePosSwitch *monswitch;
 };
 
 class EngineStartButton : public ToggleSwitch {
 
 public:
 	EngineStartButton() {};
-	void Init(ToggleSwitch* stopbutton);
+	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* stopbutton);
+	bool CheckMouseClick(int event, int mx, int my);
 	bool Push();
 protected:
 	ToggleSwitch* stopbutton;
@@ -439,7 +442,8 @@ class EngineStopButton : public ToggleSwitch {
 
 public:
 	EngineStopButton() {};
-	void Init(ToggleSwitch* startbutton);
+	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* startbutton);
+	bool CheckMouseClick(int event, int mx, int my);
 	bool Push();
 protected:
 	ToggleSwitch* startbutton;

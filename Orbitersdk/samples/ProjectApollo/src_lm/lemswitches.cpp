@@ -802,18 +802,28 @@ MainFuelPressInd::MainFuelPressInd()
 	NeedleSurface = 0;
 }
 
-void MainFuelPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
+void MainFuelPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s, ThreePosSwitch *temppressmonswitch)
 
 {
 	MeterSwitch::Init(row);
 	lem = s;
 	NeedleSurface = surf;
+	monswitch = temppressmonswitch;
 }
 
 double MainFuelPressInd::QueryValue()
 
 {
-	return 150.0;
+	if (monswitch->IsUp())
+	{
+		return 150.0;
+	}
+	else if (monswitch->IsCenter() || monswitch->IsDown())
+	{
+		return lem->GetDPSPropellant()->GetFuelTankUllagePressurePSI();
+	}
+
+	return 0.0;
 }
 
 void MainFuelPressInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -856,18 +866,28 @@ MainOxidizerPressInd::MainOxidizerPressInd()
 	NeedleSurface = 0;
 }
 
-void MainOxidizerPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
+void MainOxidizerPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s, ThreePosSwitch *temppressmonswitch)
 
 {
 	MeterSwitch::Init(row);
 	lem = s;
 	NeedleSurface = surf;
+	monswitch = temppressmonswitch;
 }
 
 double MainOxidizerPressInd::QueryValue()
 
 {
-	return 150.0;
+	if (monswitch->IsUp())
+	{
+		return 150.0;
+	}
+	else if (monswitch->IsCenter() || monswitch->IsDown())
+	{
+		return lem->GetDPSPropellant()->GetOxidizerTankUllagePressurePSI();
+	}
+
+	return 0.0;
 }
 
 void MainOxidizerPressInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -1339,8 +1359,24 @@ double LEMVoltCB::Current()
 	return Amperes;
 }
 
-void EngineStartButton::Init(ToggleSwitch* stopbutton) {
+void EngineStartButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* stopbutton) {
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
 	this->stopbutton = stopbutton;
+}
+
+bool EngineStartButton::CheckMouseClick(int event, int mx, int my) {
+
+	int OldState = state;
+
+	if (!visible) return false;
+	if (mx < x || my < y) return false;
+	if (mx >(x + width) || my >(y + height)) return false;
+
+	if (event == PANEL_MOUSE_LBDOWN)
+	{
+		Push();
+	}
+	return true;
 }
 
 bool EngineStartButton::Push()
@@ -1351,7 +1387,6 @@ bool EngineStartButton::Push()
 	{
 		if (ToggleSwitch::SwitchTo(1)) {
 
-			sprintf(oapiDebugString(), "Engine Start: %d, Engine Stop: %d", GetState(), stopbutton->GetState());
 			return true;
 		}
 	}
@@ -1359,8 +1394,24 @@ bool EngineStartButton::Push()
 	return false;
 }
 
-void EngineStopButton::Init(ToggleSwitch* startbutton) {
+void EngineStopButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* startbutton) {
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
 	this->startbutton = startbutton;
+}
+
+bool EngineStopButton::CheckMouseClick(int event, int mx, int my) {
+
+	int OldState = state;
+
+	if (!visible) return false;
+	if (mx < x || my < y) return false;
+	if (mx >(x + width) || my >(y + height)) return false;
+
+	if (event == PANEL_MOUSE_LBDOWN)
+	{
+		Push();
+	}
+	return true;
 }
 
 bool EngineStopButton::Push()
@@ -1371,8 +1422,10 @@ bool EngineStopButton::Push()
 		
 		if (newstate = 1)
 		{
-			startbutton->SwitchTo(0);
-			sprintf(oapiDebugString(), "Engine Start: %d, Engine Stop: %d", startbutton->GetState(), GetState());
+			if (startbutton)
+			{
+				startbutton->SwitchTo(0);
+			}
 		}
 		return true;
 	}

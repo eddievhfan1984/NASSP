@@ -65,6 +65,11 @@ public:
 	double GetOxidPercent();
 	double GetAmbientHeliumPressPSI();
 	double GetSupercriticalHeliumPressPSI();
+	double GetHeliumRegulatorManifoldPressurePSI();
+	double GetFuelTankUllagePressurePSI();
+	double GetOxidizerTankUllagePressurePSI();
+	double GetFuelEngineInletPressurePSI() { return FuelEngineInletPressurePSI; }
+	bool PropellantLevelLow();
 
 	DPSValve *GetHeliumValve1() { return &PrimaryHeRegulatorShutoffValve; }
 	DPSValve *GetHeliumValve2() { return &SecondaryHeRegulatorShutoffValve; }
@@ -80,6 +85,15 @@ protected:
 	double propellantMaxMassToDisplay;
 	double ambientHeliumPressurePSI;
 	double supercriticalHeliumPressurePSI;
+	double heliumRegulatorManifoldPressurePSI;
+	double FuelTankUllagePressurePSI;
+	double OxidTankUllagePressurePSI;
+	double FuelEngineInletPressurePSI;
+
+	bool fuel1LevelLow;
+	bool fuel2LevelLow;
+	bool oxid1LevelLow;
+	bool oxid2LevelLow;
 
 	DPSValve PrimaryHeRegulatorShutoffValve;
 	DPSValve SecondaryHeRegulatorShutoffValve;
@@ -144,7 +158,6 @@ public:
 	void ThrottleActuator(double manthrust, double autothrust);
 
 	LEM *lem;					// Pointer at LEM
-	double HePress[2];			// Helium pressure above and below the regulator
 	bool thrustOn;				// Engine "On" Command
 	bool engArm;				// Engine Arm Command
 	bool engPreValvesArm;		// Engine Prevalves Arm Command
