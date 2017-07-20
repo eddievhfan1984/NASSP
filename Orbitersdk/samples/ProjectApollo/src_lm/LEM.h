@@ -42,6 +42,7 @@
 #include "lm_aps.h"
 #include "lm_dps.h"
 #include "lm_programer.h"
+#include "lm_aca.h"
 
 // Cosmic background temperature in degrees F
 #define CMBG_TEMP -459.584392
@@ -496,6 +497,7 @@ public:
 		SRF_TW_NEEDLE,
 		SRF_SEQ_LIGHT,
 		SRF_LMENGINE_START_STOP_BUTTONS,
+		SRF_LMTRANSLBUTTON,
 
 		//
 		// NSURF MUST BE THE LAST ENTRY HERE. PUT ANY NEW SURFACE IDS ABOVE THIS LINE
@@ -603,7 +605,6 @@ public:
 	bool rhc_thctoggle;					  ///< Enable RHC/THC toggle
 	int rhc_thctoggle_id;				  ///< RHC button id for RHC/THC toggle
 	bool rhc_thctoggle_pressed;			  ///< Button pressed flag
-	int rhc_pos[3];                       // RHC x/y/z positions
 	int ttca_mode;                        // TTCA Throttle/Jets Mode
 #define TTCA_MODE_THROTTLE 0
 #define TTCA_MODE_JETS 1
@@ -1103,7 +1104,7 @@ protected:
 	RotationalSwitch LtgFloodOhdFwdKnob;
 	RotationalSwitch LtgAnunNumKnob;
 	RotationalSwitch LtgIntegralKnob;
-	// There's a +X TRANSLATION button here too
+	PushSwitch PlusXTranslationButton;
 	EngineStartButton ManualEngineStart;
 	EngineStopButton CDRManualEngineStop;
 
@@ -1624,6 +1625,8 @@ protected:
 	SCCA2 scca2;
 	SCCA3 scca3;
 	LEM_Programer lmp;
+	LEM_ACA CDR_ACA;
+	LEM_RGA rga;
 
 	LEM_RadarTape RadarTape;
 	LEM_CWEA CWEA;
@@ -1708,6 +1711,8 @@ protected:
 	friend class LEMSBandAntennaStrengthMeter;
 	friend class LEM_Programer;
 	friend class LEMDPSDigitalMeter;
+	friend class LEM_ACA;
+	friend class LEM_RGA;
 
 	friend class ApolloRTCCMFD;
 	friend class ProjectApolloMFD;

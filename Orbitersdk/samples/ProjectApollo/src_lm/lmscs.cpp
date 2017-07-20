@@ -42,12 +42,95 @@
 
 #define DECA_AUTOTHRUST_STEP 0.00026828571
 
+// RATE GYRO ASSEMBLY
+
+LEM_RGA::LEM_RGA()
+{
+	powered = false;
+	dc_source = false;
+	rates = _V(0, 0, 0);
+}
+
+void LEM_RGA::Init(LEM *v, e_object *dcsource)
+{
+	dc_source = dcsource;
+	lem = v;
+}
+
+void LEM_RGA::Timestep(double simdt)
+{
+	if (lem == NULL) { return; }
+
+	powered = false;
+	rates = _V(0, 0, 0);
+	if (lem != NULL) {
+		if (dc_source != NULL && dc_source->Voltage() > SP_MIN_DCVOLTAGE) {
+			powered = true;
+			lem->GetAngularVel(rates);
+		}
+	}
+
+	if (powered)
+	{
+		//Test Signal
+		if (lem->SCS_ATCA_AGS_CB.IsPowered() && !lem->GyroTestRightSwitch.IsCenter())
+		{
+			double polar = 0.0;
+
+			if (lem->GyroTestRightSwitch.IsUp())
+			{
+				polar = 1.0;
+			}
+			else if (lem->GyroTestRightSwitch.IsDown())
+			{
+				polar = -1.0;
+			}
+
+			if (lem->GyroTestLeftSwitch.IsUp())
+			{
+				rates.z += polar*5.0*RAD;
+			}
+			else if (lem->GyroTestLeftSwitch.IsCenter())
+			{
+				rates.x += polar*5.0*RAD;
+			}
+			if (lem->GyroTestLeftSwitch.IsDown())
+			{
+				rates.y += polar*5.0*RAD;
+			}
+		}
+	}
+}
+
+void LEM_RGA::SystemTimestep(double simdt)
+{
+	if (powered && dc_source)
+		dc_source->DrawPower(8.7);	//TBD: Actual value
+}
+
 // ATTITUDE & TRANSLATION CONTROL ASSEMBLY
 ATCA::ATCA(){
 	lem = NULL;
 	DirectPitchActive = false;
 	DirectYawActive = false;
 	DirectRollActive = false;
+	DirectTranslationActive = false;
+
+	K1 = false;
+	K2 = false;
+	K3 = false;
+	K8 = false;
+	K9 = false;
+	K10 = false;
+	K11 = false;
+	K12 = false;
+	K13 = false;
+	K14 = false;
+	K15 = false;
+	K16 = false;
+	K19 = false;
+	K20 = false;
+	K21 = false;
 }
 
 void ATCA::Init(LEM *vessel){
@@ -60,6 +143,84 @@ void ATCA::Timestep(double simt){
 	double now = oapiGetSimTime(); // Get time
 	int haspower = 0,hasdriver = 0,balcpl = 0;
 	if(lem == NULL){ return; }
+
+	if (lem->SCS_ATCA_CB.IsPowered())
+	{
+		if (lem->stage < 2 && (!lem->scca2.GetK23() || !lem->scca2.GetK24()))
+		{
+			K8 = true;
+			K9 = true;
+			K10 = true;
+			K11 = true;
+			K12 = true;
+			K13 = true;
+		}
+		else
+		{
+			K8 = false;
+			K9 = false;
+			K10 = false;
+			K11 = false;
+			K12 = false;
+			K13 = false;
+		}
+
+		if (lem->DeadBandSwitch.IsUp() && !lem->scca1.GetK15() && !lem->scca1.GetK203() && !lem->scca1.GetK204())
+		{
+			K14 = true;
+			K15 = true;
+			K16 = true;
+		}
+		else
+		{
+			K14 = false;
+			K15 = false;
+			K16 = false;
+		}
+
+		if (lem->scca1.GetK1())
+		{
+			K19 = true;
+		}
+		else
+		{
+			K19 = false;
+		}
+
+		if (lem->scca1.GetK3())
+		{
+			K20 = true;
+		}
+		else
+		{
+			K20 = false;
+		}
+
+		if (lem->scca1.GetK5())
+		{
+			K21 = true;
+		}
+		else
+		{
+			K21 = false;
+		}
+	}
+	else
+	{
+		K8 = false;
+		K9 = false;
+		K10 = false;
+		K11 = false;
+		K12 = false;
+		K13 = false;
+		K14 = false;
+		K15 = false;
+		K16 = false;
+		K19 = false;
+		K20 = false;
+		K21 = false;
+	}
+
 	// Fetch mode switch setting.
 	int GC_Mode = lem->GuidContSwitch.GetState();
 	// Determine ATCA power situation.
@@ -191,6 +352,22 @@ void ATCA::SaveState(FILEHANDLE scn) {
 	papiWriteScenario_bool(scn, "DIRECTYAWACTIVE", DirectYawActive);
 	papiWriteScenario_bool(scn, "DIRECTROLLACTIVE", DirectRollActive);
 
+	papiWriteScenario_bool(scn, "K1", K1);
+	papiWriteScenario_bool(scn, "K2", K2);
+	papiWriteScenario_bool(scn, "K3", K3);
+	papiWriteScenario_bool(scn, "K8", K8);
+	papiWriteScenario_bool(scn, "K9", K9);
+	papiWriteScenario_bool(scn, "K10", K10);
+	papiWriteScenario_bool(scn, "K11", K11);
+	papiWriteScenario_bool(scn, "K12", K12);
+	papiWriteScenario_bool(scn, "K13", K13);
+	papiWriteScenario_bool(scn, "K14", K14);
+	papiWriteScenario_bool(scn, "K15", K15);
+	papiWriteScenario_bool(scn, "K16", K16);
+	papiWriteScenario_bool(scn, "K19", K19);
+	papiWriteScenario_bool(scn, "K20", K20);
+	papiWriteScenario_bool(scn, "K21", K21);
+
 	oapiWriteLine(scn, ATCA_END_STRING);
 }
 
@@ -205,6 +382,22 @@ void ATCA::LoadState(FILEHANDLE scn) {
 		papiReadScenario_bool(line, "DIRECTPITCHACTIVE", DirectPitchActive);
 		papiReadScenario_bool(line, "DIRECTYAWACTIVE", DirectYawActive);
 		papiReadScenario_bool(line, "DIRECTROLLACTIVE", DirectRollActive);
+
+		papiReadScenario_bool(line, "K1", K1);
+		papiReadScenario_bool(line, "K2", K2);
+		papiReadScenario_bool(line, "K3", K3);
+		papiReadScenario_bool(line, "K8", K8);
+		papiReadScenario_bool(line, "K9", K9);
+		papiReadScenario_bool(line, "K10", K10);
+		papiReadScenario_bool(line, "K11", K11);
+		papiReadScenario_bool(line, "K12", K12);
+		papiReadScenario_bool(line, "K13", K13);
+		papiReadScenario_bool(line, "K14", K14);
+		papiReadScenario_bool(line, "K15", K15);
+		papiReadScenario_bool(line, "K16", K16);
+		papiReadScenario_bool(line, "K19", K19);
+		papiReadScenario_bool(line, "K20", K20);
+		papiReadScenario_bool(line, "K21", K21);
 	}
 }
 
@@ -549,11 +742,11 @@ void DECA::Timestep(double simdt) {
 		AutoThrust = 0.0;
 	}
 
-	if (lem->IMU_OPR_CB.IsPowered() && lem->GuidContSwitch.IsUp())	//PGNS Control
+	if (lem->IMU_OPR_CB.IsPowered() && !lem->scca2.GetK5())	//PGNS Control
 	{
 		ManualThrust = lem->ttca_thrustcmd;
 	}
-	else if (lem->SCS_ATCA_CB.IsPowered() && lem->GuidContSwitch.IsDown())	//AGS Control
+	else if (lem->SCS_ATCA_CB.IsPowered() && lem->scca2.GetK5())	//AGS Control
 	{
 		ManualThrust = lem->ttca_thrustcmd;
 	}
@@ -846,7 +1039,23 @@ void SCCA1::Timestep(double simdt)
 		K5 = false;
 	}
 
-	//TBD: K7 and K8 are ACA Out of Detent related
+	if (lem->SCS_ATCA_AGS_CB.IsPowered() && lem->CDR_ACA.GetOutOfDetent())
+	{
+		K7 = true;
+	}
+	else
+	{
+		K7 = false;
+	}
+
+	if (lem->CDR_SCS_ATCA_CB.IsPowered() && lem->CDR_ACA.GetOutOfDetent())
+	{
+		K8 = true;
+	}
+	else
+	{
+		K8 = false;
+	}
 
 	//Abort Stage Handling
 
@@ -1275,6 +1484,8 @@ void SCCA2::Timestep(double simdt)
 			AutoEngOff = false;
 		}
 	}
+
+	//TBD: K23 and K24 are only used by GSE
 }
 
 void SCCA2::SaveState(FILEHANDLE scn, char *start_str, char *end_str) {
@@ -1473,6 +1684,42 @@ void SCCA3::Timestep(double simdt)
 	else
 	{
 		K1_2 = false;
+	}
+
+	if (lem->SCS_ENG_CONT_CB.IsPowered() && (K7_3 || K1_1))
+	{
+		K2_1 = true;
+	}
+	else
+	{
+		K2_1 = false;
+	}
+
+	if (lem->SCS_ATCA_CB.IsPowered() && (K7_3 || K1_2))
+	{
+		K2_2 = true;
+	}
+	else
+	{
+		K2_2 = false;
+	}
+
+	if (lem->SCS_ENG_CONT_CB.IsPowered() && (K7_3 || K1_1) && lem->GroundContact())
+	{
+		K3_1 = true;
+	}
+	else
+	{
+		K3_1 = false;
+	}
+
+	if (lem->SCS_ATCA_CB.IsPowered() && (K7_3 || K1_2) && lem->GroundContact())
+	{
+		K3_2 = true;
+	}
+	else
+	{
+		K3_2 = false;
 	}
 
 	//sprintf(oapiDebugString(), "DE Command Override: K4 %d %d K5 %d %d K6 %d %d", K4_1, K4_2, K5_1, K5_2, K6_1, K6_2);
