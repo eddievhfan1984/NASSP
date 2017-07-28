@@ -51,18 +51,14 @@ class ATCA {
 public:
 	ATCA();								// Cons
 	void Init(LEM *vessel);				// Init
-	void Timestep(double simt);			// Timestep
+	void Timestep(double simt, double simdt);			// Timestep
 	void ProcessLGC(int ch, int val);   // To process LGC commands
 
 	void SaveState(FILEHANDLE scn);
 	void LoadState(FILEHANDLE scn);
 
-	bool GetDirectPitchActive() { return DirectPitchActive; }
-	bool GetDirectYawActive() { return DirectYawActive; }
-	bool GetDirectRollActive() { return DirectRollActive; }
-	void SetDirectPitchActive(bool active) { DirectPitchActive = active; }
-	void SetDirectYawActive(bool active) { DirectYawActive = active; }
-	void SetDirectRollActive(bool active) { DirectRollActive = active; }
+	double GetDPSPitchGimbalError();
+	double GetDPSRollGimbalError();
 
 	LEM *lem;
 	int lgc_err_x,lgc_err_y,lgc_err_z;	// LGC attitude error counters
@@ -70,10 +66,29 @@ public:
 	int jet_request[16];				// Jet request list
 	int jet_last_request[16];			// Jet request list at last timestep
 	double jet_start[16],jet_stop[16];  // RCS jet start/stop times
-	bool DirectTranslationActive;
 
 protected:
-	bool DirectPitchActive, DirectYawActive, DirectRollActive;      // Direct axis fire notification
+
+	double PRMDutyRatio(double volt);
+	double PRMPulseWidth(double volt);
+	bool PRMTimestep(int n, double simdt, double pp, double pw);
+
+	VECTOR3 aea_attitude_error;
+	VECTOR3 aca_rates;
+	VECTOR3 att_rates;
+	VECTOR3 thrustLogicInputError;	//Inputs to the summing amplifiers
+	VECTOR3 translationCommands;
+	double SummingAmplifierOutput[8];
+	bool PRMPulse[8];
+	double PRMCycleTime[8];
+	double PRMOffTime[8];
+	bool hasAbortPower;
+	bool hasPrimPower;
+	VECTOR3 ACARateGain;
+	VECTOR3 RateGain;
+	VECTOR3 DeadbandGain;
+	double pitchGimbalError;
+	double rollGimbalError;
 
 	//Relays:
 
@@ -316,8 +331,13 @@ public:
 
 	bool GetAutoEngOn() { return AutoEngOn; }
 	bool GetAutoEngOff() { return AutoEngOff; }
+	bool GetK2() { return K2; }
+	bool GetK3() { return K3; }
+	bool GetK4() { return K4; }
 	bool GetK5() { return K5; }
 	bool GetK11() { return K11; }
+	bool GetK12() { return K12; }
+	bool GetK13() { return K13; }
 	bool GetK17() { return K17; }
 	bool GetK19() { return K19; }
 	bool GetK23() { return K23; }

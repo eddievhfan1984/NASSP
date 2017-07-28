@@ -445,6 +445,7 @@ void LEM::SystemsInit()
 	// AGS stuff
 	asa.Init(this, (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:LEM-ASA-Heater"), (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LEM-ASA-HSink"));
 	aea.Init(this);
+	aea.WireToBuses(&CDR_SCS_AEA_CB, &SCS_AEA_CB, &AGSOperateSwitch);
 	deda.Init(&SCS_AEA_CB);
 	rga.Init(this, &SCS_ATCA_CB);
 
@@ -701,6 +702,7 @@ void LEM::SystemsInit()
 
 	//ACA and TTCA
 	CDR_ACA.Init(this, &ACAPropSwitch);
+	CDR_TTCA.Init(this);
 
 	//DECA
 	deca.Init(this, &SCS_DECA_PWR_CB);
@@ -737,7 +739,6 @@ void LEM::SystemsInit()
 	ttca_throttle_pos = 0;
 	ttca_throttle_vel = 0;
 	ttca_throttle_pos_dig = 0;
-	ttca_thrustcmd = 0;
 	
 	// Initialize other systems
 	atca.Init(this);
@@ -787,15 +788,19 @@ void LEM::JoystickTimestep(double simdt)
 		val31 = agc.GetInputChannel(031);
 		val31 &= 030000; // Leaves AttitudeHold and AutomaticStab alone
 
+		int ttca_pos[3];
 		int thc_x_pos = 0;
 		int thc_y_pos = 0;
 		int thc_z_pos = 0;
 		int thc_rot_pos = 0;
+		int thc_tjt_pos = 32768; // Initialize to centered
+		bool ttca_realistic_throttle = false;
 
 		int rhc_pos[3];     // RHC x/y/z positions
 		rhc_pos[0] = 32768; // Initialize
 		rhc_pos[1] = 32768;
 		rhc_pos[2] = 32768;
+
 
 		/* ACA OPERATION:
 
@@ -939,8 +944,6 @@ void LEM::JoystickTimestep(double simdt)
 			}
 		}
 
-		int rflag = 0, pflag = 0, yflag = 0; // Direct Fire Untriggers
-
 		//
 		// HARDOVER
 		//
@@ -949,19 +952,12 @@ void LEM::JoystickTimestep(double simdt)
 		{
 			if (CDR_ACA.GetMinusRollHardover()) {
 				// MINUS ROLL
-				SetRCSJet(3, 0);
-				SetRCSJet(7, 0);
-				SetRCSJet(8, 0);
-				SetRCSJet(12, 0);
 				SetRCSJet(0, 1);
 				SetRCSJet(4, 1);
 				SetRCSJet(11, 1);
 				SetRCSJet(15, 1);
 
 				SCS_ATT_DIR_CONT_CB.DrawPower(200); // Four thrusters worth
-
-				atca.SetDirectRollActive(true);
-				rflag = 1;
 			}
 			if (CDR_ACA.GetPlusRollHardover()) {
 				// PLUS ROLL
@@ -969,15 +965,8 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(7, 1);
 				SetRCSJet(8, 1);
 				SetRCSJet(12, 1);
-				SetRCSJet(0, 0);
-				SetRCSJet(4, 0);
-				SetRCSJet(11, 0);
-				SetRCSJet(15, 0);
 
 				SCS_ATT_DIR_CONT_CB.DrawPower(200);
-
-				atca.SetDirectRollActive(true);
-				rflag = 1;
 			}
 			if (CDR_ACA.GetMinusPitchHardover()) {
 				// MINUS PITCH
@@ -985,47 +974,26 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(7, 1);
 				SetRCSJet(11, 1);
 				SetRCSJet(12, 1);
-				SetRCSJet(3, 0);
-				SetRCSJet(4, 0);
-				SetRCSJet(8, 0);
-				SetRCSJet(15, 0);
 
 				SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-				atca.SetDirectPitchActive(true);
-				pflag = 1;
 			}
 			if (CDR_ACA.GetPlusPitchHardover()) {
 				// PLUS PITCH
-				SetRCSJet(0, 0);
-				SetRCSJet(7, 0);
-				SetRCSJet(11, 0);
-				SetRCSJet(12, 0);
 				SetRCSJet(3, 1);
 				SetRCSJet(4, 1);
 				SetRCSJet(8, 1);
 				SetRCSJet(15, 1);
 
 				SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-				atca.SetDirectPitchActive(true);
-				pflag = 1;
 			}
 			if (CDR_ACA.GetMinusYawHardover()) {
 				// MINUS YAW
-				SetRCSJet(1, 0);
-				SetRCSJet(5, 0);
-				SetRCSJet(10, 0);
-				SetRCSJet(14, 0);
 				SetRCSJet(2, 1);
 				SetRCSJet(6, 1);
 				SetRCSJet(9, 1);
 				SetRCSJet(13, 1);
 
 				SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-				atca.SetDirectYawActive(true);
-				yflag = 1;
 			}
 			if (CDR_ACA.GetPlusYawHardover()) {
 				// PLUS YAW
@@ -1033,15 +1001,8 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(5, 1);
 				SetRCSJet(10, 1);
 				SetRCSJet(14, 1);
-				SetRCSJet(2, 0);
-				SetRCSJet(6, 0);
-				SetRCSJet(9, 0);
-				SetRCSJet(13, 0);
 
 				SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-				atca.SetDirectYawActive(true);
-				yflag = 1;
 			}
 		}
 
@@ -1051,126 +1012,59 @@ void LEM::JoystickTimestep(double simdt)
 
 		if (SCS_ATT_DIR_CONT_CB.Voltage() > SP_MIN_DCVOLTAGE)
 		{
-			if (RollSwitch.IsDown() && rflag == 0)
+			if (RollSwitch.IsDown())
 			{
 				if (CDR_ACA.GetMinusRollBreakout()) {
 					// MINUS ROLL
-					SetRCSJet(3, 0);
-					SetRCSJet(12, 0);
 					SetRCSJet(4, 1);
 					SetRCSJet(11, 1);
 
 					SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-					atca.SetDirectRollActive(true);
-					rflag = 1;
 				}
 				if (CDR_ACA.GetPlusRollBreakout()) {
 					// PLUS ROLL
 					SetRCSJet(3, 1);
 					SetRCSJet(12, 1);
-					SetRCSJet(4, 0);
-					SetRCSJet(11, 0);
 
 					SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-					atca.SetDirectRollActive(true);
-					rflag = 1;
 				}
 			}
 
-			if (PitchSwitch.IsDown() && pflag == 0)
+			if (PitchSwitch.IsDown())
 			{
 				if (CDR_ACA.GetMinusPitchBreakout()) {
 					// MINUS PITCH
 					SetRCSJet(11, 1);
 					SetRCSJet(12, 1);
-					SetRCSJet(3, 0);
-					SetRCSJet(4, 0);
 
 					SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-					atca.SetDirectPitchActive(true);
-					pflag = 1;
 				}
 				if (CDR_ACA.GetPlusPitchBreakout()) {
 					// PLUS PITCH
-					SetRCSJet(11, 0);
-					SetRCSJet(12, 0);
 					SetRCSJet(3, 1);
 					SetRCSJet(4, 1);
 
 					SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-					atca.SetDirectPitchActive(true);
-					pflag = 1;
 				}
 			}
 
-			if (YawSwitch.IsDown() && yflag == 0)
+			if (YawSwitch.IsDown())
 			{
 				if (CDR_ACA.GetMinusYawBreakout()) {
 					// MINUS YAW
-					SetRCSJet(1, 0);
-					SetRCSJet(10, 0);
 					SetRCSJet(2, 1);
 					SetRCSJet(9, 1);
 
 					SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-					atca.SetDirectYawActive(true);
-					yflag = 1;
 				}
 				if (CDR_ACA.GetPlusYawBreakout()) {
 					// PLUS YAW
 					SetRCSJet(1, 1);
 					SetRCSJet(10, 1);
-					SetRCSJet(2, 0);
-					SetRCSJet(9, 0);
 
 					SCS_ATT_DIR_CONT_CB.DrawPower(100);
-
-					atca.SetDirectYawActive(true);
-					yflag = 1;
 				}
 			}
-		}
-
-		if (atca.GetDirectRollActive() == true && rflag == 0) { // Turn off direct roll
-			SetRCSJet(3, 0);
-			SetRCSJet(7, 0);
-			SetRCSJet(8, 0);
-			SetRCSJet(12, 0);
-			SetRCSJet(0, 0);
-			SetRCSJet(4, 0);
-			SetRCSJet(11, 0);
-			SetRCSJet(15, 0);
-
-			atca.SetDirectRollActive(false);
-		}
-		if (atca.GetDirectPitchActive() == true && pflag == 0) { // Turn off direct pitch
-			SetRCSJet(0, 0);
-			SetRCSJet(7, 0);
-			SetRCSJet(11, 0);
-			SetRCSJet(12, 0);
-			SetRCSJet(3, 0);
-			SetRCSJet(4, 0);
-			SetRCSJet(8, 0);
-			SetRCSJet(15, 0);
-
-			atca.SetDirectPitchActive(false);
-		}
-		if (atca.GetDirectYawActive() == true && yflag == 0) { // Turn off direct yaw
-			SetRCSJet(1, 0);
-			SetRCSJet(5, 0);
-			SetRCSJet(10, 0);
-			SetRCSJet(14, 0);
-			SetRCSJet(2, 0);
-			SetRCSJet(6, 0);
-			SetRCSJet(9, 0);
-			SetRCSJet(13, 0);
-
-			atca.SetDirectYawActive(false);
 		}
 
 		//
@@ -1182,25 +1076,14 @@ void LEM::JoystickTimestep(double simdt)
 			SetRCSJet(15, true);
 			SetRCSJet(11, true);
 			SetRCSJet(3, true);
-			atca.DirectTranslationActive = true;
-		}
-		else if (atca.DirectTranslationActive == true)
-		{
-			SetRCSJet(7, false);
-			SetRCSJet(15, false);
-			SetRCSJet(11, false);
-			SetRCSJet(3, false);
-			atca.DirectTranslationActive = false;
 		}
 
 		if (rhc_debug != -1)
 		{
-			sprintf(oapiDebugString(), "RHC: X/Y/Z = %d / %d / %d | rzx_id %d rot_id %d, %d, %d, %d", rhc_pos[0], rhc_pos[1], rhc_pos[2], rhc_rzx_id, rhc_rot_id, atca.GetDirectRollActive(), atca.GetDirectPitchActive(), atca.GetDirectYawActive());
+			sprintf(oapiDebugString(), "RHC: X/Y/Z = %d / %d / %d | rzx_id %d rot_id %d", rhc_pos[0], rhc_pos[1], rhc_pos[2], rhc_rzx_id, rhc_rot_id);
 		}
 		// And now the THC...
 		if (thc_id != -1 && thc_id < js_enabled) {
-			// CHECK FOR POWER HERE
-			double thc_voltage = SCS_ATCA_AGS_CB.Voltage(); // HAX
 			hr = dx8_joystick[thc_id]->Poll();
 			if (FAILED(hr)) { // Did that work?
 							  // Attempt to acquire the device
@@ -1212,35 +1095,21 @@ void LEM::JoystickTimestep(double simdt)
 					hr = dx8_joystick[thc_id]->Poll();
 				}
 			}
+
+			ttca_realistic_throttle = true;
+
 			// Read data
 			dx8_joystick[thc_id]->GetDeviceState(sizeof(dx8_jstate[thc_id]), &dx8_jstate[thc_id]);
-			// The LM TTCA is even wierder than the CM THC...			
-			int thc_tjt_pos = 32768; // Initialize to centered	
+			// The LM TTCA is even wierder than the CM THC...
 
-			if (thc_voltage > 0 && LeftTTCATranslSwitch.IsUp()) {
+			if (LeftTTCATranslSwitch.IsUp()) {
 				if (thc_tjt_id != -1) {                    // If Throttle/Jets lever enabled
 					thc_tjt_pos = dx8_jstate[thc_id].rglSlider[thc_tjt_id]; // Read
 				}
-				if (thc_tjt_pos < 10000) {				 // Determine TTCA mode	
-					ttca_mode = TTCA_MODE_THROTTLE;      // THROTTLE MODE					
-					ttca_throttle_pos = dx8_jstate[thc_id].lY; // Relay throttle position
-				}
-				else {
-					ttca_mode = TTCA_MODE_JETS;          // JETS MODE
-					ttca_throttle_pos = 65536;//32768;           // Zero throttle position
-					if (dx8_jstate[thc_id].lY < 16384) {
-						thc_y_pos = dx8_jstate[thc_id].lY - 16384;
-					}
-					if (dx8_jstate[thc_id].lY > 49152) {
-						thc_y_pos = dx8_jstate[thc_id].lY - 49152;
-					}
-				}
-				if (dx8_jstate[thc_id].lX > 49152) {
-					thc_x_pos = dx8_jstate[thc_id].lX - 49152;
-				}
-				if (dx8_jstate[thc_id].lX < 16384) {
-					thc_x_pos = dx8_jstate[thc_id].lX - 16384;
-				}
+
+				thc_y_pos = dx8_jstate[thc_id].lY - 32768;
+				thc_x_pos = dx8_jstate[thc_id].lX - 32768;
+
 				// Z-axis read.
 				if (thc_rot_id != -1) { // If this is a rotator-type axis
 					switch (thc_rot_id) {
@@ -1259,16 +1128,7 @@ void LEM::JoystickTimestep(double simdt)
 					thc_rot_pos = dx8_jstate[thc_id].lZ;
 				}
 
-				if (thc_rot_pos > 49152) {
-					thc_z_pos = thc_rot_pos - 49152;
-				}
-				if (thc_rot_pos < 16384) {
-					thc_z_pos = thc_rot_pos - 16384;
-				}
-
-				//Let's try a throttle lever
-				//ttca_lever_pos = (double)dx8_jstate[thc_id].rglSlider[0];
-				ttca_throttle_pos_dig = (65536.0 - (double)ttca_throttle_pos) / 65536.0;
+				thc_z_pos = thc_rot_pos - 32768;
 
 				if (thc_debug != -1) {
 					sprintf(oapiDebugString(), "THC: X/Y/Z = %d / %d / %d TJT = %d, Test: %d, thc_rot_id: %d, thc_rzx_id: %d", thc_x_pos, thc_y_pos,
@@ -1317,23 +1177,32 @@ void LEM::JoystickTimestep(double simdt)
 			//sprintf(oapiDebugString(), "%f %f", ttca_throttle_pos_dig, ttca_thrustcmd);
 		}
 
-		if (thc_y_pos < 0) {
-			val31[MinusX] = 1;
-		}
-		if (thc_x_pos < 0) {
-			val31[MinusY] = 1;
-		}
-		if (thc_y_pos > 0) {
-			val31[PlusX] = 1;
-		}
-		if (thc_x_pos > 0) {
-			val31[PlusY] = 1;
-		}
-		if (thc_z_pos < 0) {
-			val31[MinusZ] = 1;
-		}
-		if (thc_z_pos > 0) {
-			val31[PlusZ] = 1;
+		ttca_pos[0] = thc_y_pos;
+		ttca_pos[1] = thc_x_pos;
+		ttca_pos[2] = thc_z_pos;
+
+		CDR_TTCA.Timestep(ttca_pos, thc_tjt_pos, ttca_realistic_throttle, ttca_throttle_pos_dig);
+
+		if (LeftTTCATranslSwitch.IsUp())
+		{
+			if (CDR_TTCA.GetMinusXTrans()) {
+				val31[MinusX] = 1;
+			}
+			if (CDR_TTCA.GetMinusYTrans()) {
+				val31[MinusY] = 1;
+			}
+			if (CDR_TTCA.GetPlusXTrans()) {
+				val31[PlusX] = 1;
+			}
+			if (CDR_TTCA.GetPlusYTrans()) {
+				val31[PlusY] = 1;
+			}
+			if (CDR_TTCA.GetMinusZTrans()) {
+				val31[MinusZ] = 1;
+			}
+			if (CDR_TTCA.GetPlusZTrans()) {
+				val31[PlusZ] = 1;
+			}
 		}
 
 		if (ttca_throttle_vel == 1)
@@ -1352,16 +1221,6 @@ void LEM::JoystickTimestep(double simdt)
 		{
 			ttca_throttle_pos_dig = 0;
 		}
-
-		if (ttca_throttle_pos_dig > 0.51 / 0.66)
-		{
-			ttca_thrustcmd = 1.8436*ttca_throttle_pos_dig - 0.9186;
-		}
-		else
-		{
-			ttca_thrustcmd = 0.5254117647*ttca_throttle_pos_dig + 0.1;
-		}
-
 
 		// Write back channel data
 		agc.SetInputChannel(031, val31);
@@ -1395,7 +1254,7 @@ void LEM::SystemsTimestep(double simt, double simdt)
 	dsky.Timestep(MissionTime);								// Do work
 	dsky.SystemTimestep(simdt);								// This can draw power now.
 	asa.TimeStep(simdt);									// Do work
-	aea.TimeStep(simdt);
+	aea.TimeStep(MissionTime, simdt);
 	deda.TimeStep(simdt);
 	imu.Timestep(simdt);								// Do work
 	imu.SystemTimestep(simdt);								// Draw power
@@ -1417,7 +1276,7 @@ void LEM::SystemsTimestep(double simt, double simdt)
 
 	// Allow ATCA to operate between the FDAI and AGC/AEA so that any changes the FDAI makes
 	// can be shown on the FDAI, but any changes the AGC/AEA make are visible to the ATCA.
-	atca.Timestep(simt);
+	atca.Timestep(simt, simdt);
 	rga.Timestep(simdt);
 	rga.SystemTimestep(simdt);
 	ordeal.Timestep(simdt);

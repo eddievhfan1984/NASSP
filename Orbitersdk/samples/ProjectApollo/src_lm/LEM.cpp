@@ -226,6 +226,7 @@ LEM::LEM(OBJHANDLE hObj, int fmodel) : Payload (hObj, fmodel),
 	imu(agc, Panelsdk),
 	scdu(agc, RegOPTX, 0140, 0),
 	tcdu(agc, RegOPTY, 0141, 0),
+	aea(Panelsdk, deda),
 	deda(this,soundlib, aea, 015),
 	DPS(th_hover),
 	DPSPropellant(ph_Dsc, Panelsdk),
@@ -1199,6 +1200,7 @@ void LEM::clbkLoadStateEx (FILEHANDLE scn, void *vs)
 	//
 
 	agc.SetMissionInfo(ApolloNo);
+	aea.SetMissionInfo(ApolloNo);
 
 	///
 	// Realism Mode Settings
@@ -1603,29 +1605,6 @@ void LEM::SetRCSJetLevelPrimary(int jet, double level) {
 	// The thruster is a Marquardt R-4D, which uses 46 watts @ 28 volts to fire.
 	// This applies to the SM as well, someone should probably tell them about this.
 	// RCS pressurized?
-
-	//Direct override
-	if (atca.GetDirectRollActive())
-	{
-		if (jet == 0 || jet == 3 || jet == 4 || jet == 7 || jet == 8 || jet == 11 || jet == 12 || jet == 15)
-		{
-			return;
-		}
-	}
-	if (atca.GetDirectPitchActive())
-	{
-		if (jet == 0 || jet == 3 || jet == 4 || jet == 7 || jet == 8 || jet == 11 || jet == 12 || jet == 15)
-		{
-			return;
-		}
-	}
-	if (atca.GetDirectYawActive())
-	{
-		if (jet == 1 || jet == 2 || jet == 5 || jet == 6 || jet == 9 || jet == 10 || jet == 13 || jet == 14)
-		{
-			return;
-		}
-	}
 
 	// Is this thruster on?	
 	switch(jet){
