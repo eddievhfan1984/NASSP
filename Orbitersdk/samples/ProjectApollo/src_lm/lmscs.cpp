@@ -179,9 +179,32 @@ void ATCA::Timestep(double simt, double simdt){
 		hasAbortPower = true;
 	}
 
-	att_rates = lem->rga.GetRates();
+	//AEA input bits
 
+	if (!lem->scca2.GetK8() || (lem->ModeControlAGSSwitch.IsCenter() && lem->scca1.GetK7()))
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSFollowUpDiscrete, false);
+	}
+	else
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSFollowUpDiscrete, true);
+	}
+
+	if (lem->ModeControlAGSSwitch.IsUp())
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSAutomaticDiscrete, false);
+	}
+	else
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSAutomaticDiscrete, true);
+	}
+
+	//INPUTS: ACA, RGA and AEA
+
+	att_rates = lem->rga.GetRates();
+	aea_attitude_error = lem->aea.GetAttitudeError();
 	aca_rates = _V(0, 0, 0);
+
 	if (lem->scca2.GetK2())
 	{
 		aca_rates.z = lem->CDR_ACA.GetACAProp(2);
@@ -315,6 +338,46 @@ void ATCA::Timestep(double simt, double simdt){
 			DeadbandGain.x = 2.63;
 		}
 
+		//Attitude Error Limiter
+		if (!K14)
+		{
+			//Limits attitude rate to 5.0°/s
+			if (K11)
+			{
+				Limiter(aea_attitude_error.z, 7.9*RAD);
+			}
+			else
+			{
+				Limiter(aea_attitude_error.z, 2.4*RAD);
+			}
+		}
+
+		if (!K15)
+		{
+			//Limits attitude rate to 10.0°/s
+			if (K12)
+			{
+				Limiter(aea_attitude_error.y, 15.3*RAD);
+			}
+			else
+			{
+				Limiter(aea_attitude_error.y, 4.3*RAD);
+			}
+		}
+
+		if (!K16)
+		{
+			//Limits attitude rate to 5.0°/s
+			if (K13)
+			{
+				Limiter(aea_attitude_error.x, 7.8*RAD);
+			}
+			else
+			{
+				Limiter(aea_attitude_error.x, 2.3*RAD);
+			}
+		}
+
 		//Yaw
 		if (K19)
 		{
@@ -329,7 +392,7 @@ void ATCA::Timestep(double simt, double simdt){
 		}
 		else
 		{
-			thrustLogicInputError.z = (aca_rates.z*ACARateGain.z + aea_attitude_error.y*DEG*0.3*7.0 - att_rates.y*DEG*0.14*RateGain.z)*4.57;
+			thrustLogicInputError.z = (aca_rates.z*ACARateGain.z + aea_attitude_error.z*DEG*0.3*7.0 - att_rates.y*DEG*0.14*RateGain.z)*4.57;
 			if (thrustLogicInputError.z > 0.0)
 			{
 				thrustLogicInputError.z = max(0.0, abs(thrustLogicInputError.z) - DeadbandGain.z)*2.0;
@@ -354,7 +417,7 @@ void ATCA::Timestep(double simt, double simdt){
 		}
 		else
 		{
-			thrustLogicInputError.y = (aca_rates.y*ACARateGain.y + aea_attitude_error.x*DEG*0.3*7.0 - att_rates.x*DEG*0.14*RateGain.y)*4.57;
+			thrustLogicInputError.y = (aca_rates.y*ACARateGain.y + aea_attitude_error.y*DEG*0.3*7.0 - att_rates.x*DEG*0.14*RateGain.y)*4.57;
 			pitchGimbalError = thrustLogicInputError.y;
 			if (thrustLogicInputError.y > 0.0)
 			{
@@ -380,7 +443,7 @@ void ATCA::Timestep(double simt, double simdt){
 		}
 		else
 		{
-			thrustLogicInputError.x = (aca_rates.x*ACARateGain.x + aea_attitude_error.z*DEG*0.3*7.0 - att_rates.z*DEG*0.14*RateGain.x)*4.57;
+			thrustLogicInputError.x = (aca_rates.x*ACARateGain.x + aea_attitude_error.x*DEG*0.3*7.0 - att_rates.z*DEG*0.14*RateGain.x)*4.57;
 			rollGimbalError = thrustLogicInputError.x;
 			if (thrustLogicInputError.x > 0.0)
 			{
@@ -807,6 +870,18 @@ bool ATCA::PRMTimestep(int n, double simdt, double pp, double pw)
 	return false;
 }
 
+void ATCA::Limiter(double &val, double lim)
+{
+	if (val > lim)
+	{
+		val = lim;
+	}
+	else if (val < -lim)
+	{
+		val = -lim;
+	}
+}
+
 double ATCA::GetDPSPitchGimbalError()
 {
 	if (!K20)
@@ -1082,6 +1157,15 @@ void DECA::Timestep(double simdt) {
 	else
 	{
 		K15 = false;
+	}
+
+	if (lem->SCS_ENG_CONT_CB.IsPowered() && K16)
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSDescentEngineOnDiscrete, false);
+	}
+	else
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSDescentEngineOnDiscrete, true);
 	}
 
 	//GIMBALING SIGNAL
@@ -1747,6 +1831,16 @@ void SCCA1::Timestep(double simdt)
 		K203 = false;
 	}
 
+	//AEA Ascent Engine On
+	if (K16 || K205)
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSAscentEngineOnDiscrete, false);
+	}
+	else
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSAscentEngineOnDiscrete, true);
+	}
+
 	//Start LGC Abort Stage
 	if (K10 || K21)
 	{
@@ -1755,6 +1849,16 @@ void SCCA1::Timestep(double simdt)
 	else
 	{
 		lem->agc.SetInputChannelBit(030, AbortWithAscentStage, false);
+	}
+
+	//Start AEA Abort Stage
+	if (K9 || K201)
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSAbortStageDiscrete, false);
+	}
+	else
+	{
+		lem->aea.SetInputPortBit(IO_2020, AGSAbortStageDiscrete, true);
 	}
 
 	//Send engine fire commands to APS
@@ -1974,10 +2078,10 @@ void SCCA2::Timestep(double simdt)
 	}
 
 	ChannelValue val11;
-	std::bitset<11> agsval40;
+	AGSChannelValue40 agsval40;
 
 	val11 = lem->agc.GetOutputChannel(011);
-	agsval40 = lem->aea.GetOutputChannel(040);
+	agsval40 = lem->aea.GetOutputChannel(IO_ODISCRETES);
 
 	if (K8)
 	{

@@ -1447,11 +1447,13 @@ bool LMAbortButton::CheckMouseClick(int event, int mx, int my) {
 			SwitchTo(1, true);
 			Sclick.play();
 			lem->agc.SetInputChannelBit(030, AbortWithDescentStage, false);
+			lem->aea.SetInputPortBit(IO_2020, AGSAbortDiscrete, true);
 		}
 		else if (state == 1) {
 			SwitchTo(0, true);
 			Sclick.play();
 			lem->agc.SetInputChannelBit(030, AbortWithDescentStage, true);
+			lem->aea.SetInputPortBit(IO_2020, AGSAbortDiscrete, false);
 		}
 	}
 	return true;
@@ -1740,4 +1742,14 @@ void LEMDigitalHeliumPressureMeter::DoDrawSwitch(double v, SURFHANDLE drawSurfac
 	oapiBlt(drawSurface, Digits, 20, 0, 19 * (Curdigit2 - (Curdigit * 10)), 0, 19, 21);
 	oapiBlt(drawSurface, Digits, 40, 0, 19 * (Curdigit3 - (Curdigit2 * 10)), 0, 19, 21);
 	oapiBlt(drawSurface, Digits, 60, 0, 19 * (Curdigit4 - (Curdigit3 * 10)), 0, 19, 21);
+}
+
+void DEDAPushSwitch::DoDrawSwitch(SURFHANDLE DrawSurface) {
+
+	if (IsUp()) {
+		oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset, width, height, SURF_PREDEF_CK);
+	}
+	else {
+		oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset + 173, width, height, SURF_PREDEF_CK);
+	}
 }

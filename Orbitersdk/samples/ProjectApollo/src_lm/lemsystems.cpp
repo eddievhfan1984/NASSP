@@ -443,7 +443,7 @@ void LEM::SystemsInit()
 	dsky.Init(&LGC_DSKY_CB, &LtgAnunNumKnob);
 
 	// AGS stuff
-	asa.Init(this, (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:LEM-ASA-Heater"), (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LEM-ASA-HSink"));
+	asa.Init(this, &AGSOperateSwitch, (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:LEM-ASA-Heater"), (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LEM-ASA-HSink"));
 	aea.Init(this);
 	aea.WireToBuses(&CDR_SCS_AEA_CB, &SCS_AEA_CB, &AGSOperateSwitch);
 	deda.Init(&SCS_AEA_CB);
@@ -1255,6 +1255,7 @@ void LEM::SystemsTimestep(double simt, double simdt)
 	dsky.SystemTimestep(simdt);								// This can draw power now.
 	asa.TimeStep(simdt);									// Do work
 	aea.TimeStep(MissionTime, simdt);
+	deda.SystemTimestep(simdt);
 	deda.TimeStep(simdt);
 	imu.Timestep(simdt);								// Do work
 	imu.SystemTimestep(simdt);								// Draw power

@@ -474,6 +474,7 @@ public:
 		SRF_BORDER_75x64,
 		SRF_BORDER_34x39,
 		SRF_BORDER_38x38,
+		SRF_BORDER_40x40,
 		SRF_THUMBWHEEL_SMALL,
 		SRF_THUMBWHEEL_LARGEFONTSINV,
 		SRF_SWLEVERTHREEPOS,
@@ -978,6 +979,28 @@ protected:
 	DSKYPushSwitch DskySwitchKeyRel;
 	DSKYPushSwitch DskySwitchEnter;
 	DSKYPushSwitch DskySwitchReset;
+
+	///////////////////////
+	// DEDAs             //
+	///////////////////////
+
+	SwitchRow DedaSwitchRow;
+	DEDAPushSwitch DedaSwitchPlus;
+	DEDAPushSwitch DedaSwitchMinus;
+	DEDAPushSwitch DedaSwitchZero;
+	DEDAPushSwitch DedaSwitchOne;
+	DEDAPushSwitch DedaSwitchTwo;
+	DEDAPushSwitch DedaSwitchThree;
+	DEDAPushSwitch DedaSwitchFour;
+	DEDAPushSwitch DedaSwitchFive;
+	DEDAPushSwitch DedaSwitchSix;
+	DEDAPushSwitch DedaSwitchSeven;
+	DEDAPushSwitch DedaSwitchEight;
+	DEDAPushSwitch DedaSwitchNine;
+	DEDAPushSwitch DedaSwitchClear;
+	DEDAPushSwitch DedaSwitchHold;
+	DEDAPushSwitch DedaSwitchReadOut;
+	DEDAPushSwitch DedaSwitchEnter;
 
 	//////////////////
 	// LEM panel 11 //

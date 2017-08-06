@@ -804,6 +804,40 @@ void LEM::InitSwitches() {
 
 	DskySwitchProg.SetDelayTime(1.5);
 
+	DedaSwitchPlus.Register(PSH, "DedaSwitchPlus", false);
+	DedaSwitchMinus.Register(PSH, "DedaSwitchMinus", false);
+	DedaSwitchZero.Register(PSH, "DedaSwitchZero", false);
+	DedaSwitchOne.Register(PSH, "DedaSwitchOne", false);
+	DedaSwitchTwo.Register(PSH, "DedaSwitchTwo", false);
+	DedaSwitchThree.Register(PSH, "DedaSwitchThree", false);
+	DedaSwitchFour.Register(PSH, "DedaSwitchFour", false);
+	DedaSwitchFive.Register(PSH, "DedaSwitchFive", false);
+	DedaSwitchSix.Register(PSH, "DedaSwitchSix", false);
+	DedaSwitchSeven.Register(PSH, "DedaSwitchSeven", false);
+	DedaSwitchEight.Register(PSH, "DedaSwitchEight", false);
+	DedaSwitchNine.Register(PSH, "DedaSwitchNine", false);
+	DedaSwitchClear.Register(PSH, "DedaSwitchClear", false);
+	DedaSwitchReadOut.Register(PSH, "DedaSwitchReadOut", false);
+	DedaSwitchEnter.Register(PSH, "DedaSwitchEnter", false);
+	DedaSwitchHold.Register(PSH, "DedaSwitchHold", false);
+
+	DedaSwitchPlus.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::PlusCallback));
+	DedaSwitchMinus.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::MinusCallback));
+	DedaSwitchZero.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::zeroCallback));
+	DedaSwitchOne.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::oneCallback));
+	DedaSwitchTwo.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::twoCallback));
+	DedaSwitchThree.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::threeCallback));
+	DedaSwitchFour.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::fourCallback));
+	DedaSwitchFive.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::fiveCallback));
+	DedaSwitchSix.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::sixCallback));
+	DedaSwitchSeven.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::sevenCallback));
+	DedaSwitchEight.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::eightCallback));
+	DedaSwitchNine.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::nineCallback));
+	DedaSwitchClear.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::ClearCallback));
+	DedaSwitchReadOut.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::ReadOutCallback));
+	DedaSwitchEnter.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::EnterCallback));
+	DedaSwitchHold.SetCallback(new PanelSwitchCallback<LEM_DEDA>(&deda, &LEM_DEDA::HoldCallback));
+
 	ORDEALAltSetRotary.AddPosition(0, 240);
 	ORDEALAltSetRotary.AddPosition(1, 270);
 	ORDEALAltSetRotary.AddPosition(2, 330);
@@ -1162,7 +1196,8 @@ void LEM::InitPanel (int panel)
 		srf[SRF_BORDER_72x72]		= oapiCreateSurface (LOADBMP (IDB_BORDER_72x72));
 		srf[SRF_BORDER_75x64]		= oapiCreateSurface (LOADBMP (IDB_BORDER_75x64));
 		srf[SRF_BORDER_34x39]		= oapiCreateSurface (LOADBMP (IDB_BORDER_34x39));
-		srf[SRF_BORDER_38x38]		= oapiCreateSurface (LOADBMP(IDB_BORDER_38x38));
+		srf[SRF_BORDER_38x38]		= oapiCreateSurface (LOADBMP (IDB_BORDER_38x38));
+		srf[SRF_BORDER_40x40]		= oapiCreateSurface (LOADBMP (IDB_BORDER_40x40));
 		srf[SRF_LEM_COAS1]			= oapiCreateSurface (LOADBMP (IDB_LEM_COAS1));
 		srf[SRF_LEM_COAS2]			= oapiCreateSurface (LOADBMP (IDB_LEM_COAS2));
 		srf[SRF_DEDA_KEY]			= oapiCreateSurface (LOADBMP (IDB_DEDA_KEY));
@@ -1240,6 +1275,7 @@ void LEM::InitPanel (int panel)
 		oapiSetSurfaceColourKey	(srf[SRF_BORDER_75x64], g_Param.col[4]);
 		oapiSetSurfaceColourKey (srf[SRF_BORDER_34x39], g_Param.col[4]);
 		oapiSetSurfaceColourKey (srf[SRF_BORDER_38x38], g_Param.col[4]);
+		oapiSetSurfaceColourKey (srf[SRF_BORDER_40x40], g_Param.col[4]);
 
 
 //		break;	
@@ -1319,7 +1355,7 @@ bool LEM::clbkLoadPanel (int id) {
 		
 		fdaiLeft.RegisterMe(AID_FDAI_LEFT, 744, 625);
 		fdaiLeft.SetLMmode();
-		fdaiRight.RegisterMe(AID_FDAI_RIGHT, 1712, 625);
+		fdaiRight.RegisterMe(AID_FDAI_RIGHT, 1714, 625);
 		fdaiRight.SetLMmode();
 		hBmpFDAIRollIndicator = LoadBitmap(g_Param.hDLL, MAKEINTRESOURCE(IDB_FDAI_ROLLINDICATOR));
 
@@ -1910,6 +1946,28 @@ void LEM::SetSwitches(int panel) {
 			DskySwitchEnter.Init(246, 20, 38, 38, srf[SRF_DSKYKEY], srf[SRF_BORDER_38x38], DskySwitchRow, 246, 20);
 			DskySwitchReset.Init(246, 60, 38, 38, srf[SRF_DSKYKEY], srf[SRF_BORDER_38x38], DskySwitchRow, 246, 60);
 
+			//
+			// DEDA
+			//
+
+			DedaSwitchRow.Init(AID_LM_DEDA_KEYS, MainPanel);
+			DedaSwitchPlus.Init(1 + 44 * 0, 1, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 0, 0);
+			DedaSwitchMinus.Init(1 + 44 * 0, 45, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 0, 44);
+			DedaSwitchZero.Init(1 + 44 * 0, 90, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 0, 88);
+			DedaSwitchSeven.Init(1 + 44 * 1, 1, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 1, 0);
+			DedaSwitchFour.Init(1 + 44 * 1, 45, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 1, 44);
+			DedaSwitchOne.Init(1 + 44 * 1, 90, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 1, 88);
+			DedaSwitchEight.Init(1 + 44 * 2, 0, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 2, 0);
+			DedaSwitchFive.Init(1 + 44 * 2, 45, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 2, 44);
+			DedaSwitchTwo.Init(1 + 44 * 2, 90, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 2, 88);
+			DedaSwitchNine.Init(1 + 44 * 3, 1, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 3, 0);
+			DedaSwitchSix.Init(1 + 44 * 3, 45, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 3, 44);
+			DedaSwitchThree.Init(1 + 44 * 3, 90, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 3, 88);
+			DedaSwitchClear.Init(1 + 44 * 4, 1, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 4, 0);
+			DedaSwitchReadOut.Init(1 + 44 * 4, 45, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 4, 44);
+			DedaSwitchEnter.Init(1 + 44 * 4, 90, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 4, 88);
+			DedaSwitchHold.Init(1 + 44 * 2, 134, 40, 40, srf[SRF_DEDA_KEY], srf[SRF_BORDER_40x40], DedaSwitchRow, 44 * 2, 132);
+
 	//		break;
 
 	//	case LMPANEL_RIGHTPANEL: // LEM Right Panel
@@ -2420,13 +2478,13 @@ bool LEM::clbkPanelMouseEvent (int id, int event, int mx, int my)
 		}
 		return true;*/
 
-	case AID_LM_DEDA_KEYS:
+	/*case AID_LM_DEDA_KEYS:
 		if (event & PANEL_MOUSE_LBDOWN) {
 			deda.ProcessKeyPress(mx, my);
 		} else if (event & PANEL_MOUSE_LBUP) {
 			deda.ProcessKeyRelease(mx, my);
 		}
-		return true;
+		return true;*/
 
 	case AID_MFDLEFT:
 		MousePanel_MFDButton(MFD_LEFT, event, mx, my);
@@ -2627,9 +2685,9 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 		deda.RenderAdr(surf, srf[SRF_DIGITALDISP2]);
 		return true;
 
-	case AID_LM_DEDA_KEYS:
+	/*case AID_LM_DEDA_KEYS:
 		deda.RenderKeys(surf, srf[SRF_DEDA_KEY]);
-		return true;
+		return true;*/
 
 	case AID_MFDLEFT:
 		if (oapiGetMFDMode(MFD_LEFT) != MFD_NONE) {	
@@ -2729,7 +2787,7 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 			}
 			else							//AGS
 			{
-				attitude = _V(0, 0, 0);
+				attitude = aea.GetTotalAttitude();
 			}
 
 			if (RateErrorMonSwitch.GetState() == 1)
@@ -2755,7 +2813,23 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 			}
 			else
 			{
-				errors = _V(atca.lgc_err_x, atca.lgc_err_y, atca.lgc_err_z);
+				if (AttitudeMonSwitch.IsUp())	//PGNS
+				{
+					errors = _V(atca.lgc_err_x, atca.lgc_err_y, atca.lgc_err_z);
+				}
+				else							//AGS
+				{
+					errors = aea.GetAttitudeError()*DEG*41.0 / 15.0;
+
+					if (DeadBandSwitch.IsUp())
+					{
+						errors *= 15.0 / 14.4;
+					}
+					else
+					{
+						errors *= 15.0 / 1.7;
+					}
+				}
 			}
 
 			// ORDEAL
@@ -2787,7 +2861,7 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 			}
 			else							//AGS
 			{
-				attitude = _V(0, 0, 0);
+				attitude = aea.GetTotalAttitude();
 			}
 
 			if (RightRateErrorMonSwitch.GetState() == 1)
@@ -2813,7 +2887,23 @@ bool LEM::clbkPanelRedrawEvent (int id, int event, SURFHANDLE surf)
 			}
 			else
 			{
-				errors = _V(atca.lgc_err_x, atca.lgc_err_y, atca.lgc_err_z);
+				if (RightAttitudeMonSwitch.IsUp())	//PGNS
+				{
+					errors = _V(atca.lgc_err_x, atca.lgc_err_y, atca.lgc_err_z);
+				}
+				else							//AGS
+				{
+					errors = aea.GetAttitudeError()*DEG*41.0 / 15.0;
+
+					if (DeadBandSwitch.IsUp())
+					{
+						errors *= 15.0 / 14.4;
+					}
+					else
+					{
+						errors *= 15.0 / 1.7;
+					}
+				}
 			}
 
 			// ORDEAL

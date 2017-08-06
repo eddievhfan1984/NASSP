@@ -45,6 +45,7 @@ public:
 	void TLCCCalc();
 	void EntryUpdateCalc();
 	void StateVectorCalc();
+	void AGSStateVectorCalc();
 	void LandingSiteUpdate();
 	void LandingSiteUplink();
 	void VecPointCalc();
@@ -165,7 +166,11 @@ public:
 	VESSEL* svtarget;
 	int svtargetnumber;
 	bool svtimemode; //0 = Now, 1 = GET
-	int svmode;		//0 = state vector, 1 = landing site update
+	int svmode;		//0 = state vector, 1 = landing site update, 2 = AGS State Vector Update
+	double AGSEpochTime;
+	VECTOR3 AGSPositionVector, AGSVelocityVector;
+	double AGSKFactor;
+	AP11AGSSVPAD agssvpad;
 
 	//MANEUVER PAD PAGE
 	AP11MNV manpad;
@@ -209,7 +214,7 @@ public:
 
 	//LOI PAGE
 	int LOImaneuver; //0 = LOI-1 (w/ MCC), 1 = LOI-1 (w/o MCC), 2 = LOI-2
-	double LOIapo, LOIperi, LOIazi;
+	double LOIapo, LOIperi, LOIazi, LOI2Alt;
 	VECTOR3 LOI_dV_LVLH;
 	double LOI_TIG;
 

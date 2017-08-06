@@ -72,6 +72,7 @@ protected:
 	double PRMDutyRatio(double volt);
 	double PRMPulseWidth(double volt);
 	bool PRMTimestep(int n, double simdt, double pp, double pw);
+	void Limiter(double &val, double lim);
 
 	VECTOR3 aea_attitude_error;
 	VECTOR3 aca_rates;
@@ -237,6 +238,7 @@ public:
 	bool GetK1() { return K1; }
 	bool GetK3() { return K3; }
 	bool GetK5() { return K5; }
+	bool GetK7() { return K7; }
 	bool GetK8() { return K8; }
 	bool GetK9() { return K9; }
 	bool GetK15() { return K15; }
@@ -335,6 +337,7 @@ public:
 	bool GetK3() { return K3; }
 	bool GetK4() { return K4; }
 	bool GetK5() { return K5; }
+	bool GetK8() { return K8; }
 	bool GetK11() { return K11; }
 	bool GetK12() { return K12; }
 	bool GetK13() { return K13; }
