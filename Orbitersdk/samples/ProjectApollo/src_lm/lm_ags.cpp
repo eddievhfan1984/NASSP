@@ -61,9 +61,11 @@ LEM_ASA::LEM_ASA()// : hsink("LEM-ASA-HSink",_vector3(0.013, 3.0, 0.03),0.03,0.0
 	Initialized = false;
 	Operate = false;
 	PulsesSent = false;
-	CurrentRotationMatrix = _M(0, 0, 0, 0, 0, 0, 0, 0, 0);
-	EulerAngles = _V(0., 0., 0.);
+	CurrentRotationMatrix = _M(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+	EulerAngles = _V(0.0, 0.0, 0.0);
 	RemainingDeltaVel = _V(0.0, 0.0, 0.0);
+	LastWeightAcceleration = _V(0.0, 0.0, 0.0);
+	LastGlobalVel = _V(0.0, 0.0, 0.0);
 	LastSimDT = -1.0;
 }
 
@@ -311,6 +313,9 @@ LEM_AEA::LEM_AEA(PanelSDK &p, LEM_DEDA &display) : DCPower(0, p), deda(display) 
 	sin_psi = 0.0;
 	cos_psi = 0.0;
 	AGSAttitudeError = _V(0.0, 0.0, 0.0);
+	AGSLateralVelocity = 0.0;
+	Altitude = 0.0;
+	AltitudeRate = 0.0;
 
 	//
 	// Virtual AGS.
@@ -486,10 +491,12 @@ void LEM_AEA::SetOutputChannel(int Type, int Data)
 
 	case 033:
 		//Altitude, Altitude Rate
+		SetAltitudeAltitudeRate(Data);
 		break;
 
 	case 034:
 		//Lateral Velocity
+		SetLateralVelocity(Data);
 		break;
 
 	case 040:
@@ -502,7 +509,7 @@ void LEM_AEA::SetOutputChannel(int Type, int Data)
 unsigned int LEM_AEA::GetOutputChannel(int channel)
 
 {
-	if (channel < 0 || channel > MAX_OUTPUT_PORTS)
+	if (channel < 0 || channel >= MAX_OUTPUT_PORTS)
 		return 0;
 
 	return OutputPorts[channel];
@@ -600,6 +607,71 @@ void LEM_AEA::SetAGSAttitude(int Type, int Data)
 	}
 }
 
+void LEM_AEA::SetLateralVelocity(int Data)
+{
+	int DataVal;
+
+	if (Data & 0400000) { // Negative
+		DataVal = -((~Data) & 0777777);
+		DataVal = -0400000 - DataVal;
+	}
+	else {
+		DataVal = Data & 0777777;
+	}
+
+	AGSLateralVelocity = (double)DataVal*LATVELSCALEFACTOR;
+}
+
+void LEM_AEA::SetAltitudeAltitudeRate(int Data)
+{
+	int DataVal;
+
+	AGSChannelValue40 val = GetOutputChannel(IO_ODISCRETES);
+
+	if (val[AGSAltitude] == 0)
+	{
+		DataVal = Data & 0777777;
+
+		Altitude = (double)DataVal*ALTSCALEFACTOR;
+	}
+	else if (val[AGSAltitudeRate] == 0)
+	{
+		if (Data & 0400000) { // Negative
+			DataVal = -((~Data) & 0777777);
+			DataVal = -0400000 - DataVal;
+		}
+		else {
+			DataVal = Data & 0777777;
+		}
+
+		AltitudeRate = -(double)DataVal*ALTRATESCALEFACTOR;
+	}
+}
+
+void LEM_AEA::SetPGNSIntegratorRegister(int channel, int val)
+{
+	int valx;
+
+	if (channel == 032)
+	{
+		valx = SignExtendAGS(val) * 4;
+		valx &= 0377774;
+		SetInputPort(IO_2002, valx);
+	}
+	else if (channel == 033)
+	{
+		valx = SignExtendAGS(val) * 4;
+		valx &= 0377774;
+		SetInputPort(IO_2001, valx);
+	}
+	else if (channel == 034)
+	{
+		valx = SignExtendAGS(val) * 4;
+		valx &= 0377774;
+		SetInputPort(IO_2004, valx);
+	}
+}
+
 VECTOR3 LEM_AEA::GetTotalAttitude()
 {
 	if (lem->AGS_AC_CB.Voltage() < SP_MIN_ACVOLTAGE)
@@ -618,6 +690,21 @@ VECTOR3 LEM_AEA::GetAttitudeError()
 	}
 
 	return _V(AGSAttitudeError.z, AGSAttitudeError.y, AGSAttitudeError.x);
+}
+
+double LEM_AEA::GetLateralVelocity()
+{
+	return AGSLateralVelocity;
+}
+
+double LEM_AEA::GetAltitude()
+{
+	return Altitude;
+}
+
+double LEM_AEA::GetAltitudeRate()
+{
+	return AltitudeRate;
 }
 
 void LEM_AEA::WireToBuses(e_object *a, e_object *b, ThreePosSwitch *s)
@@ -674,6 +761,11 @@ void LEM_AEA::SetFlightProgram(int FP)
 	InitVirtualAGS(binfile);
 
 	AEAInitialized = true;
+}
+
+void LEM_AEA::PadLoad(unsigned int address, unsigned int value)
+{
+	WriteMemory(address, value);
 }
 
 void LEM_AEA::WriteMemory(unsigned int loc, int val)
@@ -761,6 +853,9 @@ void LEM_AEA::SaveState(FILEHANDLE scn,char *start_str,char *end_str)
 	papiWriteScenario_double(scn, "SIN_PSI", sin_psi);
 	papiWriteScenario_double(scn, "COS_PSI", cos_psi);
 	papiWriteScenario_vec(scn, "ATTITUDEERROR", AGSAttitudeError);
+	papiWriteScenario_double(scn, "LATERALVELOCITY", AGSLateralVelocity);
+	papiWriteScenario_double(scn, "ALTITUDE", Altitude);
+	papiWriteScenario_double(scn, "ALTITUDERATE", AltitudeRate);
 
 	oapiWriteLine(scn, end_str);
 }
@@ -821,6 +916,9 @@ void LEM_AEA::LoadState(FILEHANDLE scn,char *end_str)
 		papiReadScenario_double(line, "SIN_PSI", sin_psi);
 		papiReadScenario_double(line, "COS_PSI", cos_psi);
 		papiReadScenario_vec(line, "ATTITUDEERROR", AGSAttitudeError);
+		papiReadScenario_double(line, "LATERALVELOCITY", AGSLateralVelocity);
+		papiReadScenario_double(line, "ALTITUDE", Altitude);
+		papiReadScenario_double(line, "ALTITUDERATE", AltitudeRate);
 	}
 }
 

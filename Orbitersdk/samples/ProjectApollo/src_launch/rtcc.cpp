@@ -164,8 +164,6 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		entopt.entrylongmanual = true;
 		entopt.GETbase = GETbase;
 		entopt.impulsive = RTCC_NONIMPULSIVE;
-		entopt.nominal = 0;
-		entopt.Range = 0;
 		entopt.ReA = 0;
 		entopt.TIGguess = TimeofIgnition + TLIplus;//(TIGMJD - GETbase)*24.0*3600.0 + TLIplus;
 		entopt.type = RTCC_ENTRY_ABORT;
@@ -281,8 +279,6 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		entopt.GETbase = GETbase;
 		entopt.impulsive = RTCC_NONIMPULSIVE;
 		entopt.lng = -165.0*RAD;
-		entopt.nominal = 0;
-		entopt.Range = 0;
 		entopt.ReA = 0;
 		entopt.TIGguess = TLIplus;
 		entopt.type = RTCC_ENTRY_ABORT;
@@ -371,9 +367,9 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		if (fcn == 20 || fcn == 21)
 		{
 			MCCFRMan opt;
-			double PeriGETcor, ReentryGET, lat_node, lng_node, alt_node, GET_node, FRInc;
+			double PeriGETcor, ReentryGET, lat_node, lng_node, alt_node, GET_node, FRInc, latcor;
 
-			opt.man = 0;
+			opt.type = 0;
 			opt.lat = -5.67822*RAD;
 			opt.PeriGET = calcParams.LOI;
 			opt.h_peri = 60.0 * 1852.0;
@@ -391,7 +387,7 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 			opt.t_land = t_land;
 			opt.vessel = calcParams.src;
 
-			if (TranslunarMidcourseCorrectionTargetingFreeReturn(&opt, dV_LVLH, P30TIG, PeriGETcor, ReentryGET, lat_node, lng_node, alt_node, GET_node, FRInc))
+			if (TranslunarMidcourseCorrectionTargetingFreeReturn(&opt, dV_LVLH, P30TIG, PeriGETcor, ReentryGET, lat_node, lng_node, alt_node, GET_node, FRInc, latcor))
 			{
 				calcParams.alt_node = alt_node;
 				calcParams.lat_node = lat_node;
@@ -557,7 +553,7 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 	break;
 	case 40:	// MISSION CP FLYBY MANEUVER
 	{
-		TEIOpt entopt;
+		RTEFlybyOpt entopt;
 		EntryResults res;
 		AP11ManPADOpt opt;
 		double GETbase;
@@ -569,11 +565,11 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		entopt.EntryLng = -165.0*RAD;
 		entopt.GETbase = GETbase;
 		entopt.returnspeed = 0;
-		entopt.TEItype = 1;
+		entopt.FlybyType = 0;
 		entopt.TIGguess = calcParams.LOI - 8.0*3600.0;
 		entopt.vessel = calcParams.src;
 
-		TEITargeting(&entopt, &res);//dV_LVLH, P30TIG, latitude, longitude, RET, RTGO, VIO, EntryAng);
+		RTEFlybyTargeting(&entopt, &res);//dV_LVLH, P30TIG, latitude, longitude, RET, RTGO, VIO, EntryAng);
 
 		opt.alt = LSAlt;
 		opt.dV_LVLH = res.dV_LVLH;
@@ -624,7 +620,7 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 	case 41:	// MISSION CP PC+2 MANEUVER
 	case 42:	// MISSION CP FAST PC+2 MANEUVER
 	{
-		TEIOpt entopt;
+		RTEFlybyOpt entopt;
 		EntryResults res;
 		AP11ManPADOpt opt;
 		double GETbase;
@@ -647,10 +643,10 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 			sprintf(manname, "PC+2 fast return");
 		}
 		entopt.GETbase = GETbase;
-		entopt.TEItype = 2;
+		entopt.FlybyType = 1;
 		entopt.vessel = calcParams.src;
 
-		TEITargeting(&entopt, &res);//dV_LVLH, P30TIG, latitude, longitude, RET, RTGO, VIO, EntryAng);
+		RTEFlybyTargeting(&entopt, &res);//dV_LVLH, P30TIG, latitude, longitude, RET, RTGO, VIO, EntryAng);
 
 		opt.alt = LSAlt;
 		opt.dV_LVLH = res.dV_LVLH;
@@ -721,7 +717,6 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		entopt.GETbase = GETbase;
 		entopt.returnspeed = 1;
 		entopt.RV_MCC = sv1;
-		entopt.TEItype = 0;
 		entopt.useSV = true;
 		entopt.vessel = calcParams.src;
 
@@ -897,7 +892,6 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		entopt.vessel = calcParams.src;
 
 		entopt.returnspeed = 1;
-		entopt.TEItype = 0;
 
 		TEITargeting(&entopt, &res);
 
@@ -1033,8 +1027,6 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		entopt.GETbase = GETbase;
 		entopt.impulsive = RTCC_NONIMPULSIVE;
 		entopt.lng = -165.0*RAD;
-		entopt.nominal = 0;
-		entopt.Range = 0;
 		entopt.ReA = 0;
 		entopt.TIGguess = MCCtime;
 		entopt.vessel = calcParams.src;
@@ -1062,8 +1054,10 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 			sprintf(upDesc, "%s has been scrubbed.", manname);
 
 			//Entry prediction without maneuver
-			entopt.prediction = true;
-			EntryTargeting(&entopt, &res);
+			EntryUpdateCalc(sv, entopt.GETbase, 0, true, &res);
+
+			res.dV_LVLH = _V(0, 0, 0);
+			res.P30TIG = entopt.TIGguess;
 		}
 		else
 		{
@@ -1269,7 +1263,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		AP7MNV * form = (AP7MNV *)pad;
 
 		MATRIX3 REFSMMAT;
-		EntryOpt entopt;
+		EarthEntryOpt entopt;
 		EntryResults res;
 		AP7ManPADOpt opt;
 		REFSMMATOpt refsopt;
@@ -1282,13 +1276,11 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		entopt.impulsive = RTCC_NONIMPULSIVE;
 		entopt.lng = -163.0*RAD;
 		entopt.nominal = RTCC_ENTRY_NOMINAL;
-		entopt.Range = 0;
 		entopt.ReA = 0;
 		entopt.TIGguess = 8 * 60 * 60 + 55 * 60;
-		entopt.type = RTCC_ENTRY_DEORBIT;
 		entopt.entrylongmanual = true;
 
-		EntryTargeting(&entopt, &res); //Target Load for uplink
+		BlockDataProcessor(&entopt, &res); //Target Load for uplink
 
 		refsopt.vessel = calcParams.src;
 		refsopt.GETbase = getGETBase();
@@ -2493,7 +2485,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 	{
 		AP7MNV * form = (AP7MNV *)pad;
 
-		EntryOpt entopt;
+		EarthEntryOpt entopt;
 		EntryResults res;
 		AP7ManPADOpt opt;
 		REFSMMATOpt refsopt;
@@ -2507,14 +2499,12 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		entopt.impulsive = RTCC_NONIMPULSIVE;
 		entopt.lng = -64.17*RAD;
 		entopt.nominal = RTCC_ENTRY_NOMINAL;
-		entopt.Range = 0;
 		entopt.ReA = -2.062*RAD;
 		entopt.TIGguess = OrbMech::HHMMSSToSS(259, 39, 16);
-		entopt.type = RTCC_ENTRY_DEORBIT;
 		entopt.entrylongmanual = true;
 		entopt.useSV = false;
 
-		EntryTargeting(&entopt, &res);//dV_LVLH, P30TIG, latitude, longitude, RET, RTGO, VIO, ReA, prec); //Target Load for uplink
+		BlockDataProcessor(&entopt, &res);//dV_LVLH, P30TIG, latitude, longitude, RET, RTGO, VIO, ReA, prec); //Target Load for uplink
 
 		TimeofIgnition = res.P30TIG;
 		SplashLatitude = res.latitude;
@@ -2690,7 +2680,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 
 void RTCC::AP7BlockData(AP7BLKOpt *opt, AP7BLK &pad)
 {
-	EntryOpt entopt;
+	EarthEntryOpt entopt;
 	EntryResults res;
 	double v_e, m1, Vc;
 
@@ -2702,9 +2692,7 @@ void RTCC::AP7BlockData(AP7BLKOpt *opt, AP7BLK &pad)
 	entopt.GETbase = getGETBase();
 	entopt.impulsive = RTCC_NONIMPULSIVE;
 	entopt.nominal = RTCC_ENTRY_NOMINAL;
-	entopt.Range = 0;
 	entopt.ReA = 0;
-	entopt.type = RTCC_ENTRY_DEORBIT;
 	entopt.entrylongmanual = true;
 
 	for (int i = 0;i < opt->n;i++)
@@ -2712,7 +2700,7 @@ void RTCC::AP7BlockData(AP7BLKOpt *opt, AP7BLK &pad)
 		entopt.lng = opt->lng[i];
 		entopt.TIGguess = opt->GETI[i];
 
-		EntryTargeting(&entopt, &res);
+		BlockDataProcessor(&entopt, &res);
 
 		m1 = calcParams.src->GetMass()*exp(-length(res.dV_LVLH) / v_e);
 		Vc = length(res.dV_LVLH)*cos(-2.15*RAD)*cos(0.95*RAD);// -60832.18 / m1;
@@ -2735,8 +2723,6 @@ void RTCC::AP11BlockData(AP11BLKOpt *opt, P37PAD &pad)
 	entopt.entrylongmanual = true;
 	entopt.GETbase = getGETBase();
 	entopt.impulsive = RTCC_NONIMPULSIVE;
-	entopt.nominal = 0;
-	entopt.Range = 0;
 	entopt.ReA = 0;
 	entopt.type = RTCC_ENTRY_ABORT;
 	entopt.vessel = calcParams.src;
@@ -2752,6 +2738,81 @@ void RTCC::AP11BlockData(AP11BLKOpt *opt, P37PAD &pad)
 		pad.GET400K[i] = res.GET05G;
 		pad.GETI[i] = opt->GETI[i];
 		pad.lng[i] = opt->lng[i] * DEG;
+	}
+}
+
+void RTCC::BlockDataProcessor(EarthEntryOpt *opt, EntryResults *res)
+{
+	EarthEntry* entry;
+	double GET;
+	bool stop;
+	SV sv;
+
+	stop = false;
+
+	if (opt->useSV)
+	{
+		sv = opt->RV_MCC;
+	}
+	else
+	{
+		sv = StateVectorCalc(opt->vessel);
+	}
+	GET = (sv.MJD - opt->GETbase)*24.0*3600.0;
+
+	entry = new EarthEntry(sv.R, sv.V, sv.MJD, sv.gravref, opt->GETbase, opt->TIGguess, opt->ReA, opt->lng, opt->nominal, opt->entrylongmanual);
+
+	while (!stop)
+	{
+		stop = entry->EntryIter();
+	}
+
+	res->dV_LVLH = entry->Entry_DV;
+	res->P30TIG = entry->EntryTIGcor;
+	res->latitude = entry->EntryLatcor;
+	res->longitude = entry->EntryLngcor;
+	res->GET400K = entry->t2;
+	res->GET05G = entry->EntryRET;
+	res->RTGO = entry->EntryRTGO;
+	res->VIO = entry->EntryVIO;
+	res->ReA = entry->EntryAng;
+	res->precision = entry->precision;
+
+	delete entry;
+
+	if (opt->impulsive > 0 )
+	{
+		bool main;
+		double t_slip;
+		VECTOR3 UX, UY, UZ, DV, Llambda, RA1_cor, VA1_cor;
+		MATRIX3 Q_Xx;
+		SV sv1;
+
+		if (opt->impulsive == RTCC_NONIMPULSIVE)
+		{
+			main = true;
+		}
+		else
+		{
+			main = false;
+		}
+
+		sv1 = coast(sv, res->P30TIG - GET);
+
+		UY = unit(crossp(sv1.V, sv1.R));
+		UZ = unit(-sv1.R);
+		UX = crossp(UY, UZ);
+
+		DV = UX*res->dV_LVLH.x + UY*res->dV_LVLH.y + UZ*res->dV_LVLH.z;
+
+		FiniteBurntimeCompensation(opt->vessel, sv1, 0.0, DV, main, Llambda, t_slip);
+
+		OrbMech::oneclickcoast(sv1.R, sv1.V, sv1.MJD + (res->P30TIG - GET) / 24.0 / 3600.0, t_slip, RA1_cor, VA1_cor, sv1.gravref, sv1.gravref);
+
+		Q_Xx = OrbMech::LVLH_Matrix(RA1_cor, VA1_cor);
+
+		res->dV_LVLH = mul(Q_Xx, Llambda);
+		res->P30TIG += t_slip;
 	}
 }
 
@@ -2774,28 +2835,7 @@ void RTCC::EntryTargeting(EntryOpt *opt, EntryResults *res)
 	}
 	GET = (sv.MJD - opt->GETbase)*24.0*3600.0;
 
-	//Entry prediction only
-	if (opt->prediction)
-	{
-		entry = new Entry(sv.R, sv.V, sv.MJD, sv.gravref, opt->GETbase, opt->TIGguess, opt->ReA, opt->lng, opt->type, opt->Range, opt->nominal, true);
-
-		entry->EntryUpdateCalc();
-
-		res->dV_LVLH = _V(0, 0, 0);
-		res->P30TIG = opt->TIGguess;
-		res->latitude = entry->EntryLatPred;
-		res->longitude = entry->EntryLngPred;
-		res->GET400K = entry->t2;
-		res->GET05G = entry->EntryRET;
-		res->RTGO = entry->EntryRTGO;
-		res->VIO = entry->EntryVIO;
-		res->ReA = entry->EntryAng;
-		delete entry;
-
-		return;
-	}
-
-	entry = new Entry(sv.R, sv.V, sv.MJD, sv.gravref, opt->GETbase, opt->TIGguess, opt->ReA, opt->lng, opt->type, opt->Range, opt->nominal, opt->entrylongmanual);
+	entry = new Entry(sv.R, sv.V, sv.MJD, sv.gravref, opt->GETbase, opt->TIGguess, opt->ReA, opt->lng, opt->type, opt->entrylongmanual);
 
 	while (!stop)
 	{
@@ -2839,7 +2879,7 @@ void RTCC::EntryTargeting(EntryOpt *opt, EntryResults *res)
 			LMmass = 0.0;
 		}
 
-		FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, DV, Llambda, t_slip);
+		FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, DV, true, Llambda, t_slip);
 
 		OrbMech::oneclickcoast(sv1.R, sv1.V, sv1.MJD + (res->P30TIG - GET) / 24.0 / 3600.0, t_slip, RA1_cor, VA1_cor, sv1.gravref, sv1.gravref);
 
@@ -2965,7 +3005,7 @@ void RTCC::LambertTargeting(LambertMan *lambert, VECTOR3 &dV_LVLH, double &P30TI
 		sv_tig.R = RA1;
 		sv_tig.V = VA1;
 
-		FiniteBurntimeCompensation(lambert->vessel, sv_tig, LMmass, VA1_apo - VA1, Llambda, t_slip);
+		FiniteBurntimeCompensation(lambert->vessel, sv_tig, LMmass, VA1_apo - VA1, true, Llambda, t_slip);
 
 		OrbMech::rv_from_r0v0(RA1, VA1, t_slip, RA1_cor, VA1_cor, mu);
 
@@ -3621,7 +3661,6 @@ void RTCC::EarthOrbitEntry(EarthEntryPADOpt *opt, AP7ENT &pad)
 	VECTOR3 UXD, UYD, UZD;
 	MATRIX3 M_R;
 	OBJHANDLE gravref;
-	Entry* entry;
 
 	double ALFATRIM = -20.0*RAD;
 
@@ -3643,7 +3682,7 @@ void RTCC::EarthOrbitEntry(EarthEntryPADOpt *opt, AP7ENT &pad)
 
 	if (opt->preburn)
 		{
-		double F, m_cut;
+		double F, m_cut, EntryRTGO, EntryVIO, EntryRET;
 
 		F = opt->vessel->GetThrusterMax0(opt->vessel->GetGroupThruster(THGROUP_MAIN, 0));
 		v_e = opt->vessel->GetThrusterIsp0(opt->vessel->GetGroupThruster(THGROUP_MAIN, 0));
@@ -3666,11 +3705,7 @@ void RTCC::EarthOrbitEntry(EarthEntryPADOpt *opt, AP7ENT &pad)
 		dt3 = OrbMech::time_radius_integ(REI, VEI, SVMJD + (dt + t_go + dt2) / 3600.0 / 24.0, oapiGetSize(gravref) + 300000.0*0.3048, -1, gravref, gravref, R300K, V300K);
 		dt4 = OrbMech::time_radius_integ(R300K, V300K, SVMJD + (dt + t_go + dt2 + dt3) / 3600.0 / 24.0, oapiGetSize(gravref) + EMSAlt, -1, gravref, gravref, R05G, V05G);
 
-		entry = new Entry(gravref, 0);
-		entry->Reentry(REI, VEI, SVMJD + (dt + t_go + dt2) / 3600.0 / 24.0);
-
-		lat = entry->EntryLatPred;
-		lng = entry->EntryLngPred;
+		EntryCalculations::Reentry(REI, VEI, SVMJD + (dt + t_go + dt2) / 3600.0 / 24.0, false, lat, lng, EntryRTGO, EntryVIO, EntryRET);
 
 		UX = unit(-V05G);
 		UY = unit(crossp(UX, -R05G));
@@ -3722,7 +3757,7 @@ void RTCC::EarthOrbitEntry(EarthEntryPADOpt *opt, AP7ENT &pad)
 		}
 		pad.Ret05[0] = t_go + dt2 + dt3 + dt4;
 		pad.RTGO[0] = theta_rad*3437.7468;//entry->EntryRTGO;
-		pad.VIO[0] = entry->EntryVIO / 0.3048;
+		pad.VIO[0] = EntryVIO / 0.3048;
 	}
 	else
 	{
@@ -3809,7 +3844,6 @@ void RTCC::LunarEntryPAD(LunarEntryPADOpt *opt, AP11ENT &pad)
 	SV svEI;	// EI/400K
 	SV sv300K;  // 300K
 	SV sv05G;   // EMS Altitude / 0.05G
-	Entry *entry;
 
 	gravref = AGCGravityRef(opt->vessel);
 	hEarth = oapiGetObjectByName("Earth");
@@ -3853,12 +3887,11 @@ void RTCC::LunarEntryPAD(LunarEntryPADOpt *opt, AP11ENT &pad)
 	svEI.mass = sv1.mass;
 	svEI.MJD = sv1.MJD + dt / 24.0 / 3600.0;
 
-	entry = new Entry(gravref, 1);
-	entry->Reentry(svEI.R, svEI.V, svEI.MJD);
+	double EntryRET, lat, lng, rtgo, vio;
 
-	LSMJD = svEI.MJD + entry->EntryRET / 24.0 / 3600.0;
+	EntryCalculations::Reentry(svEI.R, svEI.V, svEI.MJD, true, lat, lng, rtgo, vio, EntryRET);
 
-	delete entry;
+	LSMJD = svEI.MJD + EntryRET / 24.0 / 3600.0;
 
 	dt2 = OrbMech::time_radius_integ(svEI.R, svEI.V, svEI.MJD, oapiGetSize(hEarth) + Alt300K, -1, hEarth, hEarth, sv300K.R, sv300K.V);
 	sv300K.gravref = hEarth;
@@ -4522,7 +4555,7 @@ double RTCC::CDHcalc(CDHOpt *opt, VECTOR3 &dV_LVLH, double &P30TIG)			//Calculat
 		sv_tig.R = RA2;
 		sv_tig.V = VA2_alt;
 
-		FiniteBurntimeCompensation(opt->vessel, sv_tig, 0.0, V_A2_apo - VA2_alt, Llambda, t_slip);
+		FiniteBurntimeCompensation(opt->vessel, sv_tig, 0.0, V_A2_apo - VA2_alt, true, Llambda, t_slip);
 
 		OrbMech::rv_from_r0v0(RA2, VA2_alt, t_slip, RA2_cor, VA2_cor, mu);
 
@@ -4649,7 +4682,7 @@ void RTCC::DOITargeting(DOIMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, double &t
 	sv_tig.R = RA2;
 	sv_tig.V = VA2;
 
-	FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, DV_DOI, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
+	FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, DV_DOI, true, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
 
 	OrbMech::rv_from_r0v0(RA2, VA2, t_slip, R2_cor, V2_cor, mu);//Calculate the state vector at the corrected ignition time
 
@@ -4724,7 +4757,7 @@ void RTCC::PlaneChangeTargeting(PCMan *opt, VECTOR3 &dV_LVLH, double &P30TIG)
 
 	DV = V_PC2 - sv_PC.V;
 
-	FiniteBurntimeCompensation(opt->vessel, sv_PC, LMmass, DV, Llambda, t_slip);
+	FiniteBurntimeCompensation(opt->vessel, sv_PC, LMmass, DV, true, Llambda, t_slip);
 
 	sv_cor = coast(sv_PC, t_slip);
 
@@ -4777,6 +4810,7 @@ void RTCC::LOITargeting(LOIMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, VECTOR3 &
 	mu = GGRAV*oapiGetMass(hMoon);
 
 	MJD_LAND = opt->GETbase + opt->t_land / 24.0 / 3600.0;
+	Rot = OrbMech::GetRotationMatrix(hMoon, MJD_LAND);
 
 	//Lunar radius above LLS
 	R_M = oapiGetSize(hMoon) + opt->alt;
@@ -4797,26 +4831,44 @@ void RTCC::LOITargeting(LOIMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, VECTOR3 &
 
 	OrbMech::adbar_from_rv(r_LPO, v_LPO, opt->lng, opt->lat, PI05, opt->azi, R_LPO, V_LPO);
 
-	H_LPO = crossp(R_LPO, V_LPO);
-
-	axis = unit(H_LPO);
-
-	Rot = OrbMech::GetRotationMatrix(hMoon, MJD_LAND);
-
-	//Lunar Parking Orbit orientation
-	u_LPO = unit(rhmul(Rot, axis));
-
-	//Node unit vector
-	u_node = unit(crossp(u_LPO, u_LAH));
-
-	//Periapsis vector and node should be within 90°, if not the actual intersection is in the other direction
-	if (dotp(u_node, unit(sv1.R)) < 0.0)
+	if (opt->type == 0)
 	{
-		u_node = -u_node;
-	}
+		H_LPO = crossp(R_LPO, V_LPO);
 
-	//state vector at the node
-	dt_node = OrbMech::timetonode_integ(sv1.R, sv1.V, sv1.MJD, hMoon, u_node, R_node, V_node);
+		axis = unit(H_LPO);
+
+		//Lunar Parking Orbit orientation
+		u_LPO = unit(rhmul(Rot, axis));
+
+		//Node unit vector
+		u_node = unit(crossp(u_LPO, u_LAH));
+
+		//Periapsis vector and node should be within 90°, if not the actual intersection is in the other direction
+		if (dotp(u_node, unit(sv1.R)) < 0.0)
+		{
+			u_node = -u_node;
+		}
+
+		//state vector at the node
+		dt_node = OrbMech::timetonode_integ(sv1.R, sv1.V, sv1.MJD, hMoon, u_node, R_node, V_node);
+	}
+	else
+	{
+		axis = unit(rhmul(Rot, R_LPO));
+
+		//Lunar Parking Orbit orientation
+		u_LPO = unit(crossp(axis, unit(sv1.R)));
+
+		if (dotp(u_LPO, u_LAH) < 0.0)
+		{
+			u_LPO = -u_LPO;
+		}
+
+		u_node = unit(sv1.R);
+		R_node = sv1.R;
+		V_node = sv1.V;
+		dt_node = 0.0;
+	}
 
 	//Time at node
 	GET_node = GET + dt + dt_node;
@@ -4946,7 +4998,7 @@ void RTCC::LOI2Targeting(LOI2Man *opt, VECTOR3 &dV_LVLH, double &P30TIG)
 	double t_slip;
 	SV sv_tig;
 
-	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, DVX, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
+	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, DVX, true, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
 	sv_tig = coast(sv1, t_slip);
 
 	Q_Xx = OrbMech::LVLH_Matrix(sv_tig.R, sv_tig.V);
@@ -5241,7 +5293,7 @@ void RTCC::TranslunarMidcourseCorrectionTargetingNodal(MCCNodeMan *opt, VECTOR3 
 
 	OrbMech::oneclickcoast(R_peri, V_peri, NodeMJD, -dt2, RA2, VA1_apo, hMoon, sv1.gravref);
 
-	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, VA1_apo - sv1.V, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
+	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, VA1_apo - sv1.V, true, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
 	sv_tig = coast(sv1, t_slip);
 
 	Q_Xx = OrbMech::LVLH_Matrix(sv_tig.R, sv_tig.V);
@@ -5250,10 +5302,10 @@ void RTCC::TranslunarMidcourseCorrectionTargetingNodal(MCCNodeMan *opt, VECTOR3 
 	P30TIG = opt->MCCGET + t_slip;
 }
 
-bool RTCC::TranslunarMidcourseCorrectionTargetingFreeReturn(MCCFRMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, double &PeriGET, double &ReentryGET, double &lat_node, double &lng_node, double &alt_node, double &GET_node, double &FRInc)
+bool RTCC::TranslunarMidcourseCorrectionTargetingFreeReturn(MCCFRMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, double &PeriGET, double &ReentryGET, double &lat_node, double &lng_node, double &alt_node, double &GET_node, double &FRInc, double &TLCCEMPLatcor)
 {
 	SV sv0, sv1;
-	double mass, LMmass, dt1, dt2, PeriMJD, lat_EMPcor;
+	double mass, LMmass, dt1, dt2, PeriMJD;
 	bool solgood = true;
 	OBJHANDLE hMoon;
 	VECTOR3 Llambda, VA1_apo, R_peri, V_peri, RA2;
@@ -5290,54 +5342,173 @@ bool RTCC::TranslunarMidcourseCorrectionTargetingFreeReturn(MCCFRMan *opt, VECTO
 
 	PeriMJD = opt->PeriGET / 24.0 / 3600.0 + opt->GETbase;
 
-	if (opt->man == 0)
-	{
-		VECTOR3 R_node;
-		double PeriMJD_cor, MJD_reentry;
+	VECTOR3 R_node;
+	double PeriMJD_cor, MJD_reentry;
 
-		solgood = TLMC_BAP_FR_FixedLPO(opt, sv1, opt->lat, opt->h_peri, PeriMJD, R_peri, V_peri, PeriMJD_cor, MJD_reentry, FRInc, lat_EMPcor, R_node, GET_node);
+	solgood = TLMC_BAP_FR_LPO(opt, sv1, opt->lat, opt->h_peri, PeriMJD, R_peri, V_peri, PeriMJD_cor, MJD_reentry, FRInc, TLCCEMPLatcor, R_node, GET_node);
 	
-		if (!solgood)
-		{
-			return solgood;
-		}
-
-		OrbMech::oneclickcoast(R_peri, V_peri, PeriMJD_cor, (sv1.MJD - PeriMJD_cor)*24.0*3600.0, RA2, VA1_apo, hMoon, sv1.gravref);
-
-		PeriGET = (PeriMJD_cor - opt->GETbase)*24.0*3600.0;
-		ReentryGET = (MJD_reentry - opt->GETbase)*24.0*3600.0;
-		
-		//Calculate nodal target
-		double MJD_node;
-		MATRIX3 Rot;
-		VECTOR3 R_selen;
-
-		MJD_node = opt->GETbase + GET_node / 24.0 / 3600.0;
-		Rot = OrbMech::GetRotationMatrix(hMoon, MJD_node);
-		R_selen = rhtmul(Rot, R_node);
-		OrbMech::latlong_from_r(R_selen, lat_node, lng_node);
-		alt_node = length(R_selen) - oapiGetSize(hMoon);
-	}
-	else if (opt->man == 1)
+	if (!solgood)
 	{
-		double PeriMJD_cor, MJD_reentry;
-
-		//-5.67822*RAD
-		solgood = TLMCFlyby(sv1, opt->lat, opt->h_peri, PeriMJD, R_peri, V_peri, PeriMJD_cor, MJD_reentry, FRInc);
-
-		if (!solgood)
-		{
-			return solgood;
-		}
-
-		//OrbMech::rv_from_r0v0_tb(R_peri, V_peri, PeriMJD_cor, (sv1.MJD - PeriMJD_cor)*24.0*3600.0, RA2, VA1_apo);
-		OrbMech::oneclickcoast(R_peri, V_peri, PeriMJD_cor, (sv1.MJD - PeriMJD_cor)*24.0*3600.0, RA2, VA1_apo, hMoon, sv1.gravref);
-
-		PeriGET = (PeriMJD_cor - opt->GETbase)*24.0*3600.0;
-		ReentryGET = (MJD_reentry - opt->GETbase)*24.0*3600.0;
+		return solgood;
 	}
 
-	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, VA1_apo - sv1.V, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
+	OrbMech::oneclickcoast(R_peri, V_peri, PeriMJD_cor, (sv1.MJD - PeriMJD_cor)*24.0*3600.0, RA2, VA1_apo, hMoon, sv1.gravref);
+
+	PeriGET = (PeriMJD_cor - opt->GETbase)*24.0*3600.0;
+	ReentryGET = (MJD_reentry - opt->GETbase)*24.0*3600.0;
+		
+	//Calculate nodal target
+	double MJD_node;
+	MATRIX3 Rot;
+	VECTOR3 R_selen;
+
+	MJD_node = opt->GETbase + GET_node / 24.0 / 3600.0;
+	Rot = OrbMech::GetRotationMatrix(hMoon, MJD_node);
+	R_selen = rhtmul(Rot, R_node);
+	OrbMech::latlong_from_r(R_selen, lat_node, lng_node);
+	alt_node = length(R_selen) - oapiGetSize(hMoon);
+
+	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, VA1_apo - sv1.V, true, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
+	sv_tig = coast(sv1, t_slip);
+
+	Q_Xx = OrbMech::LVLH_Matrix(sv_tig.R, sv_tig.V);
+
+	dV_LVLH = mul(Q_Xx, Llambda);
+	P30TIG = opt->MCCGET + t_slip;
+
+	return solgood;
+}
+
+bool RTCC::TranslunarMidcourseCorrectionTargetingNonFreeReturn(MCCNFRMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, double &lat_node, double &lng_node, double &alt_node, double &GET_node, double &TLCCEMPLatcor)
+{
+	SV sv0, sv1;
+	double mass, LMmass, dt1, dt2, PeriMJD;
+	bool solgood = true;
+	OBJHANDLE hMoon;
+	VECTOR3 Llambda, VA1_apo, R_peri, V_peri, RA2;
+	MATRIX3 Q_Xx;
+	double t_slip;
+	SV sv_tig;
+
+	hMoon = oapiGetObjectByName("Moon");
+
+	if (opt->useSV)
+	{
+		sv0 = opt->RV_MCC;
+	}
+	else
+	{
+		sv0 = StateVectorCalc(opt->vessel);
+	}
+
+	if (opt->csmlmdocked)
+	{
+		LMmass = GetDockedVesselMass(opt->vessel);
+	}
+	else
+	{
+		LMmass = 0.0;
+	}
+
+	mass = LMmass + sv0.mass;
+
+	dt1 = opt->MCCGET - (sv0.MJD - opt->GETbase) * 24.0 * 60.0 * 60.0;
+	dt2 = opt->PeriGET - opt->MCCGET;
+
+	sv1 = coast(sv0, dt1);
+
+	PeriMJD = opt->PeriGET / 24.0 / 3600.0 + opt->GETbase;
+
+	VECTOR3 R_node;
+
+	solgood = TLMC_BAP_NFR_LPO(opt, sv1, opt->lat, opt->h_peri, PeriMJD, R_peri, V_peri, TLCCEMPLatcor, R_node, GET_node);
+
+	if (!solgood)
+	{
+		return solgood;
+	}
+
+	OrbMech::oneclickcoast(R_peri, V_peri, PeriMJD, (sv1.MJD - PeriMJD)*24.0*3600.0, RA2, VA1_apo, hMoon, sv1.gravref);
+
+	//Calculate nodal target
+	double MJD_node;
+	MATRIX3 Rot;
+	VECTOR3 R_selen;
+
+	MJD_node = opt->GETbase + GET_node / 24.0 / 3600.0;
+	Rot = OrbMech::GetRotationMatrix(hMoon, MJD_node);
+	R_selen = rhtmul(Rot, R_node);
+	OrbMech::latlong_from_r(R_selen, lat_node, lng_node);
+	alt_node = length(R_selen) - oapiGetSize(hMoon);
+
+	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, VA1_apo - sv1.V, true, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
+	sv_tig = coast(sv1, t_slip);
+
+	Q_Xx = OrbMech::LVLH_Matrix(sv_tig.R, sv_tig.V);
+
+	dV_LVLH = mul(Q_Xx, Llambda);
+	P30TIG = opt->MCCGET + t_slip;
+
+	return solgood;
+}
+
+bool RTCC::TranslunarMidcourseCorrectionTargetingFlyby(MCCFlybyMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, double &PeriGET, double &ReentryGET, double &FRInc)
+{
+	SV sv0, sv1;
+	double mass, LMmass, dt1, dt2, PeriMJD;
+	bool solgood = true;
+	OBJHANDLE hMoon;
+	VECTOR3 Llambda, VA1_apo, R_peri, V_peri, RA2;
+	MATRIX3 Q_Xx;
+	double t_slip;
+	SV sv_tig;
+
+	hMoon = oapiGetObjectByName("Moon");
+
+	if (opt->useSV)
+	{
+		sv0 = opt->RV_MCC;
+	}
+	else
+	{
+		sv0 = StateVectorCalc(opt->vessel);
+	}
+
+	if (opt->csmlmdocked)
+	{
+		LMmass = GetDockedVesselMass(opt->vessel);
+	}
+	else
+	{
+		LMmass = 0.0;
+	}
+
+	mass = LMmass + sv0.mass;
+
+	dt1 = opt->MCCGET - (sv0.MJD - opt->GETbase) * 24.0 * 60.0 * 60.0;
+	dt2 = opt->PeriGET - opt->MCCGET;
+
+	sv1 = coast(sv0, dt1);
+
+	PeriMJD = opt->PeriGET / 24.0 / 3600.0 + opt->GETbase;
+
+	double PeriMJD_cor, MJD_reentry;
+
+	//-5.67822*RAD
+	solgood = TLMCFlyby(sv1, opt->lat, opt->h_peri, PeriMJD, R_peri, V_peri, PeriMJD_cor, MJD_reentry, FRInc);
+
+	if (!solgood)
+	{
+		return solgood;
+	}
+
+	//OrbMech::rv_from_r0v0_tb(R_peri, V_peri, PeriMJD_cor, (sv1.MJD - PeriMJD_cor)*24.0*3600.0, RA2, VA1_apo);
+	OrbMech::oneclickcoast(R_peri, V_peri, PeriMJD_cor, (sv1.MJD - PeriMJD_cor)*24.0*3600.0, RA2, VA1_apo, hMoon, sv1.gravref);
+
+	PeriGET = (PeriMJD_cor - opt->GETbase)*24.0*3600.0;
+	ReentryGET = (MJD_reentry - opt->GETbase)*24.0*3600.0;
+
+	FiniteBurntimeCompensation(opt->vessel, sv1, LMmass, VA1_apo - sv1.V, true, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
 	sv_tig = coast(sv1, t_slip);
 
 	Q_Xx = OrbMech::LVLH_Matrix(sv_tig.R, sv_tig.V);
@@ -5494,7 +5665,7 @@ void RTCC::OrbitAdjustCalc(OrbAdjOpt *opt, VECTOR3 &dV_LVLH, double &P30TIG)
 		sv_tig.R = R2;
 		sv_tig.V = V2;
 
-		FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, DVX, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
+		FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, DVX, true, Llambda, t_slip); //Calculate the impulsive equivalent of the maneuver
 
 		OrbMech::oneclickcoast(R2, V2, SPSMJD, t_slip, R2_cor, V2_cor, opt->gravref, opt->gravref); //Calculate the state vector at the corrected ignition time
 
@@ -6426,9 +6597,9 @@ SV RTCC::ExecuteManeuver(VESSEL* vessel, double GETbase, double P30TIG, VECTOR3 
 	return sv3;
 }
 
-void RTCC::TEITargeting(TEIOpt *opt, EntryResults *res)//VECTOR3 &dV_LVLH, double &P30TIG, double &latitude, double &longitude, double &GET05G, double &RTGO, double &VIO, double &EntryAngcor)
+void RTCC::RTEFlybyTargeting(RTEFlybyOpt *opt, EntryResults *res)
 {
-	TEI* teicalc;
+	Flyby* flybycalc;
 	bool endi = false;
 	double EMSAlt, dt22, mu_E, MJDguess, CSMmass, LMmass;
 	VECTOR3 R05G, V05G, R_A, V_A, R0M, V0M;
@@ -6473,7 +6644,94 @@ void RTCC::TEITargeting(TEIOpt *opt, EntryResults *res)//VECTOR3 &dV_LVLH, doubl
 		MJDguess = opt->GETbase + opt->TIGguess / 24.0 / 3600.0;
 	}
 
-	teicalc = new TEI(R0M, V0M, SVMJD, gravref, MJDguess, opt->EntryLng, opt->entrylongmanual, opt->returnspeed, opt->TEItype, opt->RevsTillTEI);
+	flybycalc = new Flyby(R0M, V0M, SVMJD, gravref, MJDguess, opt->EntryLng, opt->entrylongmanual, opt->returnspeed, opt->FlybyType);
+
+	while (!endi)
+	{
+		endi = flybycalc->Flybyiter();
+	}
+
+	dt22 = OrbMech::time_radius(flybycalc->R_EI, flybycalc->V_EI, oapiGetSize(hEarth) + EMSAlt, -1, mu_E);
+	OrbMech::rv_from_r0v0(flybycalc->R_EI, flybycalc->V_EI, dt22, R05G, V05G, mu_E); //Entry Interface to 0.05g
+
+	res->latitude = flybycalc->EntryLatcor;
+	res->longitude = flybycalc->EntryLngcor;
+	res->P30TIG = (flybycalc->TIG - opt->GETbase)*24.0*3600.0;
+	res->dV_LVLH = flybycalc->Entry_DV;
+	res->ReA = flybycalc->EntryAng;
+	res->GET400K = (flybycalc->EIMJD - opt->GETbase)*24.0*3600.0;
+	res->GET05G = res->GET400K + dt22;
+	res->RTGO = 1285.0 - 3437.7468*acos(dotp(unit(flybycalc->R_EI), unit(R05G)));
+	res->VIO = length(V05G);
+	res->precision = flybycalc->precision;
+
+	if (opt->csmlmdocked)
+	{
+		LMmass = GetDockedVesselMass(opt->vessel);
+	}
+	else
+	{
+		LMmass = 0;
+	}
+
+	SV sv_tig;
+
+	sv_tig.gravref = hMoon;
+	sv_tig.mass = CSMmass;
+	sv_tig.MJD = flybycalc->TIG;
+	sv_tig.R = flybycalc->Rig;
+	sv_tig.V = flybycalc->Vig;
+
+	FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, flybycalc->Vig_apo - flybycalc->Vig, true, Llambda, t_slip);
+
+	OrbMech::oneclickcoast(flybycalc->Rig, flybycalc->Vig, flybycalc->TIG, t_slip, R_cor, V_cor, hMoon, hMoon);
+
+	Q_Xx = OrbMech::LVLH_Matrix(R_cor, V_cor);
+
+	//EntryTIGcor = teicalc->TIG_imp + t_slip;
+	res->P30TIG = (flybycalc->TIG - opt->GETbase)*24.0*3600.0 + t_slip;
+	res->dV_LVLH = mul(Q_Xx, Llambda);
+
+	delete flybycalc;
+}
+
+void RTCC::TEITargeting(TEIOpt *opt, EntryResults *res)
+{
+	TEI* teicalc;
+	SV sv0;
+	bool endi = false;
+	double EMSAlt, dt22, mu_E, MJDguess, LMmass;
+	VECTOR3 R05G, V05G;
+	VECTOR3 Llambda, R_cor, V_cor;
+	double t_slip;
+	MATRIX3 Q_Xx;
+	OBJHANDLE hEarth = oapiGetObjectByName("Earth");
+	OBJHANDLE hMoon = oapiGetObjectByName("Moon");
+
+	EMSAlt = 297431.0*0.3048;
+	mu_E = GGRAV*oapiGetMass(hEarth);
+
+	if (opt->useSV)
+	{
+		sv0 = opt->RV_MCC;
+	}
+	else
+	{
+		sv0 = StateVectorCalc(opt->vessel);
+	}
+
+
+	if (opt->TIGguess == 0.0)
+	{
+		//TEI targeting uses "now" as the initial guess
+		MJDguess = sv0.MJD;
+	}
+	else
+	{
+		MJDguess = opt->GETbase + opt->TIGguess / 24.0 / 3600.0;
+	}
+
+	teicalc = new TEI(sv0.R, sv0.V, sv0.MJD, sv0.gravref, MJDguess, opt->EntryLng, opt->entrylongmanual, opt->returnspeed, opt->RevsTillTEI);
 
 	while (!endi)
 	{
@@ -6492,6 +6750,7 @@ void RTCC::TEITargeting(TEIOpt *opt, EntryResults *res)//VECTOR3 &dV_LVLH, doubl
 	res->GET05G = res->GET400K + dt22;
 	res->RTGO = 1285.0 - 3437.7468*acos(dotp(unit(teicalc->R_EI), unit(R05G)));
 	res->VIO = length(V05G);
+	res->precision = teicalc->precision;
 
 	if (opt->csmlmdocked)
 	{
@@ -6505,12 +6764,12 @@ void RTCC::TEITargeting(TEIOpt *opt, EntryResults *res)//VECTOR3 &dV_LVLH, doubl
 	SV sv_tig;
 
 	sv_tig.gravref = hMoon;
-	sv_tig.mass = CSMmass;
+	sv_tig.mass = sv0.mass;
 	sv_tig.MJD = teicalc->TIG;
 	sv_tig.R = teicalc->Rig;
 	sv_tig.V = teicalc->Vig;
 
-	FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, teicalc->Vig_apo - teicalc->Vig, Llambda, t_slip);
+	FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, teicalc->Vig_apo - teicalc->Vig, true, Llambda, t_slip);
 
 	OrbMech::oneclickcoast(teicalc->Rig, teicalc->Vig, teicalc->TIG, t_slip, R_cor, V_cor, hMoon, hMoon);
 
@@ -6790,7 +7049,7 @@ void RTCC::LVDCTLIPredict(LVDCTLIparam lvdc, VESSEL* vessel, double GETbase, VEC
 	dV_LVLH = _V(1.0, 0.0, 0.0)*L;
 }
 
-void RTCC::FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass, VECTOR3 DV, VECTOR3 &DV_imp, double &t_slip, SV &sv_out)
+void RTCC::FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass, VECTOR3 DV, bool main, VECTOR3 &DV_imp, double &t_slip, SV &sv_out)
 {
 	//For CSM, LM or CSM/LM docked maneuvers
 	//INPUT:
@@ -6798,6 +7057,7 @@ void RTCC::FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass
 	//sv: State vector at impulsive TIG
 	//attachedMass: mass of the attached vessel, 0 if no vessel present
 	//DV: Delta velocity of impulsive thrusting maneuver
+	//main: 0 = use RCS, 1 = use main/hover engine
 	//
 	//OUTPUT:
 	//DV_imp: non-impulsive delta velocity
@@ -6808,20 +7068,28 @@ void RTCC::FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass
 
 	sv_out.gravref = sv.gravref;
 
-	if (vessel->GetGroupThruster(THGROUP_MAIN, 0))
+	if (main)
 	{
-		GetThrusterParameters(vessel, f_T, isp);
+		if (vessel->GetGroupThruster(THGROUP_MAIN, 0))
+		{
+			GetThrusterParameters(vessel, f_T, isp);
 
-		F_average = f_T;
+			F_average = f_T;
+		}
+		else
+		{
+			double bt, bt_var;
+			int step;
+
+			GetThrusterParameters(vessel, f_T, isp);
+
+			LMThrottleProgram(f_T, isp, sv.mass + attachedMass, length(DV), F_average, bt, bt_var, step);
+		}
 	}
 	else
 	{
-		double bt, bt_var;
-		int step;
-
-		GetThrusterParameters(vessel, f_T, isp);
-
-		LMThrottleProgram(f_T, isp, sv.mass + attachedMass, length(DV), F_average, bt, bt_var, step);
+		isp = 2706.64;
+		F_average = 400 * 4.448222;
 	}
 
 	OrbMech::impulsive(sv.R, sv.V, sv.MJD, sv.gravref, F_average, isp, sv.mass + attachedMass, DV, DV_imp, t_slip, sv_out.R, sv_out.V, sv_out.MJD, sv_out.mass);
@@ -6829,39 +7097,11 @@ void RTCC::FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass
 	sv_out.mass -= attachedMass;
 }
 
-void RTCC::FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass, VECTOR3 DV, VECTOR3 &DV_imp, double &t_slip)
+void RTCC::FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass, VECTOR3 DV, bool main, VECTOR3 &DV_imp, double &t_slip)
 {
-	//For CSM, LM or CSM/LM docked maneuvers
-	//INPUT:
-	//Vessel: thrusting vessel
-	//sv: State vector at impulsive TIG, mass includes docked vessel, if present
-	//attachedMass: mass of the attached vessel, 0 if no vessel present
-	//DV: Delta velocity of impulsive thrusting maneuver
-	//
-	//OUTPUT:
-	//DV_imp: non-impulsive delta velocity
-	//t_slip: time in seconds the maneuver has slipped to compensate for finite burntime; should always be negative
+	SV sv_out;
 
-	double f_T, isp, F_average, MJD, mass;
-	VECTOR3 R, V;
-
-	if (vessel->GetGroupThruster(THGROUP_MAIN, 0))	//Criterion: If no main thruster group, it's a LEM.
-	{
-		GetThrusterParameters(vessel, f_T, isp);
-
-		F_average = f_T;
-	}
-	else
-	{
-		double bt, bt_var;
-		int step;
-
-		GetThrusterParameters(vessel, f_T, isp);
-
-		LMThrottleProgram(f_T, isp, sv.mass + attachedMass, length(DV), F_average, bt, bt_var, step);
-	}
-
-	OrbMech::impulsive(sv.R, sv.V, sv.MJD, sv.gravref, F_average, isp, sv.mass + attachedMass, DV, DV_imp, t_slip, R, V, MJD, mass);
+	FiniteBurntimeCompensation(vessel, sv, attachedMass, DV, main, DV_imp, t_slip, sv_out);
 }
 
 void RTCC::GetThrusterParameters(VESSEL *vessel, double &f_T, double &isp)
@@ -7388,7 +7628,7 @@ bool RTCC::SkylabRendezvous(SkyRendOpt *opt, SkylabRendezvousResults *res)
 
 	DVX = tmul(Q_Xx, dV_LVLH);
 
-	FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, DVX, Llambda, t_slip);
+	FiniteBurntimeCompensation(opt->vessel, sv_tig, LMmass, DVX, true, Llambda, t_slip);
 
 	OrbMech::oneclickcoast(sv_tig.R, sv_tig.V, sv_tig.MJD, t_slip, R_cor, V_cor, gravref, gravref);
 
@@ -7496,14 +7736,14 @@ bool RTCC::TLMCFlyby(SV sv_mcc, double lat_EMP, double h_peri, double MJD_P_gues
 	return true;
 }
 
-bool RTCC::TLMC_BAP_FR_FixedLPO(MCCFRMan *opt, SV sv_mcc, double lat_EMP, double h_peri, double MJD_P_guess, VECTOR3 &R_peri, VECTOR3 &V_peri, double &MJD_peri, double &MJD_reentry, double &FreeReturnInclination, double &lat_EMPcor, VECTOR3 &R_node, double &GET_node)
+bool RTCC::TLMC_BAP_FR_LPO(MCCFRMan *opt, SV sv_mcc, double lat_EMP, double h_peri, double MJD_P_guess, VECTOR3 &R_peri, VECTOR3 &V_peri, double &MJD_peri, double &MJD_reentry, double &FreeReturnInclination, double &lat_EMPcor, VECTOR3 &R_node, double &GET_node)
 {
 	MATRIX3 M_EMP, Rot;
 	VECTOR3 R_EMP, V_EMP, R_reentry, V_reentry, R_MCC, V_MCC_apo, DV_LOI;
-	double lng_EMP, dt, mu, MJD_N, ddt, VacPeri, R_E, e_H, e_Ho, c_I, p_H, eps2, dto, c_I2, p_H2, TIG_LOI, dV_T, dvar, r_peri, v_peri, azi_peri;
+	double lng_EMP, dt, mu, MJD_N, ddt, VacPeri, R_E, e_H, e_Ho, c_I, p_H, eps2, dto, TIG_LOI, dV_T, dvar, r_peri, v_peri, azi_peri;
 	double latarr[3], dvarr[3];
 	double rtest, lngtest, lattest, fpatest;
-	int s_F, s_F2, c_I3, s_F3;
+	int s_F, c_I3, s_F3;
 	OBJHANDLE hMoon, hEarth;
 	OELEMENTS coe;
 	LOIMan loiopt;
@@ -7522,15 +7762,16 @@ bool RTCC::TLMC_BAP_FR_FixedLPO(MCCFRMan *opt, SV sv_mcc, double lat_EMP, double
 	loiopt.useSV = true;
 	loiopt.vessel = opt->vessel;
 	loiopt.impulsive = RTCC_IMPULSIVE;
+	loiopt.type = opt->type;
 
 	loiopt.RV_MCC.gravref = sv_mcc.gravref;
 	loiopt.RV_MCC.R = sv_mcc.R;
 	loiopt.RV_MCC.mass = sv_mcc.mass;
 	loiopt.RV_MCC.MJD = sv_mcc.MJD;
 
-	c_I = p_H = dto = c_I2 = p_H2 = dvarr[0] = dvarr[1] = dvarr[2] = 0.0;
+	c_I = p_H = dto = dvarr[0] = dvarr[1] = dvarr[2] = 0.0;
 	eps2 = 0.1;
-	s_F = s_F2 = c_I3 = s_F3 = 0;
+	s_F = c_I3 = s_F3 = 0;
 
 	hEarth = oapiGetObjectByName("Earth");
 	hMoon = oapiGetObjectByName("Moon");
@@ -7629,14 +7870,132 @@ bool RTCC::TLMC_BAP_FR_FixedLPO(MCCFRMan *opt, SV sv_mcc, double lat_EMP, double
 	return true;
 }
 
+bool RTCC::TLMC_BAP_NFR_LPO(MCCNFRMan *opt, SV sv_mcc, double lat_EMP, double h_peri, double MJD_peri, VECTOR3 &R_peri, VECTOR3 &V_peri, double &lat_EMPcor, VECTOR3 &R_node, double &GET_node)
+{
+	MATRIX3 M_EMP;
+	VECTOR3 R_EMP, V_EMP, R_MCC, V_MCC_apo, DV_LOI;
+	double lng_EMP, dt, mu, ddt, TIG_LOI, dV_T, r_peri, v_peri, azi_peri;
+	double rtest, lngtest, lattest, fpatest;
+	double dLat, dV_To;
+	int c_I;
+	OBJHANDLE hMoon;
+	OELEMENTS coe;
+	LOIMan loiopt;
+
+	AGCGravityRef(opt->vessel);
+
+	loiopt.alt = opt->alt;
+	loiopt.azi = opt->azi;
+	loiopt.csmlmdocked = opt->csmlmdocked;
+	loiopt.GETbase = opt->GETbase;
+	loiopt.h_apo = opt->LOIh_apo;
+	loiopt.h_peri = opt->LOIh_peri;
+	loiopt.lat = opt->LSlat;
+	loiopt.lng = opt->LSlng;
+	loiopt.t_land = opt->t_land;
+	loiopt.useSV = true;
+	loiopt.vessel = opt->vessel;
+	loiopt.impulsive = RTCC_IMPULSIVE;
+	loiopt.type = opt->type;
+
+	loiopt.RV_MCC.gravref = sv_mcc.gravref;
+	loiopt.RV_MCC.R = sv_mcc.R;
+	loiopt.RV_MCC.mass = sv_mcc.mass;
+	loiopt.RV_MCC.MJD = sv_mcc.MJD;
+
+	c_I = 0;
+	dLat = 0.0;
+
+	hMoon = oapiGetObjectByName("Moon");
+	mu = GGRAV*oapiGetMass(hMoon);
+	r_peri = oapiGetSize(hMoon) + h_peri;
+	lat_EMPcor = lat_EMP;
+
+	//Initial guess
+	TLMCFirstGuessConic(sv_mcc, lat_EMP, h_peri, MJD_peri, v_peri, azi_peri, lng_EMP);
+	r_peri = oapiGetSize(hMoon) + h_peri;
+
+	dt = (MJD_peri - sv_mcc.MJD)*24.0*3600.0;
+
+	do
+	{
+		do
+		{
+			//Position and velocity vector in EMP Coordinates
+			OrbMech::adbar_from_rv(r_peri, v_peri, lng_EMP, lat_EMPcor, PI05, azi_peri, R_EMP, V_EMP);
+
+			//EMP Matrix
+			M_EMP = OrbMech::EMPMatrix(MJD_peri);
+
+			//Convert EMP position to ecliptic
+			R_peri = tmul(M_EMP, R_EMP);
+			V_peri = tmul(M_EMP, V_EMP);
+
+			//Calculate pericynthion velocity
+			V_peri = OrbMech::Vinti(R_peri, _V(0.0, 0.0, 0.0), sv_mcc.R, MJD_peri, -dt, 0, false, hMoon, hMoon, sv_mcc.gravref, V_peri);
+			OrbMech::oneclickcoast(R_peri, V_peri, MJD_peri, -dt, R_MCC, V_MCC_apo, hMoon, sv_mcc.gravref);
+
+			//save azi and vmag as new initial guess
+			V_EMP = mul(M_EMP, V_peri);
+			OrbMech::rv_from_adbar(R_EMP, V_EMP, rtest, v_peri, lngtest, lattest, fpatest, azi_peri);
+
+			coe = OrbMech::coe_from_sv(R_peri, V_peri, mu);
+			ddt = OrbMech::timetoperi(R_peri, V_peri, mu);
+
+			if (coe.TA > PI)
+			{
+				lng_EMP += coe.TA - PI2;
+			}
+			else
+			{
+				lng_EMP += coe.TA;
+			}
+
+		} while (abs(ddt) > 0.01);
+
+		loiopt.RV_MCC.V = V_MCC_apo;
+
+		LOITargeting(&loiopt, DV_LOI, TIG_LOI, R_node, GET_node);
+
+		dV_T = length(DV_LOI) + length(V_MCC_apo - sv_mcc.V);
+
+		if (c_I == 0)
+		{
+			dLat = -1.0*RAD;
+		}
+		else
+		{
+			if (dV_T > dV_To)
+			{
+				dLat = -dLat / 2.0;
+			}
+		}
+
+		lat_EMPcor += dLat;
+		dV_To = dV_T;
+		c_I++;
+
+		//dvar = OrbMech::QuadraticIterator(c_I, s_F, lat_EMPcor, latarr, dvarr, dV_T, 0.1*RAD, 1.0*RAD);
+		//if (s_F == 1)
+		//{
+		//	return false;
+		//}
+		//} while (c_I < 3 || abs(dvarr[2] - dvarr[1]) > 0.01);
+	} while (abs(dLat) > 0.01*RAD);
+
+	return true;
+}
+
 void RTCC::TLMCFirstGuessConic(SV sv_mcc, double lat_EMP, double h_peri, double MJD_P, double &v_peri, double &azi_peri, double &lng_peri)
 {
 	MATRIX3 M_EMP;
 	VECTOR3 R_EMP, V_EMP, R_peri, V_peri;
-	double r_peri, mu, ddt;
+	double r_peri, mu, ddt, R_E;
 	OBJHANDLE hMoon, hEarth;
 	OELEMENTS coe;
 	double rtest, lngtest, lattest, fpatest;
+
+	R_E = 6378.137e3;
 
 	hMoon = oapiGetObjectByName("Moon");
 	hEarth = oapiGetObjectByName("Earth");
@@ -7647,7 +8006,10 @@ void RTCC::TLMCFirstGuessConic(SV sv_mcc, double lat_EMP, double h_peri, double 
 	//Initial guess
 	lng_peri = PI;
 	azi_peri = 270.0*RAD;
-	v_peri = sqrt(0.184 + 0.553 / (r_peri / (6.371e6)))*6.371e6 / 3600.0;
+	v_peri = sqrt(0.184 + 0.553 / (r_peri / R_E))*R_E / 3600.0;
+
+	//Conic first guess seems to break down above 1500NM pericynthion altitude
+	if (r_peri > 4.5e6) return;
 
 	do
 	{
@@ -7662,7 +8024,6 @@ void RTCC::TLMCFirstGuessConic(SV sv_mcc, double lat_EMP, double h_peri, double 
 		V_peri = tmul(M_EMP, V_EMP);
 
 		//Calculate pericynthion velocity
-
 		V_peri = OrbMech::ThirdBodyConic(R_peri, hMoon, sv_mcc.R, hEarth, MJD_P, (sv_mcc.MJD - MJD_P)*24.0*3600.0, V_peri, 100.0);
 
 		//save azi and vmag as new initial guess
@@ -7833,4 +8194,99 @@ void RTCC::LaunchTimePredictionProcessor(LunarLiftoffTimeOpt *opt, LunarLiftoffR
 	res->t_TPF = t_TPF;
 	res->v_LH = v_LH;
 	res->v_LV = v_LV;
+}
+
+void RTCC::EntryUpdateCalc(SV sv0, double GETbase, double entryrange, bool highspeed, EntryResults *res)
+{
+	VECTOR3 REI, VEI, R3, V3, UR3, U_H3, U_LS, LSEF;
+	double RCON, mu, dt2, t32, v3, S_FPA, gammaE, phie, te, t_LS, Sphie, Cphie, tLSMJD, l, m, n, phi, lambda2, EntryInterface;
+	MATRIX3 R;
+	OBJHANDLE hEarth;
+	VECTOR3 R05G, V05G, UREI;
+	double dt22, t2, EMSAlt, vEI;
+	int rangeiter;
+
+	if (entryrange == 0)
+	{
+		rangeiter = 1;
+	}
+	else
+	{
+		rangeiter = 2;
+	}
+
+	if (highspeed)
+	{
+		EMSAlt = 297431.0*0.3048;
+	}
+	else
+	{
+		EMSAlt = 284643.0*0.3048;
+	}
+
+	hEarth = oapiGetObjectByName("Earth");
+
+	EntryInterface = 400000.0 * 0.3048;
+	RCON = oapiGetSize(hEarth) + EntryInterface;
+	mu = GGRAV*oapiGetMass(hEarth);
+
+	dt2 = OrbMech::time_radius_integ(sv0.R, sv0.V, sv0.MJD, RCON, -1, sv0.gravref, hEarth, REI, VEI);
+
+	UREI = unit(REI);
+	vEI = length(VEI);
+	res->ReA = asin(dotp(UREI, VEI) / vEI);
+
+	t32 = OrbMech::time_radius(REI, VEI, RCON - 30480.0, -1, mu);
+	OrbMech::rv_from_r0v0(REI, VEI, t32, R3, V3, mu);
+	UR3 = unit(R3);
+	v3 = length(V3);
+	S_FPA = dotp(UR3, V3) / v3;
+	gammaE = asin(S_FPA);
+	EntryCalculations::augekugel(v3, gammaE, phie, te);
+
+	for (int iii = 0;iii < rangeiter;iii++)
+	{
+		t2 = (sv0.MJD - GETbase) * 24.0 * 3600.0 + dt2;	//EI time in seconds from launch
+		t_LS = t2 + t32 + te;
+		Sphie = sin(0.00029088821*phie);
+		Cphie = cos(0.00029088821*phie);
+		U_H3 = unit(crossp(crossp(R3, V3), R3));
+		U_LS = UR3*Cphie + U_H3*Sphie;
+
+		tLSMJD = GETbase + t_LS / 24.0 / 3600.0;
+		//U_LS = tmul(Rot, U_LS);
+		U_LS = _V(U_LS.x, U_LS.z, U_LS.y);
+		R = OrbMech::GetRotationMatrix(hEarth, tLSMJD);
+		LSEF = tmul(R, U_LS);
+		l = LSEF.x;
+		m = LSEF.z;
+		n = LSEF.y;
+		phi = asin(n);
+		if (m > 0)
+		{
+			lambda2 = acos(l / cos(phi));
+		}
+		else
+		{
+			lambda2 = PI2 - acos(l / cos(phi));
+		}
+		if (lambda2 > PI) { lambda2 -= PI2; }
+
+		res->latitude = phi;
+		res->longitude = lambda2;
+
+
+		dt22 = OrbMech::time_radius(R3, V3, length(R3) - (300000.0 * 0.3048 - EMSAlt), -1, mu);
+		OrbMech::rv_from_r0v0(R3, V3, dt22, R05G, V05G, mu);
+
+		res->RTGO = phie - 3437.7468*acos(dotp(unit(R3), unit(R05G)));
+		if (entryrange != 0)
+		{
+			te *= entryrange / res->RTGO;
+			phie = entryrange + 3437.7468*acos(dotp(unit(R3), unit(R05G)));
+		}
+	}
+	res->VIO = length(V05G);
+	res->GET400K = t2;
+	res->GET05G = t2 + t32 + dt22;	
 }
