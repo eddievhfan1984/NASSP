@@ -142,12 +142,12 @@ ApolloRTCCMFDButtons::ApolloRTCCMFDButtons()
 
 	static const MFDBUTTONMENU mnu4[] =
 	{
+		{ "Maneuver type", 0, 'M' },
 		{ "GET of the Maneuver", 0, 'G' },
 		{ "Apoapsis altitude", 0, 'A' },
 		{ "Periapsis altitude", 0, 'P' },
 		{ "Desired Inclination", 0, 'I' },
-		{ "", 0, ' ' },
-		{ "", 0, ' ' },
+		{ "Altitude reference", 0, 'R' },
 
 		{ "", 0, ' ' },
 		{ "Calculate", 0, 'C' },
@@ -159,15 +159,15 @@ ApolloRTCCMFDButtons::ApolloRTCCMFDButtons()
 
 	RegisterPage(mnu4, sizeof(mnu4) / sizeof(MFDBUTTONMENU));
 
+	RegisterFunction("MOD", OAPI_KEY_M, &ApolloRTCCMFD::menuCycleOrbAdjOptions);
 	RegisterFunction("GET", OAPI_KEY_T, &ApolloRTCCMFD::OrbAdjGETDialogue);
 	RegisterFunction("APO", OAPI_KEY_A, &ApolloRTCCMFD::OrbAdjApoDialogue);
 	RegisterFunction("PER", OAPI_KEY_P, &ApolloRTCCMFD::OrbAdjPeriDialogue);
 	RegisterFunction("INC", OAPI_KEY_I, &ApolloRTCCMFD::OrbAdjIncDialogue);
-	RegisterFunction("", OAPI_KEY_U, &ApolloRTCCMFD::menuVoid);
-	RegisterFunction("", OAPI_KEY_E, &ApolloRTCCMFD::menuVoid);
+	RegisterFunction("ALT", OAPI_KEY_R, &ApolloRTCCMFD::menuCycleOrbAdjAltRef);
 
-	RegisterFunction("", OAPI_KEY_V, &ApolloRTCCMFD::menuVoid);
 	RegisterFunction("CLC", OAPI_KEY_C, &ApolloRTCCMFD::OrbAdjCalc);
+	RegisterFunction("", OAPI_KEY_E, &ApolloRTCCMFD::menuVoid);
 	RegisterFunction("", OAPI_KEY_D, &ApolloRTCCMFD::menuVoid);
 	RegisterFunction("", OAPI_KEY_K, &ApolloRTCCMFD::menuVoid);
 	RegisterFunction("UPL", OAPI_KEY_L, &ApolloRTCCMFD::menuP30Upload);
@@ -756,8 +756,8 @@ ApolloRTCCMFDButtons::ApolloRTCCMFDButtons()
 		{ "Maneuver type", 0, 'T' },
 		{ "Maneuver GET", 0, 'G' },
 		{ "Pericynthion GET", 0, 'G' },
-		{ "", 0, ' ' },
-		{ "", 0, ' ' },
+		{ "FR Inclination", 0, 'I' },
+		{ "Ascending or Descending Node", 0, 'N' },
 		{ "", 0, ' ' },
 
 		{ "Calculate maneuver", 0, 'C' },
@@ -773,9 +773,9 @@ ApolloRTCCMFDButtons::ApolloRTCCMFDButtons()
 	RegisterFunction("MAN", OAPI_KEY_T, &ApolloRTCCMFD::menuSwitchTLCCManeuver);
 	RegisterFunction("TIG", OAPI_KEY_G, &ApolloRTCCMFD::menuSetTLCCGET);
 	RegisterFunction("GET", OAPI_KEY_P, &ApolloRTCCMFD::menuSetTLCCPeriGET);
+	RegisterFunction("INC", OAPI_KEY_I, &ApolloRTCCMFD::menuSetTLCCDesiredInclination);
+	RegisterFunction("ASC", OAPI_KEY_N, &ApolloRTCCMFD::menuSwitchTLCCAscendingNode);
 	RegisterFunction("", OAPI_KEY_H, &ApolloRTCCMFD::menuVoid);
-	RegisterFunction("", OAPI_KEY_N, &ApolloRTCCMFD::menuVoid);
-	RegisterFunction("", OAPI_KEY_I, &ApolloRTCCMFD::menuVoid);
 
 	RegisterFunction("CLC", OAPI_KEY_C, &ApolloRTCCMFD::menuTLCCCalc);
 	RegisterFunction("LAT", OAPI_KEY_A, &ApolloRTCCMFD::menuSetTLCCLat);

@@ -83,6 +83,8 @@ public:
 	void OrbAdjGETDialogue();
 	void set_OrbAdjGET(double SPSGET);
 	void OrbAdjCalc();
+	void menuCycleOrbAdjOptions();
+	void menuCycleOrbAdjAltRef();
 	void phasedialogue();
 	void set_getbase();
 	void calcphaseoff(double angdeg);
@@ -183,6 +185,9 @@ public:
 	void set_TLCCLng(double lng);
 	void menuSetTLCCAlt();
 	void set_TLCCAlt(double alt);
+	void menuSetTLCCDesiredInclination();
+	void set_TLCCDesiredInclination(double inc);
+	void menuSwitchTLCCAscendingNode();
 	void menuSetLOIApo();
 	void set_LOIApo(double alt);
 	void menuSetLOIPeri();

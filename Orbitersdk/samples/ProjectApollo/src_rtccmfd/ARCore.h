@@ -124,11 +124,18 @@ public:
 	VECTOR3 CDHdeltaV;
 
 	//ORBIT ADJUSTMENT PAGE
-	double apo_desnm;		//Desired apoapsis altitude in NM
-	double peri_desnm;		//Desired periapsis altitude in NM
-	double incdeg;			//Desired inclination in degrees
-	double SPSGET;			//Maneuver GET
-	VECTOR3 OrbAdjDVX;		//LVLH maneuver vector
+	//0 = Fixed TIG, specify inclination, apoapsis and periapsis altitude
+	//1 = Fixed TIG, specify apoapsis altitude
+	//2 = Fixed TIG, specify periapsis altitude
+	//3 = Fixed TIG, circularize orbit
+	//4 = Circularize orbit at specified altitude
+	int GMPType;
+	bool OrbAdjAltRef;	//0 = use mean radius, 1 = use launchpad or landing site radius
+	double apo_desnm;	//Desired apoapsis altitude in NM
+	double peri_desnm;	//Desired periapsis altitude in NM
+	double incdeg;		//Desired inclination in degrees
+	double SPSGET;		//Maneuver GET
+	VECTOR3 OrbAdjDVX;	//LVLH maneuver vector
 
 	//REFSMMAT PAGE
 	double REFSMMATTime;
@@ -213,8 +220,12 @@ public:
 	double TLCCFlybyPeriAlt, TLCCLAHPeriAlt;
 	double TLCCEMPLat, TLCCReentryGET, TLCCFRIncl, TLCCEMPLatcor;
 	double TLCCNodeLat, TLCCNodeLng, TLCCNodeAlt, TLCCNodeGET;
+	double TLCCFRLat, TLCCFRLng;
 	VECTOR3 R_TLI, V_TLI;
 	bool TLCCSolGood;
+	bool TLCCAscendingNode;
+	double TLCCFRDesiredInclination;
+	int TLCCIterationStep;
 
 	//LOI PAGE
 	int LOImaneuver; //0 = LOI-1 (w/ MCC), 1 = LOI-1 (w/o MCC), 2 = LOI-2
