@@ -1,5 +1,5 @@
 BEGIN_DESC
-Pete Conrad, Al Bean and Dick Gordon make mans second landing on the moon. Pete's prescision landing near Surveyor III makes future accurate exploration possible. November 14, 1969. The scenario starts at T-4h00min, crew ingress is at T-1h40min. (AS-507)
+Pete Conrad, Al Bean and Dick Gordon make man's second landing on the moon. Pete's prescision landing near Surveyor III makes future accurate exploration possible. November 14, 1969. The scenario starts at T-4h00min, crew ingress is at T-1h40min. (AS-507)
 END_DESC
 
 BEGIN_ENVIRONMENT
@@ -30,16 +30,13 @@ Yankee Clipper:ProjectApollo\Saturn5
   HEADING 270.00
   FUEL 1.000
   APOLLONO 12
-  USE_LVDC PLEASE
   S4PL 0
   NASSPVER 80000
+  VECHNO 507
   STAGE 5
   STAGESTATUS 0
   DOCKSTATE 0
   MISSNTIME -14400
-  TOAPO 185.94
-  TOPER 183.16
-  TOHDG 72.058
   LANG English
   LEMN Intrepid
   LMPADCNT 253
@@ -297,9 +294,7 @@ Yankee Clipper:ProjectApollo\Saturn5
   LMPAD 3431 20000
   LMPAD 3432 00000
   AUTOSLOW 1
-  AGC_BEGIN
-    YAAGC 1
-  AGC_END
+  LEMCHECK Doc\Project Apollo - NASSP\Checklists\LM Default Checklists.xls
   ASCP_BEGIN
     OPX 152.000
   ASCP_END

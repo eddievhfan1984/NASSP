@@ -46,6 +46,7 @@ union SIVbSettingFlags
 		unsigned SIVB_SETTINGS_PAYLOAD:1;		///< Payload type settings are valid.
 		unsigned SIVB_SETTINGS_ENGINES:1;		///< Engine settings are valid.
 		unsigned SIVB_SETTINGS_PAYLOAD_INFO:1;	///< Detailed payload settings (e.g. LEM name/mass/PAD) are valid.
+		unsigned SIVB_SETTINGS_LVDC:1;			///< LVDC valid
 	};
 	unsigned int word;						///< Set to zero to clear all flags.
 
@@ -105,6 +106,7 @@ struct SIVBSettings
 
 	SIVBSettings() { LMPad = 0; LMPadCount = 0; AEAPad = 0; AEAPadCount = 0; LEMCheck[0] = 0; };
 
+	LVDC *lvdc_pointer;
 };
 
 class SIVB;
@@ -234,6 +236,8 @@ public:
 	///
 	void clbkPreStep(double simt, double simdt, double mjd);
 
+	void clbkPostStep(double simt, double simdt, double mjd);
+
 	///
 	/// \brief Orbiter state loading function.
 	/// \param scn Scenario file to load from.
@@ -273,12 +277,6 @@ public:
 	double GetJ2ThrustLevel();
 
 	///
-	/// \brief Set thrust level of the APS engine.
-	/// \param thrust Thrust level from 0.0 to 1.0.
-	///
-	void SetAPSThrustLevel(double thrust);
-
-	///
 	/// \brief Enable or disable the J2 engine.
 	/// \param Enable Enable if true, disable if false.
 	///
@@ -289,6 +287,12 @@ public:
 	/// \return Mission time in seconds since launch.
 	///
 	double GetMissionTime();
+
+	THRUSTER_HANDLE GetMainThruster(int n) { return th_main[n]; }
+	THGROUP_HANDLE GetMainThrusterGroup() { return thg_main; }
+	void SetSIVBThrusterDir(VECTOR3 &dir);
+	void SetAPSThrusterLevel(int n, double level) { SetThrusterLevel(th_att_rot[n], level); }
+	void SetAPSUllageThrusterGroupLevel(double level);
 
 	///
 	/// \brief Get main propellant mass.
@@ -477,7 +481,7 @@ protected:
 	///
 	/// \brief Instrument Unit.
 	///
-	IU iu;
+	IU* iu;
 
 	///
 	/// \brief Connector from SIVb to CSM when docked.

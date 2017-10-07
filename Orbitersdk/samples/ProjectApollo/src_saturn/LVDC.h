@@ -23,8 +23,11 @@
   **************************************************************************/
 
 #pragma once
-#include "LVIMU.h"
-class Saturn1b;
+class IUToLVCommandConnector;
+class IUToCSMCommandConnector;
+class LVIMU;
+class LVRG;
+class EDS;
 
 /* *******************
  * LVDC++ SV VERSION *
@@ -36,20 +39,36 @@ class Saturn1b;
 /// \ingroup Saturns
 ///
 
-class LVDC {
+class LVDC
+{
 public:
-	LVDC();											// Constructor
-	void Init(Saturn* vs);
+	LVDC(LVIMU &imu, LVDA &lvd);
+	virtual void TimeStep(double simt, double simdt) = 0;
+	virtual void Init(IUToLVCommandConnector* lvCommandConn, IUToCSMCommandConnector* commandConn) = 0;
+	virtual void SaveState(FILEHANDLE scn) = 0;
+	virtual void LoadState(FILEHANDLE scn) = 0;
+	virtual void SetEngineFailureParameters(bool *SICut, double *SICutTimes, bool *SIICut, double *SIICutTimes) = 0;
+	void Configure(IUToLVCommandConnector* lvc, IUToCSMCommandConnector* csmc);
+protected:
+	IUToLVCommandConnector* lvCommandConnector;
+	IUToCSMCommandConnector* commandConnector;
+
+	LVIMU &lvimu;									// ST-124-M3 IMU (LV version)
+	LVDA &lvda;
+};
+
+class LVDCSV: public LVDC {
+public:
+	LVDCSV(LVIMU &imu, LVDA &lvd);											// Constructor
+	void Init(IUToLVCommandConnector* lvCommandConn, IUToCSMCommandConnector* commandConn);
 	void TimeStep(double simt, double simdt);
 	void SaveState(FILEHANDLE scn);
 	void LoadState(FILEHANDLE scn);
 
 	double SVCompare();
 	double LinInter(double x0, double x1, double y0, double y1, double x);
-private:
-	Saturn* owner;									// Saturn LV
-	LVIMU lvimu;									// ST-124-M3 IMU (LV version)
-	LVRG lvrg;										// LV rate gyro package
+	void SetEngineFailureParameters(bool *SICut, double *SICutTimes, bool *SIICut, double *SIICutTimes);
+private:								// Saturn LV
 	FILE* lvlog;									// LV Log file
 	bool Initialized;								// Clobberness flag
 
@@ -59,21 +78,22 @@ private:
 	int LVDC_Stop;									// Guidance Program: Program Stop Flag
 	double S1_Sep_Time;								// S1C Separation Counter
 
+	double BoiloffTime;
+
+	//Engine Failure variables
+	bool EarlySICutoff[5];
+	double FirstStageFailureTime[5];
+	bool EarlySIICutoff[5];
+	double SecondStageFailureTime[5];
 
 	// These are boolean flags that are NOT real flags in the LVDC SOFTWARE. (I.E. Hardware flags)
-	bool LVDC_EI_On;								// Engine Indicator lights on
 	bool LVDC_GRR;                                  // Guidance Reference Released
 	bool CountPIPA;									// PIPA Counter Enable
 	bool S2_Startup;								// S2 Engine Start
 	bool directstagereset;							// Direct Stage Reset
-	bool AutoAbortInitiate;
 	bool IGM_Failed;
 	
 	// These are variables that are not really part of the LVDC software.
-	double GPitch[4],GYaw[4];						// Amount of gimbal to command per thruster
-	double OPitch[4],OYaw[4];						// Previous value of above, for rate limitation
-	double RateGain,ErrorGain;						// Rate Gain and Error Gain values for gimbal control law
-	VECTOR3 AttRate;                                // Attitude Change Rate
 	VECTOR3 AttitudeError;                          // Attitude Error
 	VECTOR3 WV;										// Gravity
 	double sinceLastCycle;							// Time since last IGM run
@@ -82,6 +102,8 @@ private:
 	int IGMCycle;									// IGM Cycle Counter (for debugging)
 	int OrbNavCycle;								// Orbital cycle counter (for debugging)
 	double t_S1C_CECO;								// Time since launch for S-1C center engine cutoff
+	int CommandSequence;
+	int CommandSequenceStored;
 
 	// Event Times
 	double t_fail;									// S1C Engine Failure time
@@ -113,8 +135,6 @@ private:
 	bool liftoff;									// lift-off flag
 	bool Direct_Ascent;                             // Direct Ascent Mode flag
 	bool S1_Engine_Out;								// S1B/C Engine Failure Flag
-	bool S1_TwoEngines_Out;
-	bool TwoEngOutAutoAbortDeactivate;
 	bool directstageint;							// Direct Stage Interrupt
 	bool HSL;										// High-Speed Loop flag
 	int  T_EO1,T_EO2;								// Pre-IGM Engine-Out Constant
@@ -136,6 +156,7 @@ private:
 	bool GATE4;										// Permit only one pass through direct-staging guidance update
 	bool GATE5;										// Logic gate that ensures only one pass through cutoff initialization
 	bool GATE6;										// Logic gate that ensures only one pass through separation attitude calculation
+	bool GATE7;										// Inhibit second TLI opportunity
 	bool INH,INH1,INH2;								// Dunno yet (INH appears to be the manual XLUNAR INHIBIT signal, at least)
 	bool TU;										// Gate for processing targeting update
 	bool TU10;										// Gate for processing ten-paramemter targeting update
@@ -144,6 +165,7 @@ private:
 
 	// LVDC software variables, PAD-LOADED BUT NOT NECESSARILY CONSTANT!
 	VECTOR3 XLunarAttitude;							// Attitude the SIVB enters when TLI is done, i.e. at start of TB7
+	VECTOR3 XLunarSlingshotAttitude;				// Attitude the SIVB enters for slingshot maneuver.
 	double B_11,B_21;								// Coefficients for determining freeze time after S1C engine failure
 	double B_12,B_22;								// Coefficients for determining freeze time after S1C engine failure	
 	double V_ex1,V_ex2,V_ex3;						// IGM Exhaust Velocities
@@ -166,9 +188,13 @@ private:
 	double TB2;										// Time of TB2
 	double TB3;										// Time of TB3
 	double TB4;										// Time of TB4
-	double TB4A;									// Time of TB4a
+	double TB4a;									// Time of TB4a
 	double TB5;										// Time of TB5
+	double TB5a;									// Time of TB5a
 	double TB6;										// Time of TB6
+	double TB6a;									// Time of TB6a
+	double TB6b;									// Time of TB6b
+	double TB6c;									// Time of TB6c
 	double TB7;										// Time of TB7
 	double T_IGM;									// Time from start of TB6 to IGM start during second SIVB burn
 	double T_RG;									// Time from TB6 start to reignition for second SIVB burn
@@ -395,27 +421,6 @@ private:
 	}TABLE15[2];
 	int tgt_index;				// Non-LVDC variable to enable selecting the correct set of injection parameters
 
-	//flight control computer
-	double a_0p;									// pitch error gain
-	double a_0y;									// yaw error gain
-	double a_0r;									// roll error gain
-	double a_1p;									// pitch rate gain
-	double a_1y;									// yaw rate gain
-	double a_1r;									// roll rate gain
-	double beta_pc;									// commanded pitch thrust direction
-	double beta_yc;									// commanded yaw thrust direction
-	double beta_rc;									// commanded roll thrust direction
-	double beta_p1c;								// commanded actuator angles in pitch/yaw for resp. engine
-	double beta_p2c;
-	double beta_p3c;
-	double beta_p4c;
-	double beta_y1c;
-	double beta_y2c;
-	double beta_y3c;
-	double beta_y4c;
-	double eps_p;									//error command for APS engines: pitch
-	double eps_ypr;									//error command for APS engines: yaw mixed +roll
-	double eps_ymr;									//error command for APS engines: yaw mixed -roll
 	// TABLE25 is apparently only used on direct-ascent
 
 	friend class MCC;
@@ -426,36 +431,35 @@ private:
  * LVDC++ S1B VERSION *
  ******************** */
 
-class LVDC1B {
+class LVDC1B: public LVDC {
 public:
-	LVDC1B();										// Constructor
-	void init(Saturn* own);
+	LVDC1B(LVIMU &imu, LVDA &lvd);										// Constructor
+	void Init(IUToLVCommandConnector* lvCommandConn, IUToCSMCommandConnector* commandConn);
 	void TimeStep(double simt, double simdt);
 	void SaveState(FILEHANDLE scn);
 	void LoadState(FILEHANDLE scn);
 	double SVCompare();
+	void SetEngineFailureParameters(bool *SICut, double *SICutTimes, bool *SIICut, double *SIICutTimes);
 private:
 	bool Initialized;								// Clobberness flag
 	FILE* lvlog;									// LV Log file
-	Saturn* owner;
-	LVIMU lvimu;									// ST-124-M3 IMU (LV version)
-	LVRG lvrg;										// LV rate gyro package
 
 	bool LVDC_Stop;									// Program Stop Flag
 	int LVDC_Timebase;								// Time Base
 	double LVDC_TB_ETime;                           // Time elapsed since timebase start
 	double S1B_Sep_Time;							// S1B Separation Counter
 	int IGMCycle;									// IGM Cycle Counter (for debugging)
+	double BoiloffTime;
+
+	//Engine Failure variables
+	bool EarlySICutoff[8];
+	double FirstStageFailureTime[8];
 
 	// These are boolean flags that are NOT real flags in the LVDC SOFTWARE. (I.E. Hardware flags)
-	bool LVDC_EI_On;								// Engine Indicator lights on
 	bool LVDC_GRR;                                  // Guidance Reference Released
 	bool CountPIPA;									// PIPA Counter Enable
-	bool AutoAbortInitiate;
-	bool TwoEngOutAutoAbortDeactivate;
 	
 	// These are variables that are not really part of the LVDC software.
-	VECTOR3 AttRate;                                // Attitude Change Rate
 	VECTOR3 AttitudeError;                          // Attitude Error
 	VECTOR3 DeltaAtt;
 
@@ -484,7 +488,6 @@ private:
 	bool poweredflight;								// Powered flight flag
 	bool liftoff;									// lift-off flag
 	bool S1B_Engine_Out;							// S1C Engine Failure Flag
-	bool S1B_TwoEngines_Out;
 	bool S1B_CECO_Commanded;
 	bool HSL;										// High-Speed Loop flag
 	int  T_EO1,T_EO2;								// Pre-IGM Engine-Out Constant
@@ -633,26 +636,8 @@ private:
 	double sin_chi_Zit;
 	double cos_chi_Zit;
 
-	//flight control computer
-	double a_0p;									// pitch error gain
-	double a_0y;									// yaw error gain
-	double a_0r;									// roll error gain
-	double a_1p;									// pitch rate gain
-	double a_1y;									// yaw rate gain
-	double a_1r;									// roll rate gain
-	double beta_pc;									// commanded pitch thrust direction
-	double beta_yc;									// commanded yaw thrust direction
-	double beta_rc;									// commanded roll thrust direction
-	double beta_p1c;								// commanded actuator angles in pitch/yaw for resp. engine
-	double beta_p2c;
-	double beta_p3c;
-	double beta_p4c;
-	double beta_y1c;
-	double beta_y2c;
-	double beta_y3c;
-	double beta_y4c;
-	double eps_p;									//error command for APS engines: pitch
-	double eps_ypr;									//error command for APS engines: yaw mixed +roll
-	double eps_ymr;									//error command for APS engines: yaw mixed -roll
 	// TABLE25 is apparently only used on direct-ascent
 };
+
+#define LVDC_START_STRING "LVDC_BEGIN"
+#define LVDC_END_STRING "LVDC_END"

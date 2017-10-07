@@ -1,5 +1,5 @@
 BEGIN_DESC
-This time you can fly the full Apollo 13 mission as it would have happened had the in-flight accident not occured. April 11, 1970. (AS-508)
+Take part in the bravery of the Apollo 13 crew as you use your LEM aquarius to save your life from death in the translunar gulf. Using NASSP's Apollo 13 vehicle. April 11, 1970. (AS-508)
 END_DESC
 
 BEGIN_ENVIRONMENT
@@ -29,7 +29,7 @@ Odyssey:ProjectApollo/Saturn5
   POS -80.6041140 28.6082888
   HEADING 270.00
   FUEL 1.000
-  APOLLONO 13
+  APOLLONO 1301
   S4PL 0
   NASSPVER 80000
   VECHNO 508
