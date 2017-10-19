@@ -437,6 +437,17 @@ void Saturn1b::SwitchSelector(int item){
 	}
 }
 
+void Saturn1b::SISwitchSelector(int channel)
+{
+
+}
+
+void Saturn1b::SIVBSwitchSelector(int channel)
+{
+
+}
+
+
 //
 // Save any state specific to the Saturn 1b.
 //
@@ -695,10 +706,7 @@ void Saturn1b::SetRandomFailures()
 			}
 		}
 
-		if (iu->lvdc)
-		{
-			iu->lvdc->SetEngineFailureParameters(EarlySICutoff, FirstStageFailureTime, NULL, NULL);
-		}
+		iu->GetEDS()->SetEngineFailureParameters(EarlySICutoff, FirstStageFailureTime, NULL, NULL);
 
 		if (!(random() & 127))
 		{

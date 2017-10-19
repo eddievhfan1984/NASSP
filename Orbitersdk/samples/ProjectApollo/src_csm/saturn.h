@@ -936,7 +936,7 @@ public:
 	void SetSIThrusterDir(int n, VECTOR3 &dir);
 	void SetSIIThrusterDir(int n, VECTOR3 &dir);
 	void SetSIVBThrusterDir(VECTOR3 &dir);
-	void SetAPSUllageThrusterGroupLevel(double level);
+	void SetAPSUllageThrusterLevel(int n, double level);
 	void SetAPSThrusterLevel(int n, double level);
 
 	///
@@ -974,6 +974,9 @@ public:
 	/// \brief LVDC "Switch Selector" staging support utility function
 	/// 
 	virtual void SwitchSelector(int item) = 0;
+	virtual void SISwitchSelector(int channel) = 0;
+	virtual void SIISwitchSelector(int channel);
+	virtual void SIVBSwitchSelector(int channel) = 0;
 
 	///
 	/// \brief Has an abort been initiated?

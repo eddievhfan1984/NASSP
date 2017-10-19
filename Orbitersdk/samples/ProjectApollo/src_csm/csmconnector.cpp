@@ -455,6 +455,30 @@ bool SaturnToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessag
 		}
 		break;
 
+	case IULV_SI_SWITCH_SELECTOR:
+		if (OurVessel)
+		{
+			OurVessel->SISwitchSelector(m.val1.iValue);
+			return true;
+		}
+		break;
+
+	case IULV_SII_SWITCH_SELECTOR:
+		if (OurVessel)
+		{
+			OurVessel->SIISwitchSelector(m.val1.iValue);
+			return true;
+		}
+		break;
+
+	case IULV_SIVB_SWITCH_SELECTOR:
+		if (OurVessel)
+		{
+			OurVessel->SIVBSwitchSelector(m.val1.iValue);
+			return true;
+		}
+		break;
+
 	case IULV_SEPARATE_STAGE:
 		if (OurVessel)
 		{
@@ -543,10 +567,10 @@ bool SaturnToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessag
 		}
 		break;
 
-	case IULV_SET_APS_ULLAGE_THRUSTER_GROUP_LEVEL:
+	case IULV_SET_APS_ULLAGE_THRUSTER_LEVEL:
 		if (OurVessel)
 		{
-			OurVessel->SetAPSUllageThrusterGroupLevel(m.val1.dValue);
+			OurVessel->SetAPSUllageThrusterLevel(m.val1.iValue, m.val2.dValue);
 			return true;
 		}
 		break;

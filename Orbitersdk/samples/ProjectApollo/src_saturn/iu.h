@@ -92,7 +92,7 @@ enum IULVMessageType
 	IULV_SET_THRUSTER_LEVEL,				///< Set thruster level.
 	IULV_SET_APS_THRUSTER_LEVEL,
 	IULV_SET_THRUSTER_GROUP_LEVEL,			///< Set thruster group level.
-	IULV_SET_APS_ULLAGE_THRUSTER_GROUP_LEVEL,
+	IULV_SET_APS_ULLAGE_THRUSTER_LEVEL,
 	IULV_SET_THRUSTER_RESOURCE,				///< Set thruster resource.
 	IULV_SET_SI_THRUSTER_DIR,				///< Set thruster direction.
 	IULV_SET_SII_THRUSTER_DIR,
@@ -107,6 +107,9 @@ enum IULVMessageType
 	IULV_SET_CONTRAIL_LEVEL,
 	IULV_SIVB_BOILOFF,
 	IULV_SWITCH_SELECTOR,
+	IULV_SI_SWITCH_SELECTOR,
+	IULV_SII_SWITCH_SELECTOR,
+	IULV_SIVB_SWITCH_SELECTOR,
 	IULV_SEPARATE_STAGE,
 	IULV_SET_STAGE,
 	IULV_SET_ATTITUDE_LIN_LEVEL,			///< Set thruster levels.
@@ -236,7 +239,7 @@ public:
 	void SetVentingThruster();
 	void SetThrusterLevel(THRUSTER_HANDLE th, double level);
 	void SetThrusterGroupLevel(THGROUP_HANDLE thg, double level);
-	void SetAPSUllageThrusterGroupLevel(double level);
+	void SetAPSUllageThrusterLevel(int n, double level);
 	void SetAPSThrusterLevel(int n, double level);
 	void SetThrusterResource(THRUSTER_HANDLE th, PROPELLANT_HANDLE ph);
 	void SetSIThrusterDir(int n, VECTOR3 &dir);
@@ -244,6 +247,10 @@ public:
 	void SetSIVBThrusterDir(VECTOR3 &dir);
 
 	void SwitchSelector(int item);
+	void SISwitchSelector(int channel);
+	void SIISwitchSelector(int channel);
+	void SIVBSwitchSelector(int channel);
+
 	void SeparateStage(int stage);
 	void SetStage(int stage);
 
@@ -331,7 +338,7 @@ public:
 	virtual void ConnectToMultiConnector(MultiConnector *csmConnector);
 	virtual void ConnectToLV(Connector *CommandConnector);
 
-	virtual void ConnectLVDC();
+	void DisconnectIU();
 
 	///
 	/// \brief Timestep function.
@@ -354,7 +361,10 @@ public:
 	virtual void SaveEDS(FILEHANDLE scn) = 0;
 	virtual void LoadEDS(FILEHANDLE scn) = 0;
 
+	virtual EDS* GetEDS() = 0;
 	virtual FCC* GetFCC() = 0;
+
+	void ControlDistributor(int stage, int channel);
 
 	LVDC* lvdc;
 	LVIMU lvimu;
@@ -401,8 +411,8 @@ public:
 	void LoadFCC(FILEHANDLE scn);
 	void SaveEDS(FILEHANDLE scn);
 	void LoadEDS(FILEHANDLE scn);
-	void ConnectLVDC();
 	FCC* GetFCC() { return &fcc; }
+	EDS* GetEDS() { return &eds; }
 protected:
 	FCC1B fcc;
 	EDS1B eds;
@@ -419,8 +429,9 @@ public:
 	void LoadFCC(FILEHANDLE scn);
 	void SaveEDS(FILEHANDLE scn);
 	void LoadEDS(FILEHANDLE scn);
-	void ConnectLVDC();
 	FCC* GetFCC() { return &fcc; }
+	EDS* GetEDS() { return &eds; }
+
 protected:
 	FCCSV fcc;
 	EDSSV eds;

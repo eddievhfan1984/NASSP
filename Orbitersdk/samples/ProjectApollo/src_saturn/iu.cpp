@@ -79,7 +79,7 @@ void IU::Timestep(double misst, double simt, double simdt, double mjd)
 
 {
 	if (lvdc != NULL) {
-		lvimu.Timestep(simt);
+		lvimu.Timestep(mjd);
 		lvrg.Timestep(simdt);
 	}
 
@@ -155,14 +155,10 @@ void IU::ConnectToLV(Connector *CommandConnector)
 	lvCommandConnector.ConnectTo(CommandConnector);
 }
 
-void IU::ConnectLVDC()
+void IU::DisconnectIU()
 {
-	if (lvdc)
-	{
-		lvrg.Init(&lvCommandConnector);
-		lvimu.SetVessel(&lvCommandConnector);
-		lvdc->Configure(&lvCommandConnector, &commandConnector);
-	}
+	lvCommandConnector.Disconnect();
+	commandConnector.Disconnect();
 }
 
 IUToCSMCommandConnector::IUToCSMCommandConnector()
@@ -799,13 +795,14 @@ void IUToLVCommandConnector::SetThrusterGroupLevel(THGROUP_HANDLE thg, double le
 	SendMessage(cm);
 }
 
-void IUToLVCommandConnector::SetAPSUllageThrusterGroupLevel(double level)
+void IUToLVCommandConnector::SetAPSUllageThrusterLevel(int n, double level)
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_APS_ULLAGE_THRUSTER_GROUP_LEVEL;
-	cm.val1.dValue = level;
+	cm.messageType = IULV_SET_APS_ULLAGE_THRUSTER_LEVEL;
+	cm.val1.iValue = n;
+	cm.val2.dValue = level;
 
 	SendMessage(cm);
 }
@@ -947,6 +944,39 @@ void IUToLVCommandConnector::SwitchSelector(int item)
 	cm.destination = LV_IU_COMMAND;
 	cm.messageType = IULV_SWITCH_SELECTOR;
 	cm.val1.iValue = item;
+
+	SendMessage(cm);
+}
+
+void IUToLVCommandConnector::SISwitchSelector(int channel)
+{
+	ConnectorMessage cm;
+
+	cm.destination = LV_IU_COMMAND;
+	cm.messageType = IULV_SI_SWITCH_SELECTOR;
+	cm.val1.iValue = channel;
+
+	SendMessage(cm);
+}
+
+void IUToLVCommandConnector::SIISwitchSelector(int channel)
+{
+	ConnectorMessage cm;
+
+	cm.destination = LV_IU_COMMAND;
+	cm.messageType = IULV_SII_SWITCH_SELECTOR;
+	cm.val1.iValue = channel;
+
+	SendMessage(cm);
+}
+
+void IUToLVCommandConnector::SIVBSwitchSelector(int channel)
+{
+	ConnectorMessage cm;
+
+	cm.destination = LV_IU_COMMAND;
+	cm.messageType = IULV_SIVB_SWITCH_SELECTOR;
+	cm.val1.iValue = channel;
 
 	SendMessage(cm);
 }
@@ -1643,6 +1673,26 @@ void IU::SaveLVDC(FILEHANDLE scn) {
 	}
 }
 
+void IU::ControlDistributor(int stage, int channel)
+{
+	if (stage == SWITCH_SELECTOR_IU)
+	{
+		SwitchSelector(channel);
+	}
+	else if (stage == SWITCH_SELECTOR_SI)
+	{
+		lvCommandConnector.SISwitchSelector(channel);
+	}
+	else if (stage == SWITCH_SELECTOR_SII)
+	{
+		lvCommandConnector.SIISwitchSelector(channel);
+	}
+	else if (stage == SWITCH_SELECTOR_SIVB)
+	{
+		lvCommandConnector.SIVBSwitchSelector(channel);
+	}
+}
+
 IU1B::IU1B() : fcc(lvrg), eds(lvrg)
 {
 	lvda.Init(this);
@@ -1662,8 +1712,8 @@ void IU1B::Timestep(double misst, double simt, double simdt, double mjd)
 	//For now, enable the LV lights here
 	if (MissionTime > -250.0 && MissionTime < -10.0)
 	{
-		eds.SetEngineOutIndicationA(true);
-		eds.SetEngineOutIndicationB(true);
+		eds.SetSIEngineOutIndicationA(true);
+		eds.SetSIEngineOutIndicationB(true);
 	}
 }
 
@@ -1673,13 +1723,13 @@ void IU1B::LoadLVDC(FILEHANDLE scn) {
 
 	// If the LVDC does not yet exist, create it.
 	if (lvdc == NULL) {
-		lvdc = new LVDC1B(lvimu, lvda);
+		lvdc = new LVDC1B(lvda);
 		lvimu.Init();							// Initialize IMU
 		lvrg.Init(&lvCommandConnector);			// LV Rate Gyro Package
 		lvimu.SetVessel(&lvCommandConnector);	// set vessel pointer
 		lvimu.CoarseAlignEnableFlag = false;	// Clobber this
 		lvdc->Init(&lvCommandConnector, &commandConnector);
-		fcc.Configure(&lvCommandConnector);
+		fcc.Configure(&lvCommandConnector, &commandConnector);
 	}
 	lvdc->LoadState(scn);
 
@@ -1710,16 +1760,6 @@ void IU1B::LoadEDS(FILEHANDLE scn)
 	eds.LoadState(scn, "EDS_END");
 }
 
-void IU1B::ConnectLVDC()
-{
-	IU::ConnectLVDC();
-
-	if (lvdc)
-	{
-		fcc.Configure(&lvCommandConnector);
-	}
-}
-
 void IU1B::SwitchSelector(int item)
 {
 
@@ -1744,8 +1784,8 @@ void IUSV::Timestep(double misst, double simt, double simdt, double mjd)
 	//For now, enable the LV lights here
 	if (MissionTime > -250.0 && MissionTime < -10.0)
 	{
-		eds.SetEngineOutIndicationA(true);
-		eds.SetEngineOutIndicationB(true);
+		eds.SetSIEngineOutIndicationA(true);
+		eds.SetSIEngineOutIndicationB(true);
 	}
 }
 
@@ -1755,13 +1795,13 @@ void IUSV::LoadLVDC(FILEHANDLE scn) {
 
 	// If the LVDC does not yet exist, create it.
 	if (lvdc == NULL) {
-		lvdc = new LVDCSV(lvimu, lvda);
+		lvdc = new LVDCSV(lvda);
 		lvimu.Init();							// Initialize IMU
 		lvrg.Init(&lvCommandConnector);			// LV Rate Gyro Package
 		lvimu.SetVessel(&lvCommandConnector);	// set vessel pointer
 		lvimu.CoarseAlignEnableFlag = false;	// Clobber this
 		lvdc->Init(&lvCommandConnector, &commandConnector);
-		fcc.Configure(&lvCommandConnector);
+		fcc.Configure(&lvCommandConnector, &commandConnector);
 	}
 	lvdc->LoadState(scn);
 
@@ -1792,16 +1832,6 @@ void IUSV::LoadEDS(FILEHANDLE scn)
 	eds.LoadState(scn, "EDS_END");
 }
 
-void IUSV::ConnectLVDC()
-{
-	IU::ConnectLVDC();
-
-	if (lvdc)
-	{
-		fcc.Configure(&lvCommandConnector);
-	}
-}
-
 void IUSV::SwitchSelector(int item)
 {
 	switch (item)
@@ -1809,9 +1839,13 @@ void IUSV::SwitchSelector(int item)
 	case 0:	//Liftoff (NOT A REAL SWITCH SELECTOR CHANNEL)
 		fcc.SetGainSwitch(0);
 		break;
+	case 1: //Q-Ball Power Off
+		break;
 	case 2: //Excess Rate (P,Y,R) Auto-Abort Inhibit and Switch Rate Gyro SC Indication "A"
 		eds.SetExcessiveRatesAutoAbortInhibit(true);
 		eds.SetRateGyroSCIndicationSwitchA(true);
+		break;
+	case 3: //Tape Recorder Playback Reverse Off
 		break;
 	case 4: //Flight Control Computer Switch Point No. 4
 		fcc.SetGainSwitch(4);
@@ -1820,18 +1854,24 @@ void IUSV::SwitchSelector(int item)
 		fcc.SetGainSwitch(6);
 		break;
 	case 9: //S-IVB Engine Out Indication "A" Enable
-		eds.SetEngineOutIndicationA(true);
+		eds.SetSIVBEngineOutIndicationA(true);
 		break;
 	case 11: //S-IVB Engine Out Indication "B" Enable
-		eds.SetEngineOutIndicationB(true);
+		eds.SetSIVBEngineOutIndicationB(true);
 		break;
 	case 12: //Flight Control Computer S-IVB Burn Mode Off "A"
 		fcc.SetSIVBBurnMode(false);
 		break;
 	case 15: //Excess Rate (P,Y,R) Auto-Abort Inhibit Enable
 		break;
+	case 16: //Auto-Abort Enable Relays Reset
+		break;
+	case 17: //Tape Recorder Record Off
+		break;
 	case 18: //S-IVB Engine Out Indication "A" Enable Reset
-		eds.SetEngineOutIndicationA(false);
+		eds.SetSIVBEngineOutIndicationA(false);
+		break;
+	case 19: //Tape Recorder Playback Reverse On
 		break;
 	case 21: //Flight Control Computer Switch Pointer No. 2
 		fcc.SetGainSwitch(2);
@@ -1839,11 +1879,17 @@ void IUSV::SwitchSelector(int item)
 	case 22: //Flight Control Computer Switch Pointer No. 3
 		fcc.SetGainSwitch(3);
 		break;
+	case 23: //Telemetry Calibrator Inflight Calibrate On
+		break;
+	case 24: //Telemetry Calibrator Inflight Calibrate Off
+		break;
 	case 26: //Flight Control Computer Switch Pointer No. 1
 		fcc.SetGainSwitch(1);
 		break;
 	case 28: //S-II Engine Out Indication "A" Enable; S-II Aft Interstage Separation Indication "A" Enable
-		eds.SetEngineOutIndicationA(true);
+		eds.SetSIIEngineOutIndicationA(true);
+		break;
+	case 29: //S-IVB Engine EDS Cutoff No. 1 Disable
 		break;
 	case 31: //Flight Control Computer Burn Mode On "A"
 		fcc.SetStageSwitch(2);
@@ -1852,17 +1898,27 @@ void IUSV::SwitchSelector(int item)
 	case 33: //Switch Engine Control to S-II and S-IC Outboard Engine Cant Off "A"
 		fcc.SetStageSwitch(1);
 		break;
+	case 34: //Excess Rate (Roll) Auto-Abort Inhibit Enable
+		break;
 	case 35: //S-IC Two Engines Out Auto-Abort Inhibit
 		eds.SetTwoEngOutAutoAbortInhibit(true);
 		break;
 	case 38: //Launch Vehicle Engines EDS Cutoff Enable
 		eds.SetLVEnginesCutoffEnable(true);
 		break;
+	case 39: //Tape Recorder Record On
+		break;
+	case 43: // S-IVB Ullage Thrust Present Indication On
+		commandConnector.SetAGCInputChannelBit(030, UllageThrust, true);
+		break;
 	case 44: //Flight Control Computer Switch Point No. 5
 		fcc.SetGainSwitch(5);
 		break;
+	case 46: //S-IVB Ullage Thrust Present Indication Off
+		commandConnector.SetAGCInputChannelBit(030, UllageThrust, false);
+		break;
 	case 48: //S-II Engine Out Indication "B" Enable; S-II Aft Interstage Separation Indication "B" Enable
-		eds.SetEngineOutIndicationB(true);
+		eds.SetSIIEngineOutIndicationB(true);
 		break;
 	case 50: //Excess Rate (Roll) Auto-Abort Inhibit and Switch Rate Gyro SC Indication "B"
 		eds.SetExcessiveRatesAutoAbortInhibit(true);
@@ -1871,7 +1927,21 @@ void IUSV::SwitchSelector(int item)
 	case 51: //S-IC Two Engines Out Auto-Abort Inhibit Enable
 		break;
 	case 53: //S-IVB Engine Out Indication "B" Enable Reset
-		eds.SetEngineOutIndicationB(false);
+		eds.SetSIVBEngineOutIndicationB(false);
+		break;
+	case 60: //PCM Coax Switch Low Gain Antenna
+		break;
+	case 62: //PCM Coax Switch High Gain Antenna
+		break;
+	case 63: //CCS Coax Switch High Gain Antenna
+		break;
+	case 65: //CCS Coax Switch Low Gain Antenna
+		break;
+	case 68: //S/C Control of Saturn Enable
+		fcc.EnableSCControl();
+		break;
+	case 69: //S/C Control of Saturn Disable
+		fcc.DisableSCControl();
 		break;
 	case 74: //Flight Control Computer Burn Mode On "B"
 		fcc.SetStageSwitch(2);
@@ -1886,7 +1956,25 @@ void IUSV::SwitchSelector(int item)
 	case 81: //S-IVB Restart Alert Off
 		commandConnector.ClearSIISep();
 		break;
+	case 82: //IU Command System Enable
+		break;
 	case 83: //S-IC Outboard Engines Cant On "A"
+		break;
+	case 84: //S-IC Outboard Engines Cant On "B"
+		break;
+	case 85: //S-IC Outboard Engines Cant On "C"
+		break;
+	case 86: //S-IC Outboard Engines Cant Off "B"
+		break;
+	case 106: //S-I RF Assembly Power Off
+		break;
+	case 107: //Water Coolant Valve Open
+		break;
+	case 108: //Water Coolant Valve Closed
+		break;
+	case 109: //Sensor Bias On
+		break;
+	case 110: //Cooling System Electronic Assembly Power Off
 		break;
 	default:
 		break;

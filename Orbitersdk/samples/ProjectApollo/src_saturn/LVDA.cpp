@@ -45,25 +45,57 @@ void LVDA::Init(IU *i)
 
 void LVDA::SwitchSelector(int stage, int channel)
 {
-	if (stage == SWITCH_SELECTOR_IU)
-	{
-		iu->SwitchSelector(channel);
-	}
-	/*else if (stage == SWITCH_SELECTOR_IU)
-	{
-		iu-> SISwitchSelector(channel);
-	}
-	else if (stage == SWITCH_SELECTOR_IU)
-	{
-		iu->SIISwitchSelector(channel);
-	}
-	else if (stage == SWITCH_SELECTOR_IU)
-	{
-		iu->SIVBSwitchSelector(channel);
-	}*/
+	if (stage < 0 || stage > 3) return;
+
+	iu->ControlDistributor(stage, channel);
 }
 
 void LVDA::SetFCCAttitudeError(VECTOR3 atterr)
 {
 	iu->GetFCC()->SetAttitudeError(atterr);
+}
+
+VECTOR3 LVDA::GetLVIMUAttitude()
+{
+	return iu->lvimu.GetTotalAttitude();
+}
+
+void LVDA::ZeroLVIMUPIPACounters()
+{
+	iu->lvimu.ZeroPIPACounters();
+}
+
+void LVDA::ZeroLVIMUCDUs()
+{
+	iu->lvimu.ZeroIMUCDUFlag = true;
+}
+
+void LVDA::ReleaseLVIMUCDUs()
+{
+	iu->lvimu.ZeroIMUCDUFlag = false;
+}
+
+void LVDA::ReleaseLVIMU()
+{
+	iu->lvimu.SetCaged(false);
+}
+
+void LVDA::DriveLVIMUGimbals(double x, double y, double z)
+{
+	iu->lvimu.DriveGimbals(x, y, z);
+}
+
+VECTOR3 LVDA::GetLVIMUPIPARegisters()
+{
+	return _V(iu->lvimu.CDURegisters[LVRegPIPAX], iu->lvimu.CDURegisters[LVRegPIPAY], iu->lvimu.CDURegisters[LVRegPIPAZ]);
+}
+
+bool LVDA::GetSIEngineOut()
+{
+	return iu->GetEDS()->GetSIEngineOut();
+}
+
+bool LVDA::GetSIIEngineOut()
+{
+	return iu->GetEDS()->GetSIIEngineOut();
 }
