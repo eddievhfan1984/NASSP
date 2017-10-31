@@ -433,6 +433,9 @@ void Saturn::SetCSMStage ()
 	ClearMeshes();
     ClearThrusterDefinitions();
 	ClearEngineIndicators();
+	ClearLVGuidLight();
+	ClearLVRateLight();
+	ClearSIISep();
 
 	//
 	// Delete any dangling propellant resources.
@@ -501,12 +504,12 @@ void Saturn::SetCSMStage ()
 
 	// *********************** thruster definitions ********************************
 
-	th_main[0] = CreateThruster(_V(-SPS_YAW_OFFSET * RAD * 5.0, -SPS_PITCH_OFFSET * RAD * 5.0, -5.0), _V(0, 0, 1), SPS_THRUST, ph_sps, SPS_ISP);
+	th_sps[0] = CreateThruster(_V(-SPS_YAW_OFFSET * RAD * 5.0, -SPS_PITCH_OFFSET * RAD * 5.0, -5.0), _V(0, 0, 1), SPS_THRUST, ph_sps, SPS_ISP);
 
 	DelThrusterGroup(THGROUP_MAIN, true);
-	thg_main = CreateThrusterGroup(th_main, 1, THGROUP_MAIN);
+	thg_sps = CreateThrusterGroup(th_sps, 1, THGROUP_MAIN);
 
-	AddExhaust(th_main[0], 20.0, 2.25, SMExhaustTex);
+	AddExhaust(th_sps[0], 20.0, 2.25, SMExhaustTex);
 	//SetPMI(_V(12, 12, 7));
 	SetPMI(_V(4.3972, 4.6879, 1.6220));
 	SetCrossSections(_V(40,40,14));
@@ -777,12 +780,9 @@ void Saturn::SetReentryStage ()
 	ClearPropellants();
 	ClearAirfoilDefinitions();
 	ClearEngineIndicators();
-
-	//
-	// Tell AGC the CM has seperated from the SM.
-	//
-
-	agc.SetInputChannelBit(030, CMSMSeperate, true);
+	ClearLVGuidLight();
+	ClearLVRateLight();
+	ClearSIISep();
 
 	double EmptyMass = CM_EmptyMass + (LESAttached ? 2000.0 : 0.0);
 

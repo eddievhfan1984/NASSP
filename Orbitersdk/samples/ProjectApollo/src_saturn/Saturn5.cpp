@@ -95,7 +95,6 @@ SaturnV::SaturnV (OBJHANDLE hObj, int fmodel)
 	
 	hMaster = hObj;
 	initSaturnV();
-	iu = new IUSV;
 }
 
 //
@@ -287,8 +286,8 @@ void SaturnV::SetSIICMixtureRatio (double ratio)
 	//
 
 	for (int i = 0; i < 5; i++) {
-		SetThrusterIsp (th_main[i], isp, isp);
-		SetThrusterMax0 (th_main[i], thrust);
+		SetThrusterIsp (th_2nd[i], isp, isp);
+		SetThrusterMax0 (th_2nd[i], thrust);
 	}
 
 	MixtureRatio = ratio;
@@ -324,10 +323,18 @@ void SaturnV::SetSIVbCMixtureRatio (double ratio)
 	// be in near-vacuum anyway.
 	//
 
-	SetThrusterIsp (th_main[0], isp, isp);
-	SetThrusterMax0 (th_main[0], thrust);
+	SetThrusterIsp (th_3rd[0], isp, isp);
+	SetThrusterMax0 (th_3rd[0], thrust);
 
 	MixtureRatio = ratio;
+}
+
+void SaturnV::SetSIIThrustLevel(double lvl)
+{
+	if (stage != LAUNCH_STAGE_TWO && stage != LAUNCH_STAGE_TWO_ISTG_JET) return;
+	if (!thg_2nd) return;
+
+	SetThrusterGroupLevel(thg_2nd, lvl);
 }
 
 void SaturnV::MoveEVA()
@@ -702,6 +709,29 @@ void SaturnV::SaveVehicleStats(FILEHANDLE scn)
 	oapiWriteScenario_float(scn, "INTERSTAGE", Interstage_Mass);
 }
 
+void SaturnV::SaveIU(FILEHANDLE scn)
+{
+	if (iu != NULL) { iu->SaveState(scn); }
+}
+
+void SaturnV::LoadIU(FILEHANDLE scn)
+{
+	// If the IU does not yet exist, create it.
+	if (iu == NULL) {
+		iu = new IUSV;
+	}
+	iu->LoadState(scn);
+}
+
+void SaturnV::LoadLVDC(FILEHANDLE scn) {
+
+	if (iu == NULL) {
+		iu = new IUSV;
+	}
+
+	iu->LoadLVDC(scn);
+}
+
 void SaturnV::clbkLoadStateEx (FILEHANDLE scn, void *status)
 
 {
@@ -711,6 +741,10 @@ void SaturnV::clbkLoadStateEx (FILEHANDLE scn, void *status)
 
 	ClearMeshes();
 	SetupMeshes();
+
+	if (iu == NULL && stage < CSM_LEM_STAGE) {
+		iu = new IUSV;
+	}
 
 	//
 	// This code all needs to be fixed up.
@@ -932,18 +966,6 @@ void SaturnV::SwitchSelector(int item){
 	int i=0;
 
 	switch(item){
-	case 5:
-		// S4B Startup
-		SetSIVbCMixtureRatio(4.946);
-		break;
-	case 6:
-		// S4B restart
-		SetSIVbCMixtureRatio(4.5);
-		break;
-	case 7:
-		// S4B MRS
-		SetSIVbCMixtureRatio(4.946);
-		break;
 	case 10:
 		DeactivatePrelaunchVenting();
 		break;
@@ -951,9 +973,9 @@ void SaturnV::SwitchSelector(int item){
 		ActivatePrelaunchVenting();
 		break;
 	case 12:
-		SetThrusterGroupLevel(thg_main, 0);				// Ensure off
+		SetThrusterGroupLevel(thg_1st, 0);				// Ensure off
 		for (i = 0; i < 5; i++) {						// Reconnect fuel to S1C engines
-			SetThrusterResource(th_main[i], ph_1st);
+			SetThrusterResource(th_1st[i], ph_1st);
 		}
 		CreateStageOne();								// Create hidden stage one, for later use in staging
 		break;
@@ -966,27 +988,6 @@ void SaturnV::SwitchSelector(int item){
 	case 14:
 		DeactivatePrelaunchVenting();
 		break;
-	case 15:
-		SetLiftoffLight();										// And light liftoff lamp
-		SetStage(LAUNCH_STAGE_ONE);								// Switch to stage one
-		// Start mission and event timers
-		secs.LiftoffA();
-		secs.LiftoffB();
-		agc.SetInputChannelBit(030, LiftOff, true);					// Inform AGC of liftoff
-		SetThrusterGroupLevel(thg_main, 1.0);					// Set full thrust, just in case
-		contrailLevel = 1.0;
-		if (LaunchS.isValid() && !LaunchS.isPlaying()){			// And play launch sound			
-			LaunchS.play(NOLOOP,255);
-			LaunchS.done();
-		}
-		break;
-	case 16:
-		// Clear liftoff light now - Apollo 15 checklist item
-		ClearLiftoffLight();
-		SetThrusterResource(th_main[4], NULL); // Should stop the engine
-		SShutS.play(NOLOOP, 235);
-		SShutS.done();
-		break;
 	case 17:
 		// Move hidden S1C
 		if (hstg1) {
@@ -997,7 +998,7 @@ void SaturnV::SwitchSelector(int item){
 		}				
 		// Engine Shutdown
 		for (i = 0; i < 5; i++){
-			SetThrusterResource(th_main[i], NULL);
+			SetThrusterResource(th_1st[i], NULL);
 		}
 		break;
 	case 18:
@@ -1013,51 +1014,20 @@ void SaturnV::SwitchSelector(int item){
 		break;
 	case 19:
 		// S2 Engine Startup
-		SIISepState = true;
 		SetSIICMixtureRatio(5.5);
 		DeactivateStagingVent();
 		break;
 	case 20:
 		// S2 Engine Startup P2
-		SetThrusterGroupLevel(thg_main, 1); // Full power
+		SetThrusterGroupLevel(thg_2nd, 1); // Full power
 		if(SII_UllageNum){ SetThrusterGroupLevel(thg_ull,0.0); }
 		SepS.stop();
 		break;
-	case 21:
-		SeparateStage (LAUNCH_STAGE_TWO_ISTG_JET);
-		SetStage(LAUNCH_STAGE_TWO_ISTG_JET);
-		break;
-	case 22:
-		//JettisonLET();
-		break;
-	case 23:
-		// MR Shift
-		SetSIICMixtureRatio(4.5); // Is this 4.7 or 4.2? AP8 says 4.5
-		SPUShiftS.play(NOLOOP,255); 
-		SPUShiftS.done();
-		break;
 	case 24:
 		// SII IECO
-		SetThrusterResource(th_main[4], NULL);
+		SetThrusterResource(th_2nd[4], NULL);
 		S2ShutS.play(NOLOOP, 235);
 		S2ShutS.done();
-		break;
-	case 25:
-		// SII OECO
-		break;
-	case 26:
-		// SII/SIVB Direct Staging
-		break;
-	case 27:
-		//Second Staging
-		SPUShiftS.done(); // Make sure it's done
-		ClearEngineIndicators();
-		SeparateStage(LAUNCH_STAGE_SIVB);
-		SetStage(LAUNCH_STAGE_SIVB);
-		AddRCS_S4B();
-		SetSIVBThrusters(true);
-		SetThrusterGroupLevel(thg_ver, 1.0);
-		SetThrusterResource(th_main[0], ph_3rd);
 		break;
 	}
 }
@@ -1068,6 +1038,15 @@ void SaturnV::SISwitchSelector(int channel)
 
 	switch (channel)
 	{
+	case 0: //Liftoff (NOT A REAL SWITCH SELECTOR EVENT)
+		SetStage(LAUNCH_STAGE_ONE);								// Switch to stage one
+		SetThrusterGroupLevel(thg_1st, 1.0);					// Set full thrust, just in case
+		contrailLevel = 1.0;
+		if (LaunchS.isValid() && !LaunchS.isPlaying()) {			// And play launch sound			
+			LaunchS.play(NOLOOP, 255);
+			LaunchS.done();
+		}
+		break;
 	case 1: //Telemeter Calibrate Off
 		break;
 	case 2: //Telemeter Calibrate On
@@ -1083,6 +1062,9 @@ void SaturnV::SISwitchSelector(int channel)
 	case 7: //Fuel Pressurizing Valve No. 4 Open
 		break;
 	case 8: //Inboard Engine Cutoff
+		SetThrusterResource(th_1st[4], NULL); // Should stop the engine
+		SShutS.play(NOLOOP, 235);
+		SShutS.done();
 		break;
 	case 9: //Outboard Engines Cutoff Enable
 		break;
@@ -1109,6 +1091,7 @@ void SaturnV::SISwitchSelector(int channel)
 		break;
 		break;
 	case 16: //Inboard Engine Cutoff Backup
+		SetThrusterResource(th_1st[4], NULL);
 		break;
 	case 17: //Two Adjacent Outboard Engines Out Cutoff Enable
 		break;
@@ -1138,15 +1121,46 @@ void SaturnV::SIISwitchSelector(int channel)
 
 	switch (channel)
 	{
+	case 5: //S-II/S-IVB Separation
+		if (stage < LAUNCH_STAGE_SIVB)
+		{
+			SPUShiftS.done(); // Make sure it's done
+			ClearEngineIndicators();
+			SeparateStage(LAUNCH_STAGE_SIVB);
+			SetStage(LAUNCH_STAGE_SIVB);
+			AddRCS_S4B();
+			SetSIVBThrusters(true);
+			SetThrusterResource(th_3rd[0], ph_3rd);
+
+			SetSIVbCMixtureRatio(4.946);
+		}
+		break;
 	case 9: //Stop First PAM - FM/FM Calibration
 		break;
 	case 11: //S-II Ordnance Arm
+		break;
+	case 18: //S-II Engines Cutoff
+		SetSIIThrustLevel(0.0);
+		break;
+	case 23: //S-II Aft Interstage Separation
+		if (stage == LAUNCH_STAGE_TWO)
+		{
+			SeparateStage(LAUNCH_STAGE_TWO_ISTG_JET);
+			SetStage(LAUNCH_STAGE_TWO_ISTG_JET);
+		}
 		break;
 	case 24: //S-II Ullage Trigger
 		break;
 	case 30: //Start First PAM - FM/FM Relays Reset
 		break;
 	case 38: //LH2 Tank High Pressure Vent Mode
+		break;
+	case 56: //Low (4.5) Engine MR Ratio On
+		SetSIICMixtureRatio(4.5);
+		SPUShiftS.play(NOLOOP, 255);
+		SPUShiftS.done();
+		break;
+	case 58: //High (5.5) Engine MR Ratio Off
 		break;
 	case 71: //Start Data Recorders
 		break;
@@ -1157,7 +1171,219 @@ void SaturnV::SIISwitchSelector(int channel)
 
 void SaturnV::SIVBSwitchSelector(int channel)
 {
+	if (stage >= CSM_LEM_STAGE) return;
 
+	switch (channel)
+	{
+	case 1: //Passivation Enable
+		break;
+	case 2: //Passivation Disable
+		break;
+	case 3: //LOX Tank Repressurization Control Valve Open On
+		break;
+	case 4: //LOX Tank Repressurization Control Valve Open Off
+		break;
+	case 7: //PU Inverter and DC Power On
+		break;
+	case 8: //PU Inverter and DC Power Off
+		break;
+	case 9: //S-IVB Engine Start On
+		SetThrusterResource(th_3rd[0], ph_3rd);
+		sivb.EngineStartOn();
+		break;
+	case 10: //Engine Ready Bypass
+		sivb.EngineReadyBypass();
+		break;
+	case 11: //Fuel Injection Temperature OK Bypass
+		break;
+	case 12: //S-IVB Engine Cutoff
+		sivb.LVDCEngineCutoff();
+		break;
+	case 13: //S-IVB Engine Cutoff Off
+		sivb.LVDCEngineCutoffOff();
+		break;
+	case 14: //Engine Mainstage Control Valve Open On
+		break;
+	case 15: //Engine Mainstage Control Valve Open Off
+		break;
+	case 16: //Fuel Injector Temperature OK Bypass Reset
+		break;
+	case 17: //PU Valve Hardover Position On
+		SetSIVbCMixtureRatio(4.5);
+		break;
+	case 18: //PU Valve Hardover Position Off
+		SetSIVbCMixtureRatio(4.946);
+		break;
+	case 19: //S-IVB Engine EDS Cutoff No. 2 Disable
+		sivb.EDSCutoffDisable();
+		break;
+	case 22: //LOX Chilldown Pump On
+		break;
+	case 23: //LOX Chilldown Pump Off
+		break;
+	case 24: //Engine Pump Purge Control Valve Enable On
+		break;
+	case 25: //Engine Pump Purge Control Valve Enable Off
+		break;
+	case 26: //Burner LH2 Propellant Valve Open On
+		break;
+	case 27: //S-IVB Engine Start Off
+		sivb.EngineStartOff();
+		break;
+	case 28: //Aux Hydraulic Pump Flight Mode On
+		break;
+	case 29: //Aux Hydraulic Pump Flight Mode Off
+		break;
+	case 30: //Start Bottle Vent Control Valve Open On
+		break;
+	case 31: //Start Bottle Vent Control Valve Open Off
+		break;
+	case 32: //Second Burn Relay On
+		sivb.SecondBurnRelayOn();
+		break;
+	case 33: //Second Burn Relay Off
+		sivb.SecondBurnRelayOff();
+		break;
+	case 36: //Repressurization System Mode Select On (Amb)
+		break;
+	case 37: //Repressurization System Mode Select Off (Amb)
+		break;
+	case 39: //LH2 Tank Repressurization Control Valve Open On
+		break;
+	case 42: //S-IVB Ullage Engine No. 1 On
+		SetAPSUllageThrusterLevel(0, 1);
+		break;
+	case 43: //S-IVB Ullage Engine No. 1 Off
+		SetAPSUllageThrusterLevel(0, 0);
+		break;
+	case 44: //LOX Tank NPV Valve Latch Open On
+		break;
+	case 45: //LOX Tank NPV Valve Latch Open Off
+		break;
+	case 46: //Single Sideband FM Transmitter On
+		break;
+	case 47: //Single Sideband FM Transmitter Off
+		break;
+	case 48: //Inflight Calibration Mode On
+		break;
+	case 49: //Inflight Calibration Mode Off
+		break;
+	case 50: //Heat-Exchanger Bypass Valve Control Enable
+		break;
+	case 52: //Measurement Transfer Mode Position "B"
+		break;
+	case 54: //Charge Ullage Ignition On
+		break;
+	case 55: //Charge Ullage Jettison On
+		break;
+	case 56: //Fire Ullage Ignition On
+		sivb.FireUllageIgnitionOn();
+		break;
+	case 57: //Fire Ullage Jettison On
+		break;
+	case 58: //Fuel Chilldown Pump On
+		break;
+	case 59: //Fuel Chilldown Pump Off
+		break;
+	case 60: //Burner LH2 Propellant Valve Close On
+		break;
+	case 61: //Burner LH2 Propellant Valve Close Off
+		break;
+	case 62: //TM Calibrate On
+		break;
+	case 63: //TM Calibrate Off
+		break;
+	case 64: //LH2 Tank Latching Relief Valve Latch On
+		break;
+	case 65: //LH2 Tank Latching Relief Valve Latch Off
+		break;
+	case 68: //First Burn Relay On
+		sivb.FirstBurnRelayOn();
+		break;
+	case 69: //First Burn Relay Off
+		sivb.FirstBurnRelayOff();
+		break;
+	case 70: //Burner Exciters On
+		break;
+	case 71: //Burner Exciters Off
+		break;
+	case 72: //Burner LH2 Propellant Valve Open Off
+		break;
+	case 73: //Ullage Firing Reset
+		break;
+	case 74: //Burner LOX Shutdown Valve Close On
+		break;
+	case 75: //Burner LOX Shutdown Valve Close Off
+		break;
+	case 77: //LH2 Tank Vent and Latching Relief Valve Boost Close On
+		break;
+	case 78: //LH2 Tank Vent and Latching Relief Valve Boost Close Off
+		break;
+	case 79: //LOX Tank Pressurization Shutoff Valves Close
+		break;
+	case 80: //LOX Tank Pressurization Shutoff Valves Open
+		break;
+	case 81: //LH2 Tank Repressurization Control Valve Open Off
+		break;
+	case 82: //Prevalves Close On
+		break;
+	case 83: //Prevalves Close Off
+		break;
+	case 84: //LH2 Tank Continuous Vent Valve Close On
+		break;
+	case 85: //Burner Automatic Cutoff System Arm
+		break;
+	case 86: //Burner Automatic Cutoff System Disarm
+		break;
+	case 87: //LH2 Tank Continuous Vent Valve Close Off
+		break;
+	case 88: //Ullage Charging Reset
+		break;
+	case 89: //Burner LOX Shutdown Valve Open On
+		break;
+	case 90: //Burner LOX Shutdown Valve Open Off
+		break;
+	case 95: //LOX Tank Vent and NPV Valv Boost Close On
+		break;
+	case 96: //LOX Tank Vent and NPV Valv Boost Close Off
+		break;
+	case 97: //Point Level Sensor Arming
+		break;
+	case 98: //Point Level Sensor Disarming
+		break;
+	case 99: //LH2 Tank Latching Relief Valve Open On
+		break;
+	case 100: //LH2 Tank Latching Relief Valve Open Off
+		break;
+	case 101: //S-IVB Ullage Engine No. 2 On
+		SetAPSUllageThrusterLevel(1, 1);
+		break;
+	case 102: //S-IVB Ullage Engine No. 2 Off
+		SetAPSUllageThrusterLevel(1, 0);
+		break;
+	case 103: //LOX Tank Flight Pressure System On
+		break;
+	case 104: //LOX Tank Flight Pressure System Off
+		break;
+	case 105: //LOX Tank NPV Valve Open On
+		break;
+	case 106: //LOX Tank NPV Valve Open Off
+		break;
+	case 107: //LH2 Tank Continous Vent Relief Override Shutoff Valve Open On
+		break;
+	case 108: //LH2 Tank Continous Vent Relief Override Shutoff Valve Open Off
+		break;
+	case 109: //Engine He Control Valve Open On
+		break;
+	case 110: //Engine He Control Valve Open Off
+		break;
+	case 111: //LH2 Tank Continuous Vent Orifice Shutoff Valve Open On
+		break;
+	case 112: //LH2 Tank Continuous Vent Orifice Shutoff Valve Open Off
+		break;
+	default:
+		break;
+	}
 }
 
 void SaturnV::SetRandomFailures()
@@ -1203,7 +1429,7 @@ void SaturnV::SetRandomFailures()
 
 		for (int i = 0;i < 5;i++)
 		{
-			if (!(random() & 63))
+			if (!(random() & (int)(127.0 / FailureMultiplier)))
 			{
 				EarlySICutoff[i] = 1;
 				FirstStageFailureTime[i] = 20.0 + ((double)(random() & 1023) / 10.0);
@@ -1212,7 +1438,7 @@ void SaturnV::SetRandomFailures()
 
 		for (int i = 0;i < 5;i++)
 		{
-			if (!(random() & 63))
+			if (!(random() & (int)(127.0 / FailureMultiplier)))
 			{
 				EarlySIICutoff[i] = 1;
 				SecondStageFailureTime[i] = 180.0 + ((double)(random() & 3071) / 10.0);

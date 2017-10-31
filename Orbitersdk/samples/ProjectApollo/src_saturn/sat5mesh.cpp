@@ -443,7 +443,7 @@ void SaturnV::SetFirstStage ()
 	double Mass = Stage1Mass + SI_FuelMass;
 	double ro = 30;
 	TOUCHDOWNVTX td[4];
-	double x_target = -0.5;
+	double x_target = -0.05;
 	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
 	double damping = 0.9*(2 * sqrt(Mass*stiffness));
 	for (int i = 0; i<4; i++) {
@@ -463,7 +463,7 @@ void SaturnV::SetFirstStage ()
 	td[2].pos.z = TCP;
 	td[3].pos.x = 0;
 	td[3].pos.y = 0;
-	td[3].pos.z = 15 * ro;
+	td[3].pos.z = TCP+100;
 	
 	SetTouchdownPoints(td, 4);
 	
@@ -544,20 +544,20 @@ void SaturnV::SetFirstStageEngines ()
 	// orbiter main thrusters
 	//
 
-	th_main[0] = CreateThruster (MAIN4a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
-	th_main[1] = CreateThruster (MAIN2a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
-	th_main[2] = CreateThruster (MAIN1a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
-	th_main[3] = CreateThruster (MAIN3a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
-	th_main[4] = CreateThruster (MAIN5a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
+	th_1st[0] = CreateThruster (MAIN4a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
+	th_1st[1] = CreateThruster (MAIN2a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
+	th_1st[2] = CreateThruster (MAIN1a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
+	th_1st[3] = CreateThruster (MAIN3a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
+	th_1st[4] = CreateThruster (MAIN5a_Vector, _V( 0,0,1), THRUST_FIRST_VAC , pph, ISP_FIRST_VAC, ISP_FIRST_SL);
 
-	thg_main = CreateThrusterGroup (th_main, SI_EngineNum, THGROUP_MAIN);
-	for (i = 0; i < SI_EngineNum; i++) AddExhaust (th_main[i], 120.0, 3.5, exhaust_tex);
+	thg_1st = CreateThrusterGroup (th_1st, SI_EngineNum, THGROUP_MAIN);
+	for (i = 0; i < SI_EngineNum; i++) AddExhaust (th_1st[i], 120.0, 3.5, exhaust_tex);
 
-	AddExhaustStream (th_main[0], MAIN4a_Vector+_V(0,0,-18), &srb_exhaust);
-	AddExhaustStream (th_main[1], MAIN2a_Vector+_V(0,0,-18), &srb_exhaust);
-	AddExhaustStream (th_main[2], MAIN1a_Vector+_V(0,0,-18), &srb_exhaust);
-	AddExhaustStream (th_main[3], MAIN3a_Vector+_V(0,0,-18), &srb_exhaust);
-	AddExhaustStream (th_main[4], MAIN5a_Vector+_V(0,0,-18), &srb_exhaust);
+	AddExhaustStream (th_1st[0], MAIN4a_Vector+_V(0,0,-18), &srb_exhaust);
+	AddExhaustStream (th_1st[1], MAIN2a_Vector+_V(0,0,-18), &srb_exhaust);
+	AddExhaustStream (th_1st[2], MAIN1a_Vector+_V(0,0,-18), &srb_exhaust);
+	AddExhaustStream (th_1st[3], MAIN3a_Vector+_V(0,0,-18), &srb_exhaust);
+	AddExhaustStream (th_1st[4], MAIN5a_Vector+_V(0,0,-18), &srb_exhaust);
 
 	// Contrail
 	for (i = 0; i < SI_EngineNum; i++) {
@@ -703,16 +703,16 @@ void SaturnV::SetSecondStageEngines(double offset)
 	//
 	// orbiter main thrusters
 	//
-	th_main[0] = CreateThruster (m_exhaust_pos1, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
-	th_main[1] = CreateThruster (m_exhaust_pos2,_V( 0,0,1),  THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
-	th_main[2] = CreateThruster (m_exhaust_pos3, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
-	th_main[3] = CreateThruster (m_exhaust_pos4, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
-	th_main[4] = CreateThruster (m_exhaust_pos5, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
+	th_2nd[0] = CreateThruster (m_exhaust_pos1, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
+	th_2nd[1] = CreateThruster (m_exhaust_pos2,_V( 0,0,1),  THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
+	th_2nd[2] = CreateThruster (m_exhaust_pos3, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
+	th_2nd[3] = CreateThruster (m_exhaust_pos4, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
+	th_2nd[4] = CreateThruster (m_exhaust_pos5, _V( 0,0,1), THRUST_SECOND_VAC , ph_2nd, ISP_SECOND_VAC, ISP_SECOND_SL);
 
-	thg_main = CreateThrusterGroup (th_main, SII_EngineNum, THGROUP_MAIN);
+	thg_2nd = CreateThrusterGroup (th_2nd, SII_EngineNum, THGROUP_MAIN);
 
 	for (i = 0; i < SII_EngineNum; i++)
-		AddExhaust (th_main[i], 30.0, 2.9 , J2Tex);
+		AddExhaust (th_2nd[i], 30.0, 2.9 , J2Tex);
 
 	if (SII_UllageNum) {
 		th_ull[0] = CreateThruster (m_exhaust_pos10, _V( 0,0,1),102000 , ph_2nd, 2516);
@@ -854,6 +854,15 @@ void SaturnV::SetThirdStageEngines (double offset)
 	if (!ph_3rd) 
 		ph_3rd  = CreatePropellantResource(S4B_FuelMass); //3rd stage Propellant
 
+	if (!ph_ullage3)
+	{
+		//
+		// Create SIVB stage ullage rocket propellant
+		//
+
+		ph_ullage3 = CreatePropellantResource(2*26.67);
+	}
+
 	SetDefaultPropellantResource (ph_3rd); // display 3rd stage propellant level in generic HUD
 
 	if (ph_2nd) {
@@ -916,16 +925,16 @@ void SaturnV::SetThirdStageEngines (double offset)
 	// orbiter main thrusters
 	//
 
-	th_main[0] = CreateThruster (m_exhaust_pos1, _V( 0,0,1), THRUST_THIRD_VAC, ph_3rd, ISP_THIRD_VAC);
-	thg_main = CreateThrusterGroup (th_main, 1, THGROUP_MAIN);
+	th_3rd[0] = CreateThruster (m_exhaust_pos1, _V( 0,0,1), THRUST_THIRD_VAC, ph_3rd, ISP_THIRD_VAC);
+	thg_3rd = CreateThrusterGroup (th_3rd, 1, THGROUP_MAIN);
 
-	AddExhaust (th_main[0], 30.0, 2.9 ,J2Tex);
+	AddExhaust (th_3rd[0], 30.0, 2.9 ,J2Tex);
 
 	VECTOR3	u_exhaust_pos6= _V(3.6, -0.425, -3.6 + offset);
 	VECTOR3 u_exhaust_pos7= _V(-3.6, 0.925, -3.6 + offset);
 
-	th_ver[0] = CreateThruster (u_exhaust_pos6, _V( -0.4,0.0,1), 311 , ph_3rd, 45790.85);
-	th_ver[1] = CreateThruster (u_exhaust_pos7, _V( 0.4,0.0,1), 311 , ph_3rd, 45790.85);
+	th_ver[0] = CreateThruster(u_exhaust_pos6, _V(-0.4, 0.0, 1), 15079.47, ph_ullage3, 2188.1);
+	th_ver[1] = CreateThruster(u_exhaust_pos7, _V(0.4, 0.0, 1), 15079.47, ph_ullage3, 2188.1);
 
 	for (int i = 0; i < 2; i++)
 		AddExhaust (th_ver[i], 5.0, 0.25, exhaust_tex);
@@ -1055,7 +1064,7 @@ void SaturnV::SeparateStage (int new_stage)
 			S1Config.ISP_FIRST_SL = ISP_FIRST_SL;
 			S1Config.ISP_FIRST_VAC = ISP_FIRST_VAC;
 			S1Config.THRUST_FIRST_VAC = THRUST_FIRST_VAC;
-			S1Config.CurrentThrust = GetThrusterLevel(th_main[0]);
+			S1Config.CurrentThrust = GetThrusterLevel(th_1st[0]);
 			S1Config.LowRes = LowRes;
 			S1Config.Stretched = false;
 			S1Config.S4Interstage = (SaturnType == SAT_INT20);
@@ -1176,7 +1185,7 @@ void SaturnV::SeparateStage (int new_stage)
 		S2Config.ISP_SECOND_SL = ISP_SECOND_SL;
 		S2Config.ISP_SECOND_VAC = ISP_SECOND_VAC;
 		S2Config.THRUST_SECOND_VAC = THRUST_SECOND_VAC;
-		S2Config.CurrentThrust = GetThrusterLevel(th_main[0]);
+		S2Config.CurrentThrust = GetThrusterLevel(th_2nd[0]);
 		S2Config.LowRes = LowRes;
 
 		SII *stage2 = static_cast<SII *> (oapiGetVesselInterface(hstg2));

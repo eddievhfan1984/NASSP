@@ -76,13 +76,7 @@ void IU::SetMissionInfo(bool tlicapable, bool crewed)
 }
 
 void IU::Timestep(double misst, double simt, double simdt, double mjd)
-
 {
-	if (lvdc != NULL) {
-		lvimu.Timestep(mjd);
-		lvrg.Timestep(simdt);
-	}
-
 	//
 	// Update mission time.
 	//
@@ -95,6 +89,15 @@ void IU::Timestep(double misst, double simt, double simdt, double mjd)
 		return;
 	}
 
+	if (lvdc == NULL) return;
+
+	lvimu.Timestep(mjd);
+	lvrg.Timestep(simdt);
+
+	if (lvdc->GetGuidanceReferenceFailure())
+	{
+		commandConnector.SetLVGuidLight();
+	}
 }
 
 void IU::PostStep(double simt, double simdt, double mjd) {
@@ -153,6 +156,37 @@ void IU::ConnectToLV(Connector *CommandConnector)
 
 {
 	lvCommandConnector.ConnectTo(CommandConnector);
+}
+
+bool IU::GetSIPropellantDepletionEngineCutoff()
+{
+	int stage = lvCommandConnector.GetStage();
+	if (stage != LAUNCH_STAGE_ONE) return false;
+
+	if (lvCommandConnector.GetFuelMass() <= 0) return true;
+
+	return false;
+}
+
+bool IU::SIBLowLevelSensorsDry()
+{
+	return false;
+}
+
+bool IU::GetSIIPropellantDepletionEngineCutoff()
+{
+	return false;
+}
+
+bool IU::GetSIVBEngineOut()
+{
+	int stage = lvCommandConnector.GetStage();
+	if (stage != LAUNCH_STAGE_SIVB && stage != STAGE_ORBIT_SIVB) return false;
+
+	double oetl = lvCommandConnector.GetSIVBThrustOK();
+	if (oetl == 0) return true;
+
+	return false;
 }
 
 void IU::DisconnectIU()
@@ -219,30 +253,6 @@ void IUToCSMCommandConnector::ClearSIISep()
 
 	cm.destination = CSM_IU_COMMAND;
 	cm.messageType = IUCSM_SET_SII_SEP_LIGHT;
-	cm.val1.bValue = false;
-
-	SendMessage(cm);
-}
-
-void IUToCSMCommandConnector::SetLiftoffLight()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = CSM_IU_COMMAND;
-	cm.messageType = IUCSM_SET_LIFTOFF_LIGHT;
-	cm.val1.bValue = true;
-
-	SendMessage(cm);
-}
-
-void IUToCSMCommandConnector::ClearLiftoffLight()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = CSM_IU_COMMAND;
-	cm.messageType = IUCSM_SET_LIFTOFF_LIGHT;
 	cm.val1.bValue = false;
 
 	SendMessage(cm);
@@ -346,33 +356,6 @@ void IUToCSMCommandConnector::ClearEngineIndicators()
 	cm.val1.bValue = false;
 
 	SendMessage(cm);
-}
-
-void IUToCSMCommandConnector::SlowIfDesired()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = CSM_IU_COMMAND;
-	cm.messageType = IUCSM_SLOW_IF_DESIRED;
-
-	SendMessage(cm);
-}
-
-bool IUToCSMCommandConnector::GetSIISepLight()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = CSM_IU_COMMAND;
-	cm.messageType = IUCSM_GET_SII_SEP_LIGHT;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.bValue;
-	}
-
-	return false;
 }
 
 bool IUToCSMCommandConnector::GetEngineIndicator(int eng)
@@ -488,16 +471,17 @@ int IUToCSMCommandConnector::TwoEngineOutAutoSwitchState()
 	return -1;
 }
 
-bool IUToCSMCommandConnector::GetBECOSignal()
+bool IUToCSMCommandConnector::GetBECOCommand(bool IsSysA)
 {
 	ConnectorMessage cm;
 
 	cm.destination = CSM_IU_COMMAND;
-	cm.messageType = IUCSM_GET_BECO_SIGNAL;
+	cm.messageType = IUCSM_GET_BECO_COMMAND;
+	cm.val1.bValue = IsSysA;
 
 	if (SendMessage(cm))
 	{
-		return cm.val1.bValue;
+		return cm.val2.bValue;
 	}
 
 	return false;
@@ -708,6 +692,21 @@ bool IUToCSMCommandConnector::ReceiveMessage(Connector *from, ConnectorMessage &
 			return true;
 		}
 		break;
+
+	case CSMIU_GET_LIFTOFF_CIRCUIT:
+		if (ourIU)
+		{
+			if (m.val1.bValue)
+			{
+				m.val2.bValue = ourIU->GetEDS()->GetLiftoffCircuitA();
+			}
+			else
+			{
+				m.val2.bValue = ourIU->GetEDS()->GetLiftoffCircuitB();
+			}
+			return true;
+		}
+		break;
 	}
 
 	return false;
@@ -724,48 +723,25 @@ IUToLVCommandConnector::~IUToLVCommandConnector()
 {
 }
 
-void IUToLVCommandConnector::EnableDisableJ2(bool Enable)
-
+void IUToLVCommandConnector::SetSIThrusterLevel(int n, double level)
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_ENABLE_J2;
-	cm.val1.bValue = Enable;
+	cm.messageType = IULV_SET_SI_THRUSTER_LEVEL;
+	cm.val1.iValue = n;
+	cm.val2.dValue = level;
 
 	SendMessage(cm);
 }
 
-void IUToLVCommandConnector::SetJ2ThrustLevel(double thrust)
-
+void IUToLVCommandConnector::SetSIIThrusterLevel(int n, double level)
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_J2_THRUST_LEVEL;
-	cm.val1.dValue = thrust;
-
-	SendMessage(cm);
-}
-
-void IUToLVCommandConnector::SetVentingThruster()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_J2_DONE;
-
-	SendMessage(cm);
-}
-
-void IUToLVCommandConnector::SetThrusterLevel(THRUSTER_HANDLE th, double level)
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_THRUSTER_LEVEL;
-	cm.val1.pValue = th;
+	cm.messageType = IULV_SET_SII_THRUSTER_LEVEL;
+	cm.val1.iValue = n;
 	cm.val2.dValue = level;
 
 	SendMessage(cm);
@@ -783,18 +759,6 @@ void IUToLVCommandConnector::SetAPSThrusterLevel(int n, double level)
 	SendMessage(cm);
 }
 
-void IUToLVCommandConnector::SetThrusterGroupLevel(THGROUP_HANDLE thg, double level)
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_THRUSTER_GROUP_LEVEL;
-	cm.val1.pValue = thg;
-	cm.val2.dValue = level;
-
-	SendMessage(cm);
-}
-
 void IUToLVCommandConnector::SetAPSUllageThrusterLevel(int n, double level)
 {
 	ConnectorMessage cm;
@@ -807,14 +771,35 @@ void IUToLVCommandConnector::SetAPSUllageThrusterLevel(int n, double level)
 	SendMessage(cm);
 }
 
-void IUToLVCommandConnector::SetThrusterResource(THRUSTER_HANDLE th, PROPELLANT_HANDLE ph)
+void IUToLVCommandConnector::ClearSIThrusterResource(int n)
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_THRUSTER_RESOURCE;
-	cm.val1.pValue = th;
-	cm.val2.pValue = ph;
+	cm.messageType = IULV_CLEAR_SI_THRUSTER_RESOURCE;
+	cm.val1.iValue = n;
+
+	SendMessage(cm);
+}
+
+void IUToLVCommandConnector::ClearSIIThrusterResource(int n)
+{
+	ConnectorMessage cm;
+
+	cm.destination = LV_IU_COMMAND;
+	cm.messageType = IULV_CLEAR_SII_THRUSTER_RESOURCE;
+	cm.val1.iValue = n;
+
+	SendMessage(cm);
+}
+
+void IUToLVCommandConnector::SIVBEDSCutoff(bool cut)
+{
+	ConnectorMessage cm;
+
+	cm.destination = LV_IU_COMMAND;
+	cm.messageType = IULV_SIVB_EDS_CUTOFF;
+	cm.val1.bValue = cut;
 
 	SendMessage(cm);
 }
@@ -854,6 +839,16 @@ void IUToLVCommandConnector::SetSIVBThrusterDir(VECTOR3 &dir)
 	SendMessage(cm);
 }
 
+void IUToLVCommandConnector::SetQBallPowerOff()
+{
+	ConnectorMessage cm;
+
+	cm.destination = LV_IU_COMMAND;
+	cm.messageType = IULV_SET_QBALL_POWER_OFF;
+
+	SendMessage(cm);
+}
+
 void IUToLVCommandConnector::SetContrailLevel(double level)
 {
 	ConnectorMessage cm;
@@ -871,31 +866,6 @@ void IUToLVCommandConnector::SIVBBoiloff()
 
 	cm.destination = LV_IU_COMMAND;
 	cm.messageType = IULV_SIVB_BOILOFF;
-
-	SendMessage(cm);
-}
-
-void IUToLVCommandConnector::SetAttitudeLinLevel(int a1, int a2)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_ATTITUDE_LIN_LEVEL;
-	cm.val1.iValue = a1;
-	cm.val2.iValue = a2;
-
-	SendMessage(cm);
-}
-
-void IUToLVCommandConnector::SetAttitudeRotLevel (VECTOR3 th)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_ATTITUDE_ROT_LEVEL;
-	cm.val1.vValue = th;
 
 	SendMessage(cm);
 }
@@ -1074,22 +1044,6 @@ double IUToLVCommandConnector::GetMass()
 	return 0.0;
 }
 
-double IUToLVCommandConnector::GetSize()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_SIZE;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.dValue;
-	}
-
-	return 0.0;
-}
-
 double IUToLVCommandConnector::GetMaxThrust(ENGINETYPE eng)
 
 {
@@ -1105,40 +1059,6 @@ double IUToLVCommandConnector::GetMaxThrust(ENGINETYPE eng)
 	}
 
 	return 0.0;
-}
-
-double IUToLVCommandConnector::GetThrusterMax(THRUSTER_HANDLE th)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_THRUSTER_MAX;
-	cm.val1.pValue = th;
-
-	if (SendMessage(cm))
-	{
-		return cm.val2.dValue;
-	}
-
-	return 0.0;
-}
-
-PROPELLANT_HANDLE IUToLVCommandConnector::GetThrusterResource(THRUSTER_HANDLE th)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_THRUSTER_RESOURCE;
-	cm.val1.pValue = th;
-
-	if (SendMessage(cm))
-	{
-		return (PROPELLANT_HANDLE) cm.val2.pValue;
-	}
-
-	return 0;
 }
 
 int IUToLVCommandConnector::GetStage()
@@ -1205,18 +1125,17 @@ double IUToLVCommandConnector::GetSIVBPropellantMass()
 	return 0.0;
 }
 
-double IUToLVCommandConnector::GetPropellantMass(PROPELLANT_HANDLE ph)
+double IUToLVCommandConnector::GetSIPropellantMass()
 
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_PROPELLANT_MASS;
-	cm.val1.pValue = ph;
+	cm.messageType = IULV_GET_SI_PROPELLANT_MASS;
 
 	if (SendMessage(cm))
 	{
-		return cm.val2.dValue;
+		return cm.val1.dValue;
 	}
 
 	return 0.0;
@@ -1254,18 +1173,6 @@ double IUToLVCommandConnector::GetFuelMass()
 	return 0.0;
 }
 
-void IUToLVCommandConnector::GetStatus(VESSELSTATUS &status)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_STATUS;
-	cm.val1.pValue = &status;
-
-	SendMessage(cm);
-}
-
 void IUToLVCommandConnector::GetGlobalOrientation(VECTOR3 &arot)
 
 {
@@ -1274,18 +1181,6 @@ void IUToLVCommandConnector::GetGlobalOrientation(VECTOR3 &arot)
 	cm.destination = LV_IU_COMMAND;
 	cm.messageType = IULV_GET_GLOBAL_ORIENTATION;
 	cm.val1.pValue = &arot;
-
-	SendMessage(cm);
-}
-
-void IUToLVCommandConnector::GetPMI(VECTOR3 &pmi)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_PMI;
-	cm.val1.pValue = &pmi;
 
 	SendMessage(cm);
 }
@@ -1304,36 +1199,6 @@ OBJHANDLE IUToLVCommandConnector::GetGravityRef()
 	}
 
 	return 0;
-}
-
-void IUToLVCommandConnector::GetApDist(double &d)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_AP_DIST;
-
-	if (SendMessage(cm))
-	{
-		d = cm.val1.dValue;
-		return;
-	}
-
-	d = 0.0;
-}
-
-void IUToLVCommandConnector::Local2Global(VECTOR3 &local, VECTOR3 &global)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_LOCAL2GLOBAL;
-	cm.val1.pValue = &local;
-	cm.val2.pValue = &global;
-
-	SendMessage(cm);
 }
 
 void IUToLVCommandConnector::GetRelativePos(OBJHANDLE ref, VECTOR3 &v)
@@ -1374,24 +1239,6 @@ void IUToLVCommandConnector::GetGlobalVel(VECTOR3 &v)
 	SendMessage(cm);
 }
 
-OBJHANDLE IUToLVCommandConnector::GetElements(ELEMENTS &el, double &mjd_ref)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_ELEMENTS;
-	cm.val1.pValue = &el;
-
-	if (SendMessage(cm))
-	{
-		mjd_ref = cm.val2.dValue;
-		return cm.val3.hValue;
-	}
-
-	return 0;
-}
-
 bool IUToLVCommandConnector::GetWeightVector(VECTOR3 &w)
 
 {
@@ -1400,23 +1247,6 @@ bool IUToLVCommandConnector::GetWeightVector(VECTOR3 &w)
 	cm.destination = LV_IU_COMMAND;
 	cm.messageType = IULV_GET_WEIGHTVECTOR;
 	cm.val1.pValue = &w;
-
-	if (SendMessage(cm))
-	{		
-		return cm.val2.bValue; 
-	}
-
-	return false;
-}
-
-bool IUToLVCommandConnector::GetForceVector(VECTOR3 &f)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_FORCEVECTOR;
-	cm.val1.pValue = &f;
 
 	if (SendMessage(cm))
 	{		
@@ -1450,54 +1280,6 @@ void IUToLVCommandConnector::GetAngularVel(VECTOR3 &avel)
 	SendMessage(cm);
 }
 
-double IUToLVCommandConnector::GetPitch()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_PITCH;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.dValue;
-	}
-
-	return 0.0;
-}
-
-double IUToLVCommandConnector::GetBank()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_BANK;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.dValue;
-	}
-
-	return 0.0;
-}
-
-double IUToLVCommandConnector::GetSlipAngle()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_SLIP_ANGLE;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.dValue;
-	}
-
-	return 0.0;
-}
-
 double IUToLVCommandConnector::GetMissionTime()
 {
 	ConnectorMessage cm;
@@ -1528,59 +1310,29 @@ int IUToLVCommandConnector::GetApolloNo()
 	return 0;
 }
 
-THRUSTER_HANDLE IUToLVCommandConnector::GetMainThruster(int n)
+double IUToLVCommandConnector::GetSIThrusterLevel(int n)
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_MAIN_THRUSTER;
+	cm.messageType = IULV_GET_SI_THRUSTER_LEVEL;
 	cm.val1.iValue = n;
 
 	if (SendMessage(cm))
 	{
-		return cm.val2.pValue;
+		return cm.val2.dValue;
 	}
 
-	return 0;
+	return 0.0;
 }
 
-THGROUP_HANDLE IUToLVCommandConnector::GetMainThrusterGroup()
+double IUToLVCommandConnector::GetSIIThrusterLevel(int n)
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_MAIN_THRUSTER_GROUP;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.pValue;
-	}
-
-	return 0;
-}
-
-THGROUP_HANDLE IUToLVCommandConnector::GetVernierThrusterGroup()
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_VERNIER_THRUSTER_GROUP;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.pValue;
-	}
-
-	return 0;
-}
-
-double IUToLVCommandConnector::GetThrusterLevel(THRUSTER_HANDLE th)
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_THRUSTER_LEVEL;
-	cm.val1.pValue = th;
+	cm.messageType = IULV_GET_SII_THRUSTER_LEVEL;
+	cm.val1.iValue = n;
 
 	if (SendMessage(cm))
 	{
@@ -1590,20 +1342,19 @@ double IUToLVCommandConnector::GetThrusterLevel(THRUSTER_HANDLE th)
 	return 0.0;
 }
 
-double IUToLVCommandConnector::GetThrusterGroupLevel(THGROUP_HANDLE th)
+double IUToLVCommandConnector::GetSIVBThrustOK()
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_THRUSTER_GROUP_LEVEL;
-	cm.val1.pValue = th;
+	cm.messageType = IULV_GET_SIVB_THRUST_OK;
 
 	if (SendMessage(cm))
 	{
-		return cm.val2.dValue;
+		return cm.val1.bValue;
 	}
 
-	return 0.0;
+	return false;
 }
 
 double IUToLVCommandConnector::GetFirstStageThrust()
@@ -1619,36 +1370,6 @@ double IUToLVCommandConnector::GetFirstStageThrust()
 	}
 
 	return 0.0;
-}
-
-PROPELLANT_HANDLE IUToLVCommandConnector::GetFirstStagePropellantHandle()
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_FIRST_STAGE_PROPELLANT_HANDLE;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.pValue;
-	}
-
-	return 0;
-}
-
-PROPELLANT_HANDLE IUToLVCommandConnector::GetThirdStagePropellantHandle()
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_THIRD_STAGE_PROPELLANT_HANDLE;
-
-	if (SendMessage(cm))
-	{
-		return cm.val1.pValue;
-	}
-
-	return 0;
 }
 
 bool IUToLVCommandConnector::CSMSeparationSensed()
@@ -1696,7 +1417,7 @@ void IU::ControlDistributor(int stage, int channel)
 IU1B::IU1B() : fcc(lvrg), eds(lvrg)
 {
 	lvda.Init(this);
-	eds.Configure(&lvCommandConnector, &commandConnector);
+	eds.Init(this);
 }
 
 void IU1B::Timestep(double misst, double simt, double simdt, double mjd)
@@ -1717,6 +1438,13 @@ void IU1B::Timestep(double misst, double simt, double simdt, double mjd)
 	}
 }
 
+bool IU1B::SIBLowLevelSensorsDry()
+{
+	if (lvCommandConnector.GetSIPropellantMass() <= 24000.0) return true;
+
+	return false;
+}
+
 void IU1B::LoadLVDC(FILEHANDLE scn) {
 
 	char *line;
@@ -1728,8 +1456,8 @@ void IU1B::LoadLVDC(FILEHANDLE scn) {
 		lvrg.Init(&lvCommandConnector);			// LV Rate Gyro Package
 		lvimu.SetVessel(&lvCommandConnector);	// set vessel pointer
 		lvimu.CoarseAlignEnableFlag = false;	// Clobber this
-		lvdc->Init(&lvCommandConnector, &commandConnector);
-		fcc.Configure(&lvCommandConnector, &commandConnector);
+		lvdc->Init(&lvCommandConnector);
+		fcc.Init(this);
 	}
 	lvdc->LoadState(scn);
 
@@ -1762,13 +1490,84 @@ void IU1B::LoadEDS(FILEHANDLE scn)
 
 void IU1B::SwitchSelector(int item)
 {
-
+	switch (item)
+	{
+	case 0:	//Liftoff (NOT A REAL SWITCH SELECTOR CHANNEL)
+		fcc.SetGainSwitch(0);
+		commandConnector.SetAGCInputChannelBit(030, LiftOff, true);
+		break;
+	case 1: //Q-Ball Power Off
+		lvCommandConnector.SetQBallPowerOff();
+		break;
+	case 2: //Excess Rate (P,Y,R) Auto-Abort Inhibit and Switch Rate Gyro SC Indication "A"
+		eds.SetExcessiveRatesAutoAbortInhibit(true);
+		eds.SetRateGyroSCIndicationSwitchA(true);
+		break;
+	case 3: //S-IVB Engine EDS Cutoffs Disable
+		eds.SetSIVBEngineOutIndicationA(false);
+		eds.SetSIVBEngineOutIndicationB(false);
+		eds.SetSIVBEngineCutoffDisabled();
+		break;
+	case 5: //Flight Control Computer S-IVB Burn Mode Off "B"
+		fcc.SetSIVBBurnMode(false);
+		break;
+	case 6: //Flight Control Computer S-IVB Burn Mode On "B"
+		fcc.SetStageSwitch(2);
+		fcc.SetSIVBBurnMode(true);
+		break;
+	case 9: //S-IVB Engine Out Indication "A" Enable
+		eds.SetSIVBEngineOutIndicationA(true);
+		break;
+	case 12: //Flight Control Computer S-IVB Burn Mode Off "A"
+		fcc.SetSIVBBurnMode(false);
+		break;
+	case 15: //Excess Rate (P,Y,R) Auto-Abort Inhibit Enable
+		break;
+	case 16: //Auto-Abort Enable Relays Reset
+		eds.ResetAutoAbortRelays();
+		break;
+	case 18: //S/C Control of Saturn Enable
+		fcc.EnableSCControl();
+		break;
+	case 21: //Flight Control Computer Switch Point No. 2
+		fcc.SetGainSwitch(2);
+		break;
+	case 22: //Flight Control Computer Switch Point No. 3
+		fcc.SetGainSwitch(3);
+		break;
+	case 29: //S-IVB Engine Out Indication "B" Enable
+		eds.SetSIVBEngineOutIndicationB(true);
+		break;
+	case 34: //Excess Rate (Roll) Auto-Abort Inhibit Enable
+		break;
+	case 35: //S-IB Two Engines Out Auto-Abort Inhibit
+		eds.SetTwoEngOutAutoAbortInhibit(true);
+		break;
+	case 38: //Launch Vehicle Engines EDS Cutoff Enable
+		eds.SetLVEnginesCutoffEnable(true);
+		break;
+	case 43: //Flight Control Computer Switch Point No. 1
+		fcc.SetGainSwitch(1);
+		break;
+	case 50: //Excess Rate (Roll) Auto-Abort Inhibit and Switch Rate Gyro SC Indication "B"
+		eds.SetExcessiveRatesAutoAbortInhibit(true);
+		eds.SetRateGyroSCIndicationSwitchB(true);
+		break;
+	case 51: //S-IB Two Engines Out Auto-Abort Inhibit Enable
+		break;
+	case 53: //Flight Control Computer S-IVB Burn Mode On "A"
+		fcc.SetStageSwitch(2);
+		fcc.SetSIVBBurnMode(true);
+		break;
+	default:
+		break;
+	}
 }
 
 IUSV::IUSV() : fcc(lvrg), eds(lvrg)
 {
 	lvda.Init(this);
-	eds.Configure(&lvCommandConnector, &commandConnector);
+	eds.Init(this);
 }
 
 void IUSV::Timestep(double misst, double simt, double simdt, double mjd)
@@ -1800,8 +1599,8 @@ void IUSV::LoadLVDC(FILEHANDLE scn) {
 		lvrg.Init(&lvCommandConnector);			// LV Rate Gyro Package
 		lvimu.SetVessel(&lvCommandConnector);	// set vessel pointer
 		lvimu.CoarseAlignEnableFlag = false;	// Clobber this
-		lvdc->Init(&lvCommandConnector, &commandConnector);
-		fcc.Configure(&lvCommandConnector, &commandConnector);
+		lvdc->Init(&lvCommandConnector);
+		fcc.Init(this);
 	}
 	lvdc->LoadState(scn);
 
@@ -1810,6 +1609,17 @@ void IUSV::LoadLVDC(FILEHANDLE scn) {
 			lvimu.LoadState(scn);
 		}
 	}
+}
+
+bool IUSV::GetSIIPropellantDepletionEngineCutoff()
+{
+	int stage = lvCommandConnector.GetStage();
+	if (stage != LAUNCH_STAGE_TWO && stage != LAUNCH_STAGE_TWO_ISTG_JET) return false;
+
+	double oetl = lvCommandConnector.GetSIIThrusterLevel(0) + lvCommandConnector.GetSIIThrusterLevel(1) + lvCommandConnector.GetSIIThrusterLevel(2) + lvCommandConnector.GetSIIThrusterLevel(3);
+	if (oetl == 0) return true;
+
+	return false;
 }
 
 void IUSV::SaveFCC(FILEHANDLE scn)
@@ -1838,8 +1648,10 @@ void IUSV::SwitchSelector(int item)
 	{
 	case 0:	//Liftoff (NOT A REAL SWITCH SELECTOR CHANNEL)
 		fcc.SetGainSwitch(0);
+		commandConnector.SetAGCInputChannelBit(030, LiftOff, true);
 		break;
 	case 1: //Q-Ball Power Off
+		lvCommandConnector.SetQBallPowerOff();
 		break;
 	case 2: //Excess Rate (P,Y,R) Auto-Abort Inhibit and Switch Rate Gyro SC Indication "A"
 		eds.SetExcessiveRatesAutoAbortInhibit(true);
@@ -1865,6 +1677,7 @@ void IUSV::SwitchSelector(int item)
 	case 15: //Excess Rate (P,Y,R) Auto-Abort Inhibit Enable
 		break;
 	case 16: //Auto-Abort Enable Relays Reset
+		eds.ResetAutoAbortRelays();
 		break;
 	case 17: //Tape Recorder Record Off
 		break;
@@ -1890,6 +1703,7 @@ void IUSV::SwitchSelector(int item)
 		eds.SetSIIEngineOutIndicationA(true);
 		break;
 	case 29: //S-IVB Engine EDS Cutoff No. 1 Disable
+		eds.SetSIVBEngineCutoffDisabled();
 		break;
 	case 31: //Flight Control Computer Burn Mode On "A"
 		fcc.SetStageSwitch(2);

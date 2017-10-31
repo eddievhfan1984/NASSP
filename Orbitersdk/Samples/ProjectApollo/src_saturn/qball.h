@@ -2,7 +2,7 @@
 This file is part of Project Apollo - NASSP
 Copyright 2017
 
-Flight Control Computer (Header)
+Q-Ball (Header)
 
 Project Apollo is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,53 +24,21 @@ See http://nassp.sourceforge.net/license/ for more details.
 
 #pragma once
 
-class LVRG;
-class IU;
-
-class FCC
+class QBall
 {
 public:
-	FCC(LVRG &rg);
-	virtual void Timestep(double simdt) = 0;
-	void Init(IU *i);
+	QBall();
+	void Init(Saturn *vessel);
+	double GetAOA();
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
-
-	void SetAttitudeError(VECTOR3 atterr) { LVDCAttitudeError = atterr; }
-	void SetGainSwitch(int n) { GainSwitch = n; }
-	void SetStageSwitch(int n) { StageSwitch = n; }
-	void SetSIVBBurnMode(bool n) { SIVBBurnMode = n; }
-	void EnableSCControl() { SCControlEnableRelay = true; }
-	void DisableSCControl() { SCControlEnableRelay = false; }
+	void SetPowerOn() { IsPowered = true; }
+	void SetPowerOff() { IsPowered = false; }
 protected:
-	int GainSwitch;
-	int StageSwitch;
-	bool SIVBBurnMode;
-	bool SCControlEnableRelay;
+	bool IsPowered;
 
-	double a_0p, a_0y, a_0r;
-	double a_1p, a_1y, a_1r;
-	double beta_pc, beta_yc, beta_rc;
-	double beta_y1c, beta_y2c, beta_y3c, beta_y4c;
-	double beta_p1c, beta_p2c, beta_p3c, beta_p4c;
-	double eps_p, eps_ymr, eps_ypr;
-
-	VECTOR3 LVDCAttitudeError;
-
-	LVRG &lvrg;
-	IU *iu;
+	Saturn *sat;
 };
 
-class FCC1B : public FCC
-{
-public:
-	FCC1B(LVRG &rg);
-	void Timestep(double simdt);
-};
-
-class FCCSV : public FCC
-{
-public:
-	FCCSV(LVRG &rg);
-	void Timestep(double simdt);
-};
+#define QBALL_START_STRING		"QBALL_BEGIN"
+#define QBALL_END_STRING		"QBALL_END"

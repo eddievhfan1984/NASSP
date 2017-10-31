@@ -24,7 +24,6 @@
 
 #pragma once
 class IUToLVCommandConnector;
-class IUToCSMCommandConnector;
 
 /* *******************
  * LVDC++ SV VERSION *
@@ -41,13 +40,12 @@ class LVDC
 public:
 	LVDC(LVDA &lvd);
 	virtual void TimeStep(double simt, double simdt) = 0;
-	virtual void Init(IUToLVCommandConnector* lvCommandConn, IUToCSMCommandConnector* commandConn) = 0;
+	virtual void Init(IUToLVCommandConnector* lvCommandConn) = 0;
 	virtual void SaveState(FILEHANDLE scn) = 0;
 	virtual void LoadState(FILEHANDLE scn) = 0;
-	void Configure(IUToLVCommandConnector* lvc, IUToCSMCommandConnector* csmc);
+	virtual bool GetGuidanceReferenceFailure() = 0;
 protected:
 	IUToLVCommandConnector* lvCommandConnector;
-	IUToCSMCommandConnector* commandConnector;
 
 	LVDA &lvda;
 };
@@ -55,10 +53,12 @@ protected:
 class LVDCSV: public LVDC {
 public:
 	LVDCSV(LVDA &lvd);											// Constructor
-	void Init(IUToLVCommandConnector* lvCommandConn, IUToCSMCommandConnector* commandConn);
+	void Init(IUToLVCommandConnector* lvCommandConn);
 	void TimeStep(double simt, double simdt);
 	void SaveState(FILEHANDLE scn);
 	void LoadState(FILEHANDLE scn);
+
+	bool GetGuidanceReferenceFailure() { return GuidanceReferenceFailure; }
 
 	double SVCompare();
 	double LinInter(double x0, double x1, double y0, double y1, double x);
@@ -70,7 +70,6 @@ private:								// Saturn LV
 	double LVDC_TB_ETime;                           // Time elapsed since timebase start
 
 	int LVDC_Stop;									// Guidance Program: Program Stop Flag
-	double S1_Sep_Time;								// S1C Separation Counter
 
 	double BoiloffTime;
 
@@ -78,7 +77,7 @@ private:								// Saturn LV
 	bool LVDC_GRR;                                  // Guidance Reference Released
 	bool CountPIPA;									// PIPA Counter Enable
 	bool directstagereset;							// Direct Stage Reset
-	bool IGM_Failed;
+	bool GuidanceReferenceFailure;
 	
 	// These are variables that are not really part of the LVDC software.
 	VECTOR3 AttitudeError;                          // Attitude Error
@@ -148,6 +147,7 @@ private:								// Saturn LV
 	bool TU10;										// Gate for processing ten-paramemter targeting update
 	bool first_op;									// switch for first TLI opportunity
 	bool TerminalConditions;						// Use preset terminal conditions (R_T, V_T, gamma_T and G_T) for into-orbit targeting
+	bool PermanentSCControl;						// SC has permanent control of the FCC
 
 	// LVDC software variables, PAD-LOADED BUT NOT NECESSARILY CONSTANT!
 	VECTOR3 XLunarAttitude;							// Attitude the SIVB enters when TLI is done, i.e. at start of TB7
@@ -231,6 +231,10 @@ private:								// Saturn LV
 	double K_pc;									// Constant time used to force MRS in out-of-orbit mode
 	double R_N;										// Nominal radius at SIVB reignition
 	double TI5F2;									// Time in Timebase 5 to maneuver to local reference attitude
+	double K_D;										// Orbital drag model constant
+	double rho_c;									// Constant rho for use when altitude is less than h_1
+	double h_1;										// Lower limit of h for atmospheric density polynomial
+	double h_2;										// Upper limit of h for atmospheric density polynomial
 	
 	// PAD-LOADED TABLES
 	double Fx[5][5];								// Pre-IGM pitch polynomial
@@ -328,7 +332,7 @@ private:								// Saturn LV
 	double H;										// coefficient for third zonal gravity harmonic
 	double D;										// coefficient for fourth zonal gravity harmonic
 	double CG;
-	double gamma;									// Computed flight path angle
+	double cos_alpha;								// cosine of the angle of attack
 	double gamma_T;									// Desired terminal flight path angle
 	double alpha_D;									// Angle from perigee to DN vector
 	bool alpha_D_op;								// Option to determine alpha_D or load it
@@ -376,6 +380,7 @@ private:								// Saturn LV
 	double cos_chi_Yit;
 	double sin_chi_Zit;
 	double cos_chi_Zit;
+	double h;										// Altitude of the vehicle above the oblate spheroid of the earth
 	// TABLE15
 	/*
 		These tables store the precomputed out-of-orbit targeting data for the Saturn V launches.
@@ -391,6 +396,9 @@ private:								// Saturn LV
 		double T_ST;				// Time after launch for the out-of-orbit targeting to perform the S*T_P test (determine injection validity and restart time)
 		double f;					// True anomaly at cutoff of transfer ellipse
 		double R_N;					// Restart radius
+		double T3PR;				// IGM phase 5 time-to-go
+		double TAU3R;				// Time to deplete S-IVB mass from S-IVB EMR
+		double dV_BR;				// Thrust decay velocity bias
 
 		//This data structure stores the actual launch tables. Array indexing should make it easier to iterate through the launch times and select the desired launch information.
 		struct target_table {
@@ -420,10 +428,12 @@ private:								// Saturn LV
 class LVDC1B: public LVDC {
 public:
 	LVDC1B(LVDA &lvd);										// Constructor
-	void Init(IUToLVCommandConnector* lvCommandConn, IUToCSMCommandConnector* commandConn);
+	void Init(IUToLVCommandConnector* lvCommandConn);
 	void TimeStep(double simt, double simdt);
 	void SaveState(FILEHANDLE scn);
 	void LoadState(FILEHANDLE scn);
+
+	bool GetGuidanceReferenceFailure() { return GuidanceReferenceFailure; }
 
 	double SVCompare();
 private:
@@ -433,17 +443,18 @@ private:
 	bool LVDC_Stop;									// Program Stop Flag
 	int LVDC_Timebase;								// Time Base
 	double LVDC_TB_ETime;                           // Time elapsed since timebase start
-	double S1B_Sep_Time;							// S1B Separation Counter
 	int IGMCycle;									// IGM Cycle Counter (for debugging)
 	double BoiloffTime;
 
 	// These are boolean flags that are NOT real flags in the LVDC SOFTWARE. (I.E. Hardware flags)
 	bool LVDC_GRR;                                  // Guidance Reference Released
 	bool CountPIPA;									// PIPA Counter Enable
+	bool GuidanceReferenceFailure;
 	
 	// These are variables that are not really part of the LVDC software.
 	VECTOR3 AttitudeError;                          // Attitude Error
 	VECTOR3 DeltaAtt;
+	int CommandSequence;
 
 	// Event Times
 	double t_fail;									// S1C Engine Failure time
@@ -481,7 +492,8 @@ private:
 	bool GATE5;										// Logic gate that ensures only one pass through cutoff initialization
 	bool INH,INH1,INH2;								// Dunno yet
 	bool TerminalConditions;						// Use preset terminal conditions (R_T, V_T, gamma_T and G_T) for into-orbit targeting
-	
+	bool PermanentSCControl;						// SC has permanent control of the FCC
+
 	// LVDC software variables, PAD-LOADED BUT NOT NECESSARILY CONSTANT!
 	double B_11,B_21;								// Coefficients for determining freeze time after S1C engine failure
 	double B_12,B_22;								// Coefficients for determining freeze time after S1C engine failure	

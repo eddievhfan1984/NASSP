@@ -179,7 +179,7 @@ Saturn::Saturn(OBJHANDLE hObj, int fmodel) : ProjectApolloConnectorVessel (hObj,
 	CMRCS1(ph_rcs_cm_1, Panelsdk),
 	CMRCS2(ph_rcs_cm_2, Panelsdk),
 	SPSPropellant(ph_sps, Panelsdk),
-	SPSEngine(th_main[0]),
+	SPSEngine(th_sps[0]),
 	CMSMPyros("CM-SM-Pyros", Panelsdk),
 	CMSMPyrosFeeder("CM-SM-Pyros-Feeder", Panelsdk),
 	CMDockingRingPyros("CM-DockingRing-Pyros", Panelsdk),
@@ -222,7 +222,8 @@ Saturn::Saturn(OBJHANDLE hObj, int fmodel) : ProjectApolloConnectorVessel (hObj,
 	omnia(_V(0.0, 0.707108, 0.707108)),
 	omnib(_V(0.0, -0.707108, 0.707108)),
 	omnic(_V(0.0, -0.707108, -0.707108)),
-	omnid(_V(0.0, 0.707108, -0.707108))
+	omnid(_V(0.0, 0.707108, -0.707108)),
+	sivb(this, th_3rd[0], th_3rd_lox, thg_ver)
 
 #pragma warning ( pop ) // disable:4355
 
@@ -355,13 +356,15 @@ void Saturn::initSaturn()
 	FireTJM = false;
 	FirePCM = false;
 
+	FailureMultiplier = 1.0;
+	PlatFail = 0;
+
 	DeleteLaunchSite = true;
 
 	buildstatus = 6;
 
 	ThrustAdjust = 1.0;
 	MixtureRatio = 5.5;
-	J2IsActive = true;
 
 	DockAngle = 0;
 
@@ -600,7 +603,10 @@ void Saturn::initSaturn()
 	// Thruster groups.
 	//
 
-	thg_main = 0;
+	thg_1st = 0;
+	thg_2nd = 0;
+	thg_3rd = 0;
+	thg_sps = 0;
 	thg_lem = 0;
 	//thg_tjm = 0;
 	thg_ull = 0;
@@ -667,21 +673,27 @@ void Saturn::initSaturn()
 	ClearLVGuidLight();
 	ClearLVRateLight();
 	ClearLiftoffLight();
-
-	for (i = 0; i < 8; i++)
-	{
-		LAUNCHIND[i] = false;
-	}
+	ClearNoAutoAbortLight();
 
 	for (i = 0; i < nsurf; i++)
 	{
 		srf[i] = 0;
 	}
 
+	for (i = 0; i < 8; i++)
+	{
+		th_1st[i] = 0;
+	}
+
 	for (i = 0; i < 5; i++)
 	{
-		th_main[i] = 0;
+		th_2nd[i] = 0;
 	}
+
+	th_3rd[0] = 0;
+	th_3rd_lox = 0;
+	th_3rd_lh2 = 0;
+	th_sps[0] = 0;
 
 	/*for (i = 0; i < 2; i++)
 	{
@@ -809,6 +821,8 @@ void Saturn::initSaturn()
 	hEVA = 0;
 
 	pMCC = NULL;
+
+	iu = NULL;
 
 	//
 	// Timestep tracking for debugging.
@@ -1153,6 +1167,13 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	char str[256];
 
 	oapiWriteScenario_int (scn, "NASSPVER", NASSP_VERSION);
+	if (stage < LAUNCH_STAGE_SIVB)
+	{
+		papiWriteScenario_double(scn, "FAILUREMULTIPLIER", FailureMultiplier);
+		if (PlatFail > 0) {
+			papiWriteScenario_double(scn, "PLATFAIL", PlatFail);
+		}
+	}
 	oapiWriteScenario_int (scn, "STAGE", stage);
 	oapiWriteScenario_int(scn, "VECHNO", VehicleNo);
 	oapiWriteScenario_int (scn, "APOLLONO", ApolloNo);
@@ -1165,7 +1186,6 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	papiWriteScenario_double (scn, "NFAILTIME", NextFailureTime);
 	papiWriteScenario_double (scn, "THRUSTA", ThrustAdjust);
 	papiWriteScenario_double (scn, "MR", MixtureRatio);
-	papiWriteScenario_bool (scn, "J2ISACTIVE", J2IsActive);
 
 //	oapiWriteScenario_string (scn, "STAGECONFIG", StagesString);
 
@@ -1299,12 +1319,18 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	secs.SaveState(scn);
 	els.SaveState(scn);
 
+	if (LESAttached)
+	{
+		qball.SaveState(scn, QBALL_START_STRING, QBALL_END_STRING);
+	}
+
 	//
 	// If we've seperated from the SIVb, the IU is history.
 	//
 	if (stage < CSM_LEM_STAGE)
 	{
-		iu->SaveState(scn);
+		sivb.SaveState(scn);
+		SaveIU(scn);
 		SaveLVDC(scn);
 	}
 
@@ -1437,13 +1463,6 @@ void Saturn::SetMainState(int s)
 	SplashdownPlayed = (state.SplashdownPlayed != 0);
 	FirePCM = state.FirePCM;
 	PostSplashdownPlayed = (state.PostSplashdownPlayed != 0);
-	MissionTimerDisplay.SetRunning(state.MissionTimerRunning != 0);
-	MissionTimerDisplay.SetEnabled(state.MissionTimerEnabled != 0);
-	EventTimerDisplay.SetRunning(state.EventTimerRunning != 0);
-	EventTimerDisplay.SetEnabled(state.EventTimerEnabled != 0);
-	//Hack to make EventTimer306Display work in old scenarios. Remove at some point.
-	EventTimer306Display.SetEnabled(state.EventTimerEnabled != 0);
-	EventTimerDisplay.SetCountUp(state.EventTimerCountUp);
 	SkylabSM = (state.SkylabSM != 0);
 	SkylabCM = (state.SkylabCM != 0);
 	S1bPanel = (state.S1bPanel != 0);
@@ -1544,14 +1563,8 @@ int Saturn::GetLightState()
 	state.Engind7 = ENGIND[7];
 	state.Engind8 = ENGIND[8];
 	state.LVGuidLight = LVGuidLight;
-	state.Launchind0 = LAUNCHIND[0];
-	state.Launchind1 = LAUNCHIND[1];
-	state.Launchind2 = LAUNCHIND[2];
-	state.Launchind3 = LAUNCHIND[3];
-	state.Launchind4 = LAUNCHIND[4];
-	state.Launchind5 = LAUNCHIND[5];
-	state.Launchind6 = LAUNCHIND[6];
-	state.Launchind7 = LAUNCHIND[7];
+	state.LiftoffLight = LiftoffLight;
+	state.NoAutoAbortLight = NoAutoAbortLight;
 	state.LVRateLight = LVRateLight;
 
 	return state.word;
@@ -1573,14 +1586,8 @@ void Saturn::SetLightState(int s)
 	ENGIND[7] = (state.Engind7 != 0);
 	ENGIND[8] = (state.Engind8 != 0);
 	LVGuidLight = (state.LVGuidLight != 0);
-	LAUNCHIND[0] = (state.Launchind0 != 0);
-	LAUNCHIND[1] = (state.Launchind1 != 0);
-	LAUNCHIND[2] = (state.Launchind2 != 0);
-	LAUNCHIND[3] = (state.Launchind3 != 0);
-	LAUNCHIND[4] = (state.Launchind4 != 0);
-	LAUNCHIND[5] = (state.Launchind5 != 0);
-	LAUNCHIND[6] = (state.Launchind6 != 0);
-	LAUNCHIND[7] = (state.Launchind7 != 0);
+	LiftoffLight = (state.LiftoffLight != 0);
+	NoAutoAbortLight = (state.NoAutoAbortLight != 0);
 	LVRateLight = (state.LVRateLight != 0);
 }
 
@@ -1600,6 +1607,12 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 	}
 	else if (!strnicmp (line, "NASSPVER", 8)) {
 		sscanf (line + 8, "%d", &nasspver);
+	}
+	else if (!strnicmp(line, "FAILUREMULTIPLIER", 17)) {
+		sscanf(line + 17, "%lf", &FailureMultiplier);
+	}
+	else if (!strnicmp(line, "PLATFAIL", 8)) {
+		sscanf(line + 8, "%lf", &PlatFail);
 	}
 	else if (!strnicmp (line, "BUILDSTATUS", 11)) {
 		sscanf (line+11, "%d", &buildstatus);
@@ -1730,14 +1743,6 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 	else if (!strnicmp(line, "MISSNTIME", 9)) {
         sscanf (line+9, "%f", &ftcp);
 		MissionTime = ftcp;
-	}
-	else if (!strnicmp(line, "MTD", 3)) {
-        sscanf (line + 3, "%f", &ftcp);
-		MissionTimerDisplay.SetTime(ftcp);
-	}
-	else if (!strnicmp(line, "ETD", 3)) {
-        sscanf (line + 3, "%f", &ftcp);
-		EventTimerDisplay.SetTime(ftcp);
 	}
 	else if (!strnicmp(line, "NMISSNTIME", 10)) {
         sscanf (line + 10, "%f", &ftcp);
@@ -1911,8 +1916,14 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 	else if (!strnicmp(line, ASCP_START_STRING, sizeof(ASCP_START_STRING))) {
 		ascp.LoadState(scn);
 	}
+	else if (!strnicmp(line, QBALL_START_STRING, sizeof(QBALL_START_STRING))) {
+		qball.LoadState(scn, QBALL_END_STRING);
+	}
+	else if (!strnicmp(line, SIVBSYSTEMS_START_STRING, sizeof(SIVBSYSTEMS_START_STRING))) {
+		sivb.LoadState(scn);
+	}
 	else if (!strnicmp(line, IU_START_STRING, sizeof(IU_START_STRING))) {
-		iu->LoadState(scn);
+		LoadIU(scn);
 	}
 	else if (!strnicmp(line, LVDC_START_STRING, sizeof(LVDC_START_STRING))) {
 		LoadLVDC(scn);
@@ -2142,7 +2153,6 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 		else if (papiReadScenario_double(line, "LMASCFUEL", LMAscentFuelMassKg));
 		else if (papiReadScenario_double(line, "LMDSCEMPTY", LMDescentEmptyMassKg));
 		else if (papiReadScenario_double(line, "LMASCEMPTY", LMAscentEmptyMassKg));
-		else if (papiReadScenario_bool(line, "J2ISACTIVE", J2IsActive)); 
 		else if (!strnicmp(line, ChecklistControllerStartString, strlen(ChecklistControllerStartString))) {
 			checkControl.load(scn);
 		} else if (!strnicmp(line, "LEMCHECK", 8)) {
@@ -2275,13 +2285,8 @@ void Saturn::GetScenarioState (FILEHANDLE scn, void *vstatus)
 	}
 }
 
-
 void Saturn::SaveLVDC(FILEHANDLE scn) {
-	iu->SaveLVDC(scn);
-}
-
-void Saturn::LoadLVDC(FILEHANDLE scn) {
-	iu->LoadLVDC(scn);
+	if (iu != NULL) { iu->SaveLVDC(scn); }
 }
 
 //
@@ -3749,7 +3754,10 @@ void Saturn::GenericLoadStateSetup()
 	// Initialize the IU
 	//
 
-	iu->SetMissionInfo(TLICapableBooster, Crewed); 
+	if (stage < CSM_LEM_STAGE)
+	{
+		iu->SetMissionInfo(TLICapableBooster, Crewed);
+	}
 
 	//
 	// Disable master alarm sound on unmanned flights.
@@ -3863,7 +3871,10 @@ void Saturn::ClearThrusters()
 	// Thruster groups.
 	//
 
-	thg_main = 0;
+	thg_1st = 0;
+	thg_2nd = 0;
+	thg_3rd = 0;
+	thg_sps = 0;
 	thg_lem = 0;
 	//thg_tjm = 0;
 	thg_ull = 0;
@@ -4129,15 +4140,6 @@ void Saturn::SIVBBoiloff()
 void Saturn::StageSix(double simt)
 
 {
-	//
-	// Should we be turning off these lights here?
-	//
-
-	for (int i=0 ;i<6; i++)
-	{
-		LAUNCHIND[i]=false;
-	}
-
 	if (ApolloNo == 1301) {
 
 		//
@@ -4496,40 +4498,51 @@ void Saturn::SetRandomFailures()
 		}
 	}
 
-}
+	if (stage > PRELAUNCH_STAGE) return;
 
-void Saturn::SetJ2ThrustLevel(double thrust)
+	bool PlatformFailure;
+	double PlatformFailureTime;
 
-{
-	if (stage != STAGE_ORBIT_SIVB || !th_main[0])
-		return;
-
-	SetThrusterLevel(th_main[0], thrust);
-}
-
-void Saturn::EnableDisableJ2(bool Enable)
-
-{
-	if (stage != STAGE_ORBIT_SIVB || !th_main[0] || !ph_3rd)
-		return;
-
-	if (Enable)
+	if (PlatFail > 0)
 	{
-		SetThrusterResource(th_main[0], ph_3rd);
+		if (PlatFail > 1)
+		{
+			PlatformFailure = true;
+			PlatformFailureTime = PlatFail;
+		}
+		else
+		{
+			PlatformFailure = true;
+			PlatformFailureTime = 20.0 + ((double)(random() & 1023) / 2.0);
+		}
+		
+		iu->GetEDS()->SetPlatformFailureParameters(PlatformFailure, PlatformFailureTime);
 	}
-	else
+	else if (!(random() & (int)(127.0 / FailureMultiplier)))
 	{
-		SetThrusterResource(th_main[0], NULL);
+		PlatformFailure = true;
+		PlatformFailureTime = 20.0 + ((double)(random() & 1023) / 2.0);
+
+		iu->GetEDS()->SetPlatformFailureParameters(PlatformFailure, PlatformFailureTime);
 	}
 }
 
 double Saturn::GetJ2ThrustLevel()
 
 {
-	if (stage != STAGE_ORBIT_SIVB || !th_main[0])
+	if (stage != STAGE_ORBIT_SIVB || !th_3rd[0])
 		return 0.0;
 
-	return GetThrusterLevel(th_main[0]);
+	return GetThrusterLevel(th_3rd[0]);
+}
+
+double Saturn::GetSIPropellantMass()
+
+{
+	if (stage > LAUNCH_STAGE_ONE || !ph_1st)
+		return 0.0;
+
+	return GetPropellantMass(ph_1st);
 }
 
 double Saturn::GetSIVbPropellantMass()
@@ -4595,9 +4608,11 @@ int Saturn::GetTwoEngineOutAutoSwitchState()
 	return TwoEngineOutAutoSwitch.GetState();
 }
 
-bool Saturn::GetBECOSignal()
+bool Saturn::GetBECOSignal(bool IsSysA)
 {
-	return secs.BECO();
+	if (IsSysA) return secs.MESCA.BECO();
+
+	return secs.MESCB.BECO();
 }
 
 bool Saturn::IsEDSBusPowered(int eds)
@@ -4639,30 +4654,103 @@ int Saturn::GetAGCAttitudeError(int axis)
 	return 0;
 }
 
+double Saturn::GetSIThrusterLevel(int n)
+{
+	if (stage > LAUNCH_STAGE_ONE) return 0.0;
+	if (n < 0 || n > 7) return 0.0;
+	if (!th_1st[n]) return 0.0;
+
+	return GetThrusterLevel(th_1st[n]);
+}
+
+double Saturn::GetSIIThrusterLevel(int n)
+{
+	if (stage != LAUNCH_STAGE_TWO && stage != LAUNCH_STAGE_TWO_ISTG_JET) return 0.0;
+	if (n < 0 || n > 4) return 0.0;
+	if (!th_2nd[n]) return 0.0;
+
+	return GetThrusterLevel(th_2nd[n]);
+}
+
+bool Saturn::GetSIVBThrustOK()
+{
+	if (stage != LAUNCH_STAGE_SIVB && stage != STAGE_ORBIT_SIVB) return false;
+
+	return sivb.GetThrustOK();
+}
+
 void Saturn::SetSIThrusterDir(int n, VECTOR3 &dir)
 {
 	if (n < 0 || n > 7) return;
-	if (stage != LAUNCH_STAGE_ONE) return;
-	if (!th_main[n]) return;
+	if (stage > LAUNCH_STAGE_ONE) return;
+	if (!th_1st[n]) return;
 
-	SetThrusterDir(th_main[n], dir);
+	SetThrusterDir(th_1st[n], dir);
 }
 
 void Saturn::SetSIIThrusterDir(int n, VECTOR3 &dir)
 {
 	if (n < 0 || n > 4) return;
 	if (stage != LAUNCH_STAGE_TWO && stage!= LAUNCH_STAGE_TWO_ISTG_JET) return;
-	if (!th_main[n]) return;
+	if (!th_2nd[n]) return;
 
-	SetThrusterDir(th_main[n], dir);
+	SetThrusterDir(th_2nd[n], dir);
 }
 
 void Saturn::SetSIVBThrusterDir(VECTOR3 &dir)
 {
 	if (stage != LAUNCH_STAGE_SIVB && stage != STAGE_ORBIT_SIVB) return;
-	if (!th_main[0]) return;
+	if (!th_3rd[0]) return;
 
-	SetThrusterDir(th_main[0], dir);
+	SetThrusterDir(th_3rd[0], dir);
+}
+
+void Saturn::ClearSIThrusterResource(int n)
+{
+	if (stage != LAUNCH_STAGE_ONE) return;
+	if (n < 0 || n > 7) return;
+	if (!th_1st[n]) return;
+
+	SetThrusterResource(th_1st[n], NULL);
+}
+
+void Saturn::ClearSIIThrusterResource(int n)
+{
+	if (stage != LAUNCH_STAGE_TWO && stage != LAUNCH_STAGE_TWO_ISTG_JET) return;
+	if (n < 0 || n > 4) return;
+	if (!th_2nd[n]) return;
+
+	SetThrusterResource(th_2nd[n], NULL);
+}
+
+void Saturn::SIVBEDSCutoff(bool cut)
+{
+	if (stage != LAUNCH_STAGE_SIVB && stage != STAGE_ORBIT_SIVB) return;
+
+	sivb.EDSEngineCutoff(cut);
+}
+
+void Saturn::SetQBallPowerOff()
+{
+	qball.SetPowerOff();
+}
+
+void Saturn::SetSIThrusterLevel(int n, double level)
+{
+	if (stage != PRELAUNCH_STAGE && stage != LAUNCH_STAGE_ONE) return;
+	if (n < 0 || n > 7) return;
+	if (!th_1st[n]) return;
+
+	SetThrusterLevel(th_1st[n], level);
+}
+
+void Saturn::SetSIIThrusterLevel(int n, double level)
+{
+	if (stage != LAUNCH_STAGE_TWO && stage != LAUNCH_STAGE_TWO_ISTG_JET) return;
+	if (n < 0 || n > 4) return;
+	if (!th_2nd[n]) return;
+
+	SetThrusterLevel(th_2nd[n], level);
 }
 
 void Saturn::SetAPSUllageThrusterLevel(int n, double level)

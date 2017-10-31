@@ -60,6 +60,8 @@
 #include "checklistController.h"
 #include "payload.h"
 #include "csmcomputer.h"
+#include "qball.h"
+#include "sivbsystems.h"
 
 #define DIRECTINPUT_VERSION 0x0800
 #include "dinput.h"
@@ -590,14 +592,14 @@ public:
 			unsigned Engind4:1;
 			unsigned Engind5:1;
 			unsigned LVGuidLight:1;
-			unsigned Launchind0:1;
-			unsigned Launchind1:1;
-			unsigned Launchind2:1;
-			unsigned Launchind3:1;
-			unsigned Launchind4:1;
-			unsigned Launchind5:1;
-			unsigned Launchind6:1;
-			unsigned Launchind7:1;
+			unsigned LiftoffLight:1;
+			unsigned NoAutoAbortLight:1;
+			unsigned spare1:1;
+			unsigned spare2:1;
+			unsigned spare3:1;
+			unsigned spare4:1;
+			unsigned spare5:1;
+			unsigned spare6:1;
 			unsigned Engind6:1;
 			unsigned Engind7:1;
 			unsigned Engind8:1;
@@ -665,7 +667,7 @@ public:
 	///
 	union MainState {
 		struct {
-			unsigned MissionTimerRunning:1;			///< Is the Mission timer running?
+			unsigned unused2:1;						///< Spare
 			unsigned SIISepState:1;					///< State of the SII Sep light.
 			unsigned TLIBurnDone:1;					///< Have we done our TLI burn?
 			unsigned Scorrec:1;						///< Have we played the course correction sound?
@@ -679,10 +681,10 @@ public:
 			unsigned PostSplashdownPlayed:1;		///< Have we played the post-splashdown sound?
 			unsigned unused:1;						///< Unused bit for backwards compatibility. Can be used for other things.
 			unsigned TLISoundsLoaded:1;				///< Have we loaded the TLI sounds?
-			unsigned MissionTimerEnabled:1;			///< Is the Mission Timer enabled?
-			unsigned EventTimerEnabled:1;			///< Is the Event Timer enabled?
-			unsigned EventTimerRunning:1;			///< Is the Event Timer running?
-			unsigned EventTimerCountUp:2;			///< Is the Event Timer counting up?
+			unsigned unused3:1;						///< Spare
+			unsigned unused4:1;						///< Spare
+			unsigned unused5:1;						///< Spare
+			unsigned unused6:2;						///< Spare
 			unsigned SkylabSM:1;					///< Is this a Skylab Service Module?
 			unsigned SkylabCM:1;					///< Is this a Skylab Command Module?
 			unsigned S1bPanel:1;					///< Is this a Command Module with a Saturn 1b panel?
@@ -926,18 +928,22 @@ public:
 	///
 	double GetMissionTime() { return MissionTime; };
 
-	THRUSTER_HANDLE GetMainThruster(int n) { return th_main[n]; }
-	THGROUP_HANDLE GetMainThrusterGroup() { return thg_main; }
-	THGROUP_HANDLE GetVernierThrusterGroup() { return thg_ver; }
 	double GetFirstStageThrust() { return THRUST_FIRST_VAC; }
-	PROPELLANT_HANDLE GetFirstStagePropellantHandle() { return ph_1st; }
-	PROPELLANT_HANDLE GetThirdStagePropellantHandle() { return ph_3rd; }
-	bool GetSIISepLight() { return SIISepState; };
+
+	double GetSIThrusterLevel(int n);
+	double GetSIIThrusterLevel(int n);
+	bool GetSIVBThrustOK();
 	void SetSIThrusterDir(int n, VECTOR3 &dir);
 	void SetSIIThrusterDir(int n, VECTOR3 &dir);
 	void SetSIVBThrusterDir(VECTOR3 &dir);
+	void SetSIThrusterLevel(int n, double level);
+	void SetSIIThrusterLevel(int n, double level);
 	void SetAPSUllageThrusterLevel(int n, double level);
 	void SetAPSThrusterLevel(int n, double level);
+	void ClearSIThrusterResource(int n);
+	void ClearSIIThrusterResource(int n);
+	void SIVBEDSCutoff(bool cut);
+	void SetQBallPowerOff();
 
 	///
 	/// \brief Triggers Virtual AGC core dump
@@ -1069,6 +1075,18 @@ public:
 	void ClearLiftoffLight();
 
 	///
+	/// Turn on the no auto abort light on the control panel.
+	/// \brief Set the no auto abort light.
+	///
+	void SetNoAutoAbortLight();
+
+	///
+	/// Turn off the no auto abort light on the control panel.
+	/// \brief Clear the no auto abort light.
+	///
+	void ClearNoAutoAbortLight();
+
+	///
 	/// Turn on the LV Guidance warning light on the control panel to indicate an autopilot
 	/// failure.
 	/// \brief Set the LV Guidance light.
@@ -1095,23 +1113,6 @@ public:
 	void ClearLVRateLight();
 
 	///
-	/// \brief Enable or disable the J2 engine on the SIVb.
-	/// \param Enable Engine on or off.
-	///
-	void EnableDisableJ2(bool Enable);
-
-	///
-	/// \brief Set up J2 engines as fuel venting thruster.
-	///
-	virtual void SetVentingJ2Thruster() = 0;
-
-	///
-	/// \brief Set thrust level of the SIVb J2 engine.
-	/// \param thrust Thrust level 0.0 - 1.0.
-	///
-	void SetJ2ThrustLevel(double thrust);
-
-	///
 	/// \brief Get thrust level of the SIVb J2 engine.
 	/// \return Thrust level 0.0 - 1.0.
 	///
@@ -1120,6 +1121,8 @@ public:
 	void SetSaturnAttitudeRotLevel(VECTOR3 th);
 	double GetSaturnMaxThrust(ENGINETYPE eng);
 	void SIVBBoiloff();
+
+	double GetSIPropellantMass();
 
 	///
 	/// \brief Get propellant mass in the SIVb stage.
@@ -1149,7 +1152,7 @@ public:
 	int GetLVRateAutoSwitchState();
 	int GetTwoEngineOutAutoSwitchState();
 
-	bool GetBECOSignal();
+	bool GetBECOSignal(bool IsSysA);
 	bool IsEDSBusPowered(int eds);
 	int GetAGCAttitudeError(int axis);
 
@@ -1408,12 +1411,6 @@ protected:
 	/// \brief Time of last event.
 	///
 	double LastMissionEventTime;
-
-	///
-	/// Is the S-IVB J2 engine active for burns or venting
-	/// \brief Is the S-IVB J2 engine active for burns or venting
-	///
-	bool J2IsActive; 
 
 
 	///
@@ -3393,7 +3390,8 @@ protected:
 	/// \brief Engine indicator lights.
 	///
 	bool ENGIND[9];
-	bool LAUNCHIND[8];
+	bool LiftoffLight;
+	bool NoAutoAbortLight;
 	bool LVGuidLight;
 	bool LVRateLight;
 
@@ -3626,11 +3624,14 @@ protected:
 	CDU tcdu;
 	CDU scdu;
 	IU* iu;
+	SIVBSystems sivb;
 	CSMCautionWarningSystem cws;
 
 	DockingProbe dockingprobe;
 	SECS secs;
 	ELS els;
+
+	QBall qball;
 
 	Pyro CMSMPyros;
 	Pyro CMDockingRingPyros;
@@ -3790,6 +3791,9 @@ protected:
 	bool FireLEM;
 	bool FireTJM;
 	bool FirePCM;
+
+	double FailureMultiplier;
+	double PlatFail;
 
 	OBJHANDLE hEVA;
 
@@ -3974,8 +3978,10 @@ protected:
 	virtual void SetVehicleStats() = 0;
 	virtual void CalculateStageMass () = 0;
 	virtual void SaveVehicleStats(FILEHANDLE scn) = 0;
+	virtual void LoadIU(FILEHANDLE scn) = 0;
+	virtual void SaveIU(FILEHANDLE scn) = 0;
 	void SaveLVDC(FILEHANDLE scn);
-	void LoadLVDC(FILEHANDLE scn);
+	virtual void LoadLVDC(FILEHANDLE scn) = 0;
 
 	void GetScenarioState (FILEHANDLE scn, void *status);
 	bool ProcessConfigFileLine (FILEHANDLE scn, char *line);
@@ -4116,10 +4122,13 @@ protected:
 	// Thruster group handles. We have a lot of these :).
 	//
 
-	THGROUP_HANDLE thg_main, thg_ull, thg_ver, thg_lem;//, thg_tjm;
+	THGROUP_HANDLE thg_1st, thg_2nd, thg_3rd, thg_sps;
+	THGROUP_HANDLE thg_ull, thg_ver, thg_lem;//, thg_tjm;
 	THGROUP_HANDLE thg_retro1, thg_retro2, thg_aps;
 
-	THRUSTER_HANDLE th_main[5], th_ull[8], th_ver[3];                       // handles for orbiter main engines
+	THRUSTER_HANDLE th_1st[8], th_2nd[5], th_3rd[1], th_sps[1];
+	THRUSTER_HANDLE th_3rd_lox, th_3rd_lh2;
+	THRUSTER_HANDLE th_ull[8], th_ver[3];                       // handles for orbiter main engines
 	THRUSTER_HANDLE th_lem[4], th_tjm[2], th_pcm;
 	THRUSTER_HANDLE th_att_rot[24], th_att_lin[24];              
 	THRUSTER_HANDLE	th_aps[3];
@@ -4343,6 +4352,7 @@ protected:
 	friend class SaturnHighGainAntennaYawMeter;
 	friend class SaturnHighGainAntennaStrengthMeter;
 	friend class SaturnSystemTestAttenuator;
+	friend class SaturnLVSPSPcMeter;
 	// Friend class the MFD too so it can steal our data
 	friend class ProjectApolloMFD;
 	friend class ApolloRTCCMFD;

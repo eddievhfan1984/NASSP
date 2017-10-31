@@ -76,7 +76,6 @@ Saturn1b::Saturn1b (OBJHANDLE hObj, int fmodel)
 {
 	hMaster = hObj;
 	initSaturn1b();
-	iu = new IU1B;
 }
 
 Saturn1b::~Saturn1b()
@@ -298,8 +297,8 @@ void Saturn1b::SetSIVBMixtureRatio (double ratio)
 	// be in near-vacuum anyway.
 	//
 
-	SetThrusterIsp (th_main[0], isp, isp);
-	SetThrusterMax0 (th_main[0], thrust);
+	SetThrusterIsp (th_3rd[0], isp, isp);
+	SetThrusterMax0 (th_3rd[0], thrust);
 
 	MixtureRatio = ratio;
 }
@@ -369,9 +368,9 @@ void Saturn1b::SwitchSelector(int item){
 		ActivatePrelaunchVenting();
 		break;
 	case 12:
-		SetThrusterGroupLevel(thg_main, 0);				// Ensure off
+		SetThrusterGroupLevel(thg_1st, 0);				// Ensure off
 		for (i = 0; i < 5; i++) {						// Reconnect fuel to S1C engines
-			SetThrusterResource(th_main[i], ph_1st);
+			SetThrusterResource(th_1st[i], ph_1st);
 		}
 		CreateStageOne();								// Create hidden stage one, for later use in staging
 		break;
@@ -384,67 +383,108 @@ void Saturn1b::SwitchSelector(int item){
 	case 14:
 		DeactivatePrelaunchVenting();
 		break;
-	case 15:
-		SetLiftoffLight();										// And light liftoff lamp
+	}
+}
+
+void Saturn1b::SISwitchSelector(int channel)
+{
+	if (stage > LAUNCH_STAGE_ONE) return;
+
+	switch (channel)
+	{
+	case 0: //Liftoff (NOT A REAL SWITCH SELECTOR EVENT)
 		SetStage(LAUNCH_STAGE_ONE);								// Switch to stage one
-																		// Start mission and event timers
-		secs.LiftoffA();
-		secs.LiftoffB();
-		agc.SetInputChannelBit(030, LiftOff, true);					// Inform AGC of liftoff
-		SetThrusterGroupLevel(thg_main, 1.0);				// Set full thrust, just in case
+		SetThrusterGroupLevel(thg_1st, 1.0);				// Set full thrust, just in case
 		contrailLevel = 1.0;
 		if (LaunchS.isValid() && !LaunchS.isPlaying()) {	// And play launch sound
 			LaunchS.play(NOLOOP, 255);
 			LaunchS.done();
 		}
 		break;
-	case 16:
-		SetThrusterResource(th_main[4], NULL);
-		SetThrusterResource(th_main[5], NULL);
-		SetThrusterResource(th_main[6], NULL);
-		SetThrusterResource(th_main[7], NULL);
-		SShutS.play(NOLOOP,235);
-		SShutS.done();
-		break;
-	case 17:
+	case 18: //Outboard Engines Cutoff
 		// Move hidden S1B
-		if(hstg1){
+		if (hstg1) {
 			VESSELSTATUS vs;
 			GetStatus(vs);
-			S1B *stage1 = (S1B *) oapiGetVesselInterface(hstg1);
+			S1B *stage1 = (S1B *)oapiGetVesselInterface(hstg1);
 			stage1->DefSetState(&vs);
-		}				
+		}
 		// Engine Shutdown
-		for (i = 0; i < 5; i++){
-			SetThrusterResource(th_main[i], NULL);
+		for (int i = 0; i < 5; i++) {
+			SetThrusterResource(th_1st[i], NULL);
 		}
 		break;
-	case 18:
-		ClearEngineIndicators();
+	case 23: //S-IB/S-IVB Separation On
 		SeparateStage(LAUNCH_STAGE_SIVB);
 		SetStage(LAUNCH_STAGE_SIVB);
 		AddRCS_S4B();
 		SetSIVBThrusters(true);
-		SetThrusterGroupLevel(thg_ver,1.0);
-		SetThrusterResource(th_main[0], ph_3rd);
-		SetSIVBMixtureRatio(5.5);				
+		SetThrusterResource(th_3rd[0], ph_3rd);
 		break;
-	case 23:
-		SetSIVBMixtureRatio (4.5); // Is this 4.7 or 4.2? AP8 says 4.5
-		SPUShiftS.play(NOLOOP,255); 
-		SPUShiftS.done();
+	case 98: //Inboard Engines Cutoff
+		SetThrusterResource(th_1st[4], NULL);
+		SetThrusterResource(th_1st[5], NULL);
+		SetThrusterResource(th_1st[6], NULL);
+		SetThrusterResource(th_1st[7], NULL);
+		SShutS.play(NOLOOP, 235);
+		SShutS.done();
+		break;
+	default:
 		break;
 	}
 }
 
-void Saturn1b::SISwitchSelector(int channel)
-{
-
-}
-
 void Saturn1b::SIVBSwitchSelector(int channel)
 {
+	if (stage >= CSM_LEM_STAGE) return;
 
+	switch (channel)
+	{
+	case 9: //Engine Ignition Sequence Start
+		sivb.EngineStartOn();
+		break;
+	case 10: //Engine Ready Bypass On
+		sivb.EngineReadyBypass();
+		break;
+	case 12: //S-IVB Engine Cutoff No. 1 On
+		sivb.LVDCEngineCutoff();
+		break;
+	case 13: //S-IVB Engine Cutoff No. 1 Off
+		sivb.LVDCEngineCutoffOff();
+		break;
+	case 19: //Engine Ready Bypass On
+		sivb.EngineReadyBypass();
+		break;
+	case 32: //P.U. Mixture Ratio 4.5 On
+		SetSIVBMixtureRatio(4.5); // Is this 4.7 or 4.2? AP8 says 4.5
+		SPUShiftS.play(NOLOOP, 255);
+		SPUShiftS.done();
+		break;
+	case 33: //P.U. Mixture Ratio 4.5 Off
+		break;
+	case 34: //P.U. Mixture Ratio 5.5 On
+		SetSIVBMixtureRatio(5.5);
+		break;
+	case 35: //P.U. Mixture Ratio 5.5 Off
+		break;
+	case 43: //S-IVB Engine Cutoff No. 2 On
+		sivb.LVDCEngineCutoff();
+		break;
+	case 49: //S-IVB Engine Cutoff No. 2 Off
+		sivb.LVDCEngineCutoffOff();
+		break;
+	case 56: //Fire Ullage Ignition On
+		sivb.FireUllageIgnitionOn();
+		break;
+	case 79: //LOX Tank Flight Pressurization Shutoff Valves Close On
+		sivb.StartLOXVenting();
+		break;
+	case 80: //LOX Tank Flight Pressurization Shutoff Valves Close Off
+		sivb.EndLOXVenting();
+		break;
+	default:
+		break;
+	}
 }
 
 
@@ -468,10 +508,37 @@ void Saturn1b::SaveVehicleStats(FILEHANDLE scn){
 	oapiWriteScenario_float (scn, "SIIEMPTYMASS", SII_EmptyMass);
 }
 
+void Saturn1b::SaveIU(FILEHANDLE scn)
+{
+	if (iu != NULL) { iu->SaveState(scn); }
+}
+
+void Saturn1b::LoadIU(FILEHANDLE scn)
+{
+	// If the IU does not yet exist, create it.
+	if (iu == NULL) {
+		iu = new IU1B;
+	}
+	iu->LoadState(scn);
+}
+
+void Saturn1b::LoadLVDC(FILEHANDLE scn) {
+
+	if (iu == NULL) {
+		iu = new IU1B;
+	}
+
+	iu->LoadLVDC(scn);
+}
+
 void Saturn1b::clbkLoadStateEx (FILEHANDLE scn, void *vs){
 	GetScenarioState(scn, vs);
 
 	SetupMeshes();
+
+	if (iu == NULL && stage < CSM_LEM_STAGE) {
+		iu = new IU1B;
+	}
 
 	switch (stage) {
 
@@ -699,7 +766,7 @@ void Saturn1b::SetRandomFailures()
 
 		for (int i = 0;i < 8;i++)
 		{
-			if (!(random() & 63))
+			if (!(random() & (int)(127.0 / FailureMultiplier)))
 			{
 				EarlySICutoff[i] = 1;
 				FirstStageFailureTime[i] = 20.0 + ((double)(random() & 1023) / 10.0);

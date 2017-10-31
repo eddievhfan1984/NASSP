@@ -25,8 +25,7 @@ See http://nassp.sourceforge.net/license/ for more details.
 #pragma once
 
 class LVRG;
-class IUToLVCommandConnector;
-class IUToCSMCommandConnector;
+class IU;
 
 class EDS
 {
@@ -34,7 +33,8 @@ public:
 	EDS(LVRG &rg);
 	virtual void Timestep(double simdt) = 0;
 	virtual void SetEngineFailureParameters(bool *SICut, double *SICutTimes, bool *SIICut, double *SIICutTimes) = 0;
-	void Configure(IUToLVCommandConnector *lvCommandConn, IUToCSMCommandConnector *commandConn);
+	void Init(IU *i);
+	void SetPlatformFailureParameters(bool PlatFail, double PlatFailTime);
 
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
@@ -48,15 +48,17 @@ public:
 	void SetRateGyroSCIndicationSwitchA(bool set) { RateGyroSCIndicationSwitchA = set; }
 	void SetRateGyroSCIndicationSwitchB(bool set) { RateGyroSCIndicationSwitchB = set; }
 	void SetLVEnginesCutoffEnable(bool set) { LVEnginesCutoffEnable = set; }
+	void ResetAutoAbortRelays() { AutoAbortEnableRelayA = false; AutoAbortEnableRelayB = false; }
+	void SetSIVBEngineCutoffDisabled() { SIVBEngineCutoffDisabled = true; }
 
 	bool GetSIEngineOut() { return SI_Engine_Out; }
 	bool GetSIIEngineOut() { return SII_Engine_Out; }
+	bool GetLiftoffCircuitA() { return LiftoffA; }
+	bool GetLiftoffCircuitB() { return LiftoffB; }
 protected:
 	LVRG &lvrg;
 
-	IUToLVCommandConnector *lvCommandConnector;
-
-	IUToCSMCommandConnector *commandConnector;
+	IU* iu;
 
 	//Common Relays:
 	
@@ -82,6 +84,20 @@ protected:
 	bool SIVBEngineOutIndicationB;
 	bool SI_Engine_Out;
 	bool SII_Engine_Out;
+	bool AutoAbortEnableRelayA;
+	bool AutoAbortEnableRelayB;
+	bool LiftoffA;
+	bool LiftoffB;
+	bool LVEnginesCutoff1;
+	bool LVEnginesCutoff2;
+	bool LVEnginesCutoff3;
+	bool SecondPlaneSeparationMonitorRelay;
+	bool SIVBEngineCutoffDisabled;
+	bool SIVBEDSCutoff;
+
+	//Common Saturn Failures
+	bool PlatformFailure;
+	double PlatformFailureTime;
 };
 
 class EDS1B : public EDS
@@ -91,10 +107,13 @@ public:
 	void Timestep(double simdt);
 	void SetEngineFailureParameters(bool *SICut, double *SICutTimes, bool *SIICut, double *SIICutTimes);
 	void LVIndicatorsOff();
+	bool ThrustCommitEval();
 protected:
 	//Engine Failure variables
 	bool EarlySICutoff[8];
 	double FirstStageFailureTime[8];
+
+	bool ThrustOK[8];
 };
 
 class EDSSV : public EDS
@@ -104,6 +123,7 @@ public:
 	void Timestep(double simdt);
 	void SetEngineFailureParameters(bool *SICut, double *SICutTimes, bool *SIICut, double *SIICutTimes);
 	void LVIndicatorsOff();
+	bool ThrustCommitEval();
 	void SetSIIEngineOutIndicationA(bool set) { SIIEngineOutIndicationA = set; }
 	void SetSIIEngineOutIndicationB(bool set) { SIIEngineOutIndicationB = set; }
 protected:
@@ -112,4 +132,10 @@ protected:
 	double FirstStageFailureTime[5];
 	bool EarlySIICutoff[5];
 	double SecondStageFailureTime[5];
+
+	bool ThrustOK[5];
+
+private:
+	const int SIEngInd[5] = { 4,2,1,3,5 };
+	const int SIIEngInd[5] = { 2,4,1,3,5 };
 };

@@ -26,6 +26,7 @@
 #define _PA_SIVB_H
 
 #include "payload.h"
+#include "SIVBSystems.h"
 
 //
 // Data structure passed from main vessel to SIVB to configure stage.
@@ -208,8 +209,8 @@ public:
 			unsigned PanelsOpened:1;
 			unsigned SaturnVStage:1;
 			unsigned LowRes:1;
-			unsigned J2IsActive:1;
-			unsigned FuelVenting:1;
+			unsigned spare1:1;
+			unsigned spare2:1;
 			unsigned Payloaddatatransfer:1;
 		};
 		unsigned long word;
@@ -264,22 +265,10 @@ public:
 	virtual void SetState(SIVBSettings &state);
 
 	///
-	/// \brief Set thrust level of the J2 engine.
-	/// \param thrust Thrust level from 0.0 to 1.0.
-	///
-	void SetJ2ThrustLevel(double thrust);
-
-	///
 	/// \brief Get thrust level of the J2 engine.
 	/// \return Thrust level from 0.0 to 1.0.
 	///
 	double GetJ2ThrustLevel();
-
-	///
-	/// \brief Enable or disable the J2 engine.
-	/// \param Enable Enable if true, disable if false.
-	///
-	void EnableDisableJ2(bool Enable);
 
 	///
 	/// \brief Get mission time.
@@ -287,11 +276,12 @@ public:
 	///
 	double GetMissionTime();
 
-	THRUSTER_HANDLE GetMainThruster(int n) { return th_main[n]; }
-	THGROUP_HANDLE GetMainThrusterGroup() { return thg_main; }
+	bool GetSIVBThrustOK();
+
 	void SetSIVBThrusterDir(VECTOR3 &dir);
 	void SetAPSThrusterLevel(int n, double level) { SetThrusterLevel(th_att_rot[n], level); }
 	void SetAPSUllageThrusterLevel(int n, double level);
+	void SIVBEDSCutoff(bool cut);
 
 	///
 	/// \brief Get main propellant mass.
@@ -304,32 +294,6 @@ public:
 	/// \return Mass in kg.
 	///
 	double GetTotalMass();
-
-	///
-	/// \brief Set up engines as fuel venting thurster.
-	///
-	void SetVentingThruster();
-
-	///
-	/// \brief Set up active J2 engine.
-	///
-	void SetActiveJ2Thruster();
-
-	///
-	/// \brief Start venting.
-	///
-	void StartVenting();
-
-	///
-	/// \brief Stop venting.
-	///
-	void StopVenting();
-
-	///
-	/// \brief Is the SIVb venting fuel?
-	/// \return True if venting.
-	///
-	bool IsVenting();
 
 	///
 	/// \brief Get main battery power.
@@ -431,8 +395,6 @@ protected:
 	bool PanelsOpened;				///< SLA Panels are open.
 	bool SaturnVStage;				///< Stage from Saturn V.
 	bool LowRes;					///< Using low-res meshes.
-	bool J2IsActive;				///< Is the J2 active for burns?
-	bool FuelVenting;				///< Is the SIVb venting fuel?
 
 	double RotationLimit;			///< Panel rotation limit from 0.0 to 1.0 (1.0 = 180 degrees).
 	double CurrentThrust;			///< Current thrust level (0.0 to 1.0).
@@ -482,6 +444,8 @@ protected:
 	///
 	IU* iu;
 
+	SIVBSystems sivbsys;
+
 	///
 	/// \brief Connector from SIVb to CSM when docked.
 	///
@@ -508,7 +472,8 @@ protected:
 	Battery *MainBattery;
 
 	THRUSTER_HANDLE th_att_rot[10], th_main[1], th_att_lin[2];                 // handles for APS engines
-	THGROUP_HANDLE thg_aps, thg_main, thg_sep, thg_sepPanel;
+	THRUSTER_HANDLE th_lox_vent;
+	THGROUP_HANDLE thg_aps, thg_main, thg_sep, thg_sepPanel, thg_ver;
 	PROPELLANT_HANDLE ph_aps, ph_main;
 
 	UINT panelAnim;
@@ -536,9 +501,6 @@ enum CSMSIVBMessageType
 	CSMSIVB_GET_MAIN_BATTERY_POWER,			///< Get the main battery power level.
 	CSMSIVB_GET_MAIN_BATTERY_ELECTRICS,		///< Get the main battery voltage and current.
 	CSMSIVB_IS_VENTABLE,					///< Is this a ventable vessel?
-	CSMSIVB_IS_VENTING,						///< Is the vessel venting fuel?
-	CSMSIVB_START_VENTING,					///< Start fuel venting.
-	CSMSIVB_STOP_VENTING,					///< Stop fuel venting.
 	CSMSIVB_START_SEPARATION,				///< Start charging separation pyros.
 	CSMSIVB_STOP_SEPARATION,				///< Stop charging separation pyros.
 	SIVBCSM_IGNORE_DOCK_EVENT,				///< CSM docking probe should ignore next docking event (for payload creation)

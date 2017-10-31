@@ -61,11 +61,6 @@ public:
 	///
 	void clbkPostStep (double simt, double simdt, double mjd);
 
-	///
-	/// \brief Set up J2 engines as fuel venting thruster.
-	///
-	virtual void SetVentingJ2Thruster();
-
 	/// 
 	/// \brief LVDC "Switch Selector" staging support utility function
 	/// 
@@ -93,6 +88,9 @@ protected:
 	void ConfigureStageEngines(int stage_state);
 	void CreateStageOne();
 	void SaveVehicleStats(FILEHANDLE scn);
+	void LoadIU(FILEHANDLE scn);
+	void SaveIU(FILEHANDLE scn);
+	void LoadLVDC(FILEHANDLE scn);
 	void SeparateStage (int stage);
 	void DoFirstTimestep(double simt);
 	void Timestep (double simt, double simdt, double mjd);

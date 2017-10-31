@@ -101,6 +101,7 @@ private:
 	MESHHANDLE GetInterstageMesh();
 	void SetSIICMixtureRatio (double ratio);
 	void SetSIVbCMixtureRatio(double ratio);
+	void SetSIIThrustLevel(double lvl);
 	void MoveEVA();
 
 	void SeparateStage (int stage);
@@ -131,6 +132,9 @@ protected:
 	//
 
 	void SaveVehicleStats(FILEHANDLE scn);
+	void LoadIU(FILEHANDLE scn);
+	void SaveIU(FILEHANDLE scn);
+	void LoadLVDC(FILEHANDLE scn);
 
 	//
 	// Odds and ends.
