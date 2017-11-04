@@ -88,7 +88,6 @@ enum IULVMessageType
 	IULV_SET_SI_THRUSTER_LEVEL,
 	IULV_SET_SII_THRUSTER_LEVEL,
 	IULV_SET_APS_THRUSTER_LEVEL,
-	IULV_SET_APS_ULLAGE_THRUSTER_LEVEL,
 	IULV_CLEAR_SI_THRUSTER_RESOURCE,
 	IULV_CLEAR_SII_THRUSTER_RESOURCE,
 	IULV_SIVB_EDS_CUTOFF,
@@ -98,8 +97,6 @@ enum IULVMessageType
 	IULV_DEACTIVATE_NAVMODE,				///< Deactivate a navmode.
 	IULV_ACTIVATE_NAVMODE,					///< Activate a navmode.
 	IULV_ADD_S4RCS,
-	IULV_ACTIVATE_S4RCS,					///< Activate the SIVb RCS.
-	IULV_DEACTIVATE_S4RCS,					///< Deactivate the SIVb RCS.
 	IULV_ACTIVATE_PRELAUNCH_VENTING,		///< Activate prelaunch venting.
 	IULV_DEACTIVATE_PRELAUNCH_VENTING,		///< Deactivate prelaunch venting.
 	IULV_SET_CONTRAIL_LEVEL,
@@ -125,7 +122,6 @@ enum IULVMessageType
 	IULV_GET_GRAVITY_REF,					///< Get gravity reference.
 	IULV_GET_RELATIVE_POS,					///< Get relative position.
 	IULV_GET_RELATIVE_VEL,					///< Get relative velocity.
-	IULV_GET_MAXTHRUST,						///< Get max. thrust
 	IULV_GET_WEIGHTVECTOR,					///< Get weight vector 
 	IULV_GET_ROTATIONMATRIX,				///< Get rotation matrix
 	IULV_GET_GLOBAL_VEL,					///< Get global vel
@@ -213,14 +209,13 @@ public:
 	void SetSIThrusterLevel(int n, double level);
 	void SetSIIThrusterLevel(int n, double level);
 
-	void SetAPSUllageThrusterLevel(int n, double level);
 	void SetAPSThrusterLevel(int n, double level);
 	void ClearSIThrusterResource(int n);
 	void ClearSIIThrusterResource(int n);
 	void SIVBEDSCutoff(bool cut);
 	void SetSIThrusterDir(int n, VECTOR3 &dir);
 	void SetSIIThrusterDir(int n, VECTOR3 &dir);
-	void SetSIVBThrusterDir(VECTOR3 &dir);
+	void SetSIVBThrusterDir(double yaw, double pitch);
 
 	void SetQBallPowerOff();
 
@@ -236,8 +231,6 @@ public:
 	void ActivateNavmode(int mode);
 
 	void AddRCS_S4B();
-	void DeactivateS4RCS();
-	void ActivateS4RCS();
 
 	void DeactivatePrelaunchVenting();
 	void ActivatePrelaunchVenting();
@@ -255,7 +248,6 @@ public:
 	double GetMaxFuelMass();
 	double GetFuelMass();
 	void GetGlobalOrientation(VECTOR3 &arot);
-	double GetMaxThrust(ENGINETYPE eng);
 	bool GetWeightVector(VECTOR3 &w);
 	void GetRotationMatrix(MATRIX3 &rot);
 	void GetAngularVel(VECTOR3 &avel);
@@ -263,7 +255,7 @@ public:
 	int GetApolloNo();
 	double GetSIThrusterLevel(int n);
 	double GetSIIThrusterLevel(int n);
-	double GetSIVBThrustOK();
+	bool GetSIVBThrustOK();
 	double GetFirstStageThrust();
 
 	void GetRelativePos(OBJHANDLE ref, VECTOR3 &v);

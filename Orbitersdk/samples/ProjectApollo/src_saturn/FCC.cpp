@@ -178,7 +178,7 @@ void FCC1B::Timestep(double simdt)
 		//SIVB powered flight
 		beta_p1c = beta_pc; //gimbal angles
 		beta_y1c = beta_yc;
-		iu->GetLVCommandConnector()->SetSIVBThrusterDir(_V(beta_y1c, beta_p1c, 1));
+		iu->GetLVCommandConnector()->SetSIVBThrusterDir(beta_y1c, beta_p1c);
 		eps_p = 0; //we want neither the APS pitch thrusters to fire
 		eps_ymr = -(a_0r * AttitudeError.x * DEG) - (a_1r * AttRate.x * DEG); //nor the yaw thrusters
 		eps_ypr = (a_0r * AttitudeError.x * DEG) + (a_1r * AttRate.x * DEG);
@@ -194,48 +194,54 @@ void FCC1B::Timestep(double simdt)
 		//APS thruster on/off control
 		if (eps_p > 1) {
 			//fire+pitch
-			if (eps_p >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 1); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, (eps_p - 1) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 1);
+			//if (eps_p >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 1); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, (eps_p - 1) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 0);
 		}
 		if (eps_p < -1) {
 			//fire-pitch
-			if (eps_p <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 1); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, (-eps_p - 1) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 1);
+			//if (eps_p <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 1); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, (-eps_p - 1) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 0);
 		}
 		if (eps_ymr > 1) {
 			//fire+yaw-roll;
-			if (eps_ymr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 1); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, (eps_ymr - 1) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 1);
+			//if (eps_ymr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 1); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, (eps_ymr - 1) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 0);
 		}
 		if (eps_ymr < -1) {
 			//fire-yaw+roll;
-			if (eps_ymr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 1); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, (-eps_ymr - 1) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 1);
+			//if (eps_ymr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 1); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, (-eps_ymr - 1) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 0);
 		}
 		if (eps_ypr > 1) {
 			//fire+yaw+roll;
-			if (eps_ypr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 1); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, (eps_ypr - 1) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 1);
+			//if (eps_ypr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 1); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, (eps_ypr - 1) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 0);
 		}
 		if (eps_ypr < -1) {
 			//fire-yaw-roll;
-			if (eps_ypr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 1); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, (-eps_ypr - 1) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 1);
+			//if (eps_ypr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 1); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, (-eps_ypr - 1) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 0);
@@ -365,7 +371,7 @@ void FCCSV::Timestep(double simdt)
 		//SIVB powered flight
 		beta_p1c = beta_pc; //gimbal angles
 		beta_y1c = beta_yc;
-		iu->GetLVCommandConnector()->SetSIVBThrusterDir(_V(beta_y1c, beta_p1c, 1));
+		iu->GetLVCommandConnector()->SetSIVBThrusterDir(beta_y1c, beta_p1c);
 		eps_p = 0; //we want neither the APS pitch thrusters to fire
 		eps_ymr = -(a_0r * AttitudeError.x * DEG) - (a_1r * AttRate.x * DEG); //nor the yaw thrusters
 		eps_ypr = (a_0r * AttitudeError.x * DEG) + (a_1r * AttRate.x * DEG);
@@ -381,48 +387,54 @@ void FCCSV::Timestep(double simdt)
 		//APS thruster on/off control
 		if (eps_p > 1) {
 			//fire+pitch
-			if (eps_p >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 1.0); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, (eps_p - 1.0) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 1.0);
+			//if (eps_p >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 1.0); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, (eps_p - 1.0) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(1, 0.0);
 		}
 		if (eps_p < -1) {
 			//fire-pitch
-			if (eps_p <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 1.0); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, (-eps_p - 1.0) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 1.0);
+			//if (eps_p <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 1.0); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, (-eps_p - 1.0) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(0, 0.0);
 		}
 		if (eps_ymr > 1) {
 			//fire+yaw-roll;
-			if (eps_ymr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 1.0); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, (eps_ymr - 1.0) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 1.0);
+			//if (eps_ymr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 1.0); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, (eps_ymr - 1.0) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(3, 0.0);
 		}
 		if (eps_ymr < -1) {
 			//fire-yaw+roll;
-			if (eps_ymr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 1.0); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, (-eps_ymr - 1.0) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 1.0);
+			//if (eps_ymr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 1.0); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, (-eps_ymr - 1.0) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(5, 0.0);
 		}
 		if (eps_ypr > 1) {
 			//fire+yaw+roll;
-			if (eps_ypr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 1.0); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, (eps_ypr - 1.0) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 1.0);
+			//if (eps_ypr >= 1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 1.0); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, (eps_ypr - 1.0) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(4, 0.0);
 		}
 		if (eps_ypr < -1) {
 			//fire-yaw-roll;
-			if (eps_ypr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 1.0); }
-			else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, (-eps_ypr - 1.0) / 0.6); }
+			iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 1.0);
+			//if (eps_ypr <= -1.6) { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 1.0); }
+			//else { iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, (-eps_ypr - 1.0) / 0.6); }
 		}
 		else {
 			iu->GetLVCommandConnector()->SetAPSThrusterLevel(2, 0.0);

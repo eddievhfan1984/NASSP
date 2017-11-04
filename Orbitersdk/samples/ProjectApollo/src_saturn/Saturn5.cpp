@@ -496,17 +496,6 @@ void SaturnV::DoFirstTimestep(double simt)
 	// whole system has been initialised.
 	//
 
-	switch (stage) {
-
-	case STAGE_ORBIT_SIVB:
-		//
-		// Always enable SIVB RCS for now, once we hit orbit.
-		//
-
-		SetSIVBThrusters(true);
-		break;
-	}
-
 	//
 	// Get the handles for any odds and ends that are out there.
 	//
@@ -783,11 +772,6 @@ void SaturnV::clbkLoadStateEx (FILEHANDLE scn, void *status)
 		SetThirdStage();
 		SetThirdStageEngines(-STG2O);
 		AddRCS_S4B();
-		//
-		// Always enable SIVB RCS for now, once we hit orbit.
-		//
-
-		SetSIVBThrusters(true);
 		break;
 
 	default:
@@ -1129,8 +1113,6 @@ void SaturnV::SIISwitchSelector(int channel)
 			SeparateStage(LAUNCH_STAGE_SIVB);
 			SetStage(LAUNCH_STAGE_SIVB);
 			AddRCS_S4B();
-			SetSIVBThrusters(true);
-			SetThrusterResource(th_3rd[0], ph_3rd);
 
 			SetSIVbCMixtureRatio(4.946);
 		}
@@ -1188,7 +1170,6 @@ void SaturnV::SIVBSwitchSelector(int channel)
 	case 8: //PU Inverter and DC Power Off
 		break;
 	case 9: //S-IVB Engine Start On
-		SetThrusterResource(th_3rd[0], ph_3rd);
 		sivb.EngineStartOn();
 		break;
 	case 10: //Engine Ready Bypass
@@ -1251,10 +1232,10 @@ void SaturnV::SIVBSwitchSelector(int channel)
 	case 39: //LH2 Tank Repressurization Control Valve Open On
 		break;
 	case 42: //S-IVB Ullage Engine No. 1 On
-		SetAPSUllageThrusterLevel(0, 1);
+		sivb.APSUllageEngineOn(1);
 		break;
 	case 43: //S-IVB Ullage Engine No. 1 Off
-		SetAPSUllageThrusterLevel(0, 0);
+		sivb.APSUllageEngineOff(1);
 		break;
 	case 44: //LOX Tank NPV Valve Latch Open On
 		break;
@@ -1348,18 +1329,20 @@ void SaturnV::SIVBSwitchSelector(int channel)
 	case 96: //LOX Tank Vent and NPV Valv Boost Close Off
 		break;
 	case 97: //Point Level Sensor Arming
+		sivb.PointLevelSensorArming();
 		break;
 	case 98: //Point Level Sensor Disarming
+		sivb.PointLevelSensorDisarming();
 		break;
 	case 99: //LH2 Tank Latching Relief Valve Open On
 		break;
 	case 100: //LH2 Tank Latching Relief Valve Open Off
 		break;
 	case 101: //S-IVB Ullage Engine No. 2 On
-		SetAPSUllageThrusterLevel(1, 1);
+		sivb.APSUllageEngineOn(2);
 		break;
 	case 102: //S-IVB Ullage Engine No. 2 Off
-		SetAPSUllageThrusterLevel(1, 0);
+		sivb.APSUllageEngineOff(2);
 		break;
 	case 103: //LOX Tank Flight Pressure System On
 		break;
@@ -1397,55 +1380,61 @@ void SaturnV::SetRandomFailures()
 	{
 		LaunchFail.Init = 1;
 
-		//
-		// Engine failure times for first stage.
-		//
 
-		bool EarlySICutoff[5];
-		double FirstStageFailureTime[5];
-
-		//
-		// Engine failure times for first stage.
-		//
-
-		bool EarlySIICutoff[5];
-		double SecondStageFailureTime[5];
-
-		//
-		// Engine failure times
-		//
-
-		for (int i = 0;i < 5;i++)
+		if (stage < STAGE_ORBIT_SIVB)
 		{
-			EarlySICutoff[i] = 0;
-			FirstStageFailureTime[i] = 0.0;
-		}
 
-		for (int i = 0;i < 5;i++)
-		{
-			EarlySIICutoff[i] = 0;
-			SecondStageFailureTime[i] = 0.0;
-		}
+			//
+			// Engine failure times for first stage.
+			//
 
-		for (int i = 0;i < 5;i++)
-		{
-			if (!(random() & (int)(127.0 / FailureMultiplier)))
+			bool EarlySICutoff[5];
+			double FirstStageFailureTime[5];
+
+			//
+			// Engine failure times for first stage.
+			//
+
+			bool EarlySIICutoff[5];
+			double SecondStageFailureTime[5];
+
+			//
+			// Engine failure times
+			//
+
+			for (int i = 0;i < 5;i++)
 			{
-				EarlySICutoff[i] = 1;
-				FirstStageFailureTime[i] = 20.0 + ((double)(random() & 1023) / 10.0);
+				EarlySICutoff[i] = 0;
+				FirstStageFailureTime[i] = 0.0;
 			}
-		}
 
-		for (int i = 0;i < 5;i++)
-		{
-			if (!(random() & (int)(127.0 / FailureMultiplier)))
+			for (int i = 0;i < 5;i++)
 			{
-				EarlySIICutoff[i] = 1;
-				SecondStageFailureTime[i] = 180.0 + ((double)(random() & 3071) / 10.0);
+				EarlySIICutoff[i] = 0;
+				SecondStageFailureTime[i] = 0.0;
 			}
-		}
 
-		iu->GetEDS()->SetEngineFailureParameters(EarlySICutoff, FirstStageFailureTime, EarlySIICutoff, SecondStageFailureTime);
+			for (int i = 0;i < 5;i++)
+			{
+				if (!(random() & (int)(127.0 / FailureMultiplier)))
+				{
+					EarlySICutoff[i] = 1;
+					FirstStageFailureTime[i] = 20.0 + ((double)(random() & 1023) / 10.0);
+				}
+			}
+
+			for (int i = 0;i < 5;i++)
+			{
+				if (!(random() & (int)(127.0 / FailureMultiplier)))
+				{
+					EarlySIICutoff[i] = 1;
+					SecondStageFailureTime[i] = 180.0 + ((double)(random() & 3071) / 10.0);
+				}
+			}
+
+			iu->GetEDS()->SetEngineFailureParameters(EarlySICutoff, FirstStageFailureTime, EarlySIICutoff, SecondStageFailureTime);
+
+		}
 
 		if (!(random() & 127))
 		{

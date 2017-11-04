@@ -211,14 +211,6 @@ bool SaturnToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessag
 		}
 		break;
 
-	case IULV_GET_MAXTHRUST:
-		if (OurVessel)
-		{
-			m.val2.dValue = OurVessel->GetSaturnMaxThrust((ENGINETYPE) m.val1.iValue);
-			return true;
-		}
-		break;
-
 	case IULV_GET_WEIGHTVECTOR:
 		if (OurVessel)
 		{
@@ -396,14 +388,6 @@ bool SaturnToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessag
 		}
 		break;
 
-	case IULV_SET_APS_ULLAGE_THRUSTER_LEVEL:
-		if (OurVessel)
-		{
-			OurVessel->SetAPSUllageThrusterLevel(m.val1.iValue, m.val2.dValue);
-			return true;
-		}
-		break;
-
 	case IULV_CLEAR_SI_THRUSTER_RESOURCE:
 		if (OurVessel)
 		{
@@ -447,7 +431,7 @@ bool SaturnToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessag
 	case IULV_SET_SIVB_THRUSTER_DIR:
 		if (OurVessel)
 		{
-			OurVessel->SetSIVBThrusterDir(*(VECTOR3 *)m.val1.pValue);
+			OurVessel->SetSIVBThrusterDir(m.val1.dValue, m.val2.dValue);
 			return true;
 		}
 		break;
@@ -472,22 +456,6 @@ bool SaturnToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessag
 		if (OurVessel)
 		{
 			OurVessel->AddRCS_S4B();
-			return true;
-		}
-		break;
-
-	case IULV_ACTIVATE_S4RCS:
-		if (OurVessel)
-		{
-			OurVessel->SetSIVBThrusters(true);
-			return true;
-		}
-		break;
-
-	case IULV_DEACTIVATE_S4RCS:
-		if (OurVessel)
-		{
-			OurVessel->SetSIVBThrusters(false);
 			return true;
 		}
 		break;

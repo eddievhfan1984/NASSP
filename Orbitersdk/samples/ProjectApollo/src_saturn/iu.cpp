@@ -183,8 +183,10 @@ bool IU::GetSIVBEngineOut()
 	int stage = lvCommandConnector.GetStage();
 	if (stage != LAUNCH_STAGE_SIVB && stage != STAGE_ORBIT_SIVB) return false;
 
-	double oetl = lvCommandConnector.GetSIVBThrustOK();
-	if (oetl == 0) return true;
+	if (lvCommandConnector.GetSIVBThrustOK() == false)
+	{
+		return true;
+	}
 
 	return false;
 }
@@ -759,18 +761,6 @@ void IUToLVCommandConnector::SetAPSThrusterLevel(int n, double level)
 	SendMessage(cm);
 }
 
-void IUToLVCommandConnector::SetAPSUllageThrusterLevel(int n, double level)
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_SET_APS_ULLAGE_THRUSTER_LEVEL;
-	cm.val1.iValue = n;
-	cm.val2.dValue = level;
-
-	SendMessage(cm);
-}
-
 void IUToLVCommandConnector::ClearSIThrusterResource(int n)
 {
 	ConnectorMessage cm;
@@ -828,13 +818,14 @@ void IUToLVCommandConnector::SetSIIThrusterDir(int n, VECTOR3 &dir)
 	SendMessage(cm);
 }
 
-void IUToLVCommandConnector::SetSIVBThrusterDir(VECTOR3 &dir)
+void IUToLVCommandConnector::SetSIVBThrusterDir(double yaw, double pitch)
 {
 	ConnectorMessage cm;
 
 	cm.destination = LV_IU_COMMAND;
 	cm.messageType = IULV_SET_SIVB_THRUSTER_DIR;
-	cm.val1.pValue = &dir;
+	cm.val1.dValue = yaw;
+	cm.val2.dValue = pitch;
 
 	SendMessage(cm);
 }
@@ -973,28 +964,6 @@ void IUToLVCommandConnector::SetStage(int stage)
 	SendMessage(cm);
 }
 
-void IUToLVCommandConnector::DeactivateS4RCS()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_DEACTIVATE_S4RCS;
-
-	SendMessage(cm);
-}
-
-void IUToLVCommandConnector::ActivateS4RCS()
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_ACTIVATE_S4RCS;
-
-	SendMessage(cm);
-}
-
 void IUToLVCommandConnector::AddRCS_S4B()
 
 {
@@ -1039,23 +1008,6 @@ double IUToLVCommandConnector::GetMass()
 	if (SendMessage(cm))
 	{
 		return cm.val1.dValue;
-	}
-
-	return 0.0;
-}
-
-double IUToLVCommandConnector::GetMaxThrust(ENGINETYPE eng)
-
-{
-	ConnectorMessage cm;
-
-	cm.destination = LV_IU_COMMAND;
-	cm.messageType = IULV_GET_MAXTHRUST;
-	cm.val1.iValue = eng;
-
-	if (SendMessage(cm))
-	{
-		return cm.val2.dValue;
 	}
 
 	return 0.0;
@@ -1342,7 +1294,7 @@ double IUToLVCommandConnector::GetSIIThrusterLevel(int n)
 	return 0.0;
 }
 
-double IUToLVCommandConnector::GetSIVBThrustOK()
+bool IUToLVCommandConnector::GetSIVBThrustOK()
 {
 	ConnectorMessage cm;
 
