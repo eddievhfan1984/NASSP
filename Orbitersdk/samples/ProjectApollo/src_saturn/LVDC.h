@@ -24,6 +24,7 @@
 
 #pragma once
 class IUToLVCommandConnector;
+class LVDA;
 
 /* *******************
  * LVDC++ SV VERSION *
@@ -39,11 +40,14 @@ class LVDC
 {
 public:
 	LVDC(LVDA &lvd);
+	virtual ~LVDC() {}
 	virtual void TimeStep(double simt, double simdt) = 0;
 	virtual void Init(IUToLVCommandConnector* lvCommandConn) = 0;
 	virtual void SaveState(FILEHANDLE scn) = 0;
 	virtual void LoadState(FILEHANDLE scn) = 0;
 	virtual bool GetGuidanceReferenceFailure() = 0;
+	virtual bool TimebaseUpdate(double dt) = 0;
+	virtual bool GeneralizedSwitchSelector(int stage, int channel) = 0;
 protected:
 	IUToLVCommandConnector* lvCommandConnector;
 
@@ -62,6 +66,10 @@ public:
 
 	double SVCompare();
 	double LinInter(double x0, double x1, double y0, double y1, double x);
+
+	//DCS Commands
+	bool TimebaseUpdate(double dt);
+	bool GeneralizedSwitchSelector(int stage, int channel);
 private:								// Saturn LV
 	FILE* lvlog;									// LV Log file
 	bool Initialized;								// Clobberness flag
@@ -70,8 +78,6 @@ private:								// Saturn LV
 	double LVDC_TB_ETime;                           // Time elapsed since timebase start
 
 	int LVDC_Stop;									// Guidance Program: Program Stop Flag
-
-	double BoiloffTime;
 
 	// These are boolean flags that are NOT real flags in the LVDC SOFTWARE. (I.E. Hardware flags)
 	bool LVDC_GRR;                                  // Guidance Reference Released
@@ -90,6 +96,7 @@ private:								// Saturn LV
 	double t_S1C_CECO;								// Time since launch for S-1C center engine cutoff
 	int CommandSequence;
 	int CommandSequenceStored;
+	bool SCControlPoweredFlight;
 
 	// Event Times
 	double t_fail;									// S1C Engine Failure time
@@ -143,6 +150,7 @@ private:								// Saturn LV
 	bool GATE5;										// Logic gate that ensures only one pass through cutoff initialization
 	bool GATE6;										// Logic gate that ensures only one pass through separation attitude calculation
 	bool INH,INH1,INH2;								// Dunno yet (INH appears to be the manual XLUNAR INHIBIT signal, at least)
+	bool INH3;										// Permanently inhibit entry to restart preparation
 	bool TU;										// Gate for processing targeting update
 	bool TU10;										// Gate for processing ten-paramemter targeting update
 	bool first_op;									// switch for first TLI opportunity
@@ -195,7 +203,10 @@ private:								// Saturn LV
 	double ROV,ROVs;								// Constant for biasing terminal-range-angle
 	double ROVR;									// Constant for baising terminal-range-angle during out-of-orbit burn
 	double mu;										// Product of G and Earth's mass
-	double phi_L;									// Geodetic latitude of launch site
+	double PHI;										// Geodetic latitude of launch site
+	double PHIP;									// Geocentric latitude of launch site
+	double KSCLNG;									// Longitude of the launch site
+	double R_L;										// Radius from geocentric center of the Earth to the center of the IU on launch pad
 	double dotM_1;									// Mass flowrate of S2 from approximately LET jettison to second MRS
 	double dotM_2;									// Mass flowrate of S2 after second MRS
 	double dotM_2R;									// Mass flow rate of S4B before presumed MRS during out-of-orbit burn
@@ -436,6 +447,10 @@ public:
 	bool GetGuidanceReferenceFailure() { return GuidanceReferenceFailure; }
 
 	double SVCompare();
+
+	//DCS Commands
+	bool TimebaseUpdate(double dt);
+	bool GeneralizedSwitchSelector(int stage, int channel);
 private:
 	bool Initialized;								// Clobberness flag
 	FILE* lvlog;									// LV Log file
@@ -444,7 +459,6 @@ private:
 	int LVDC_Timebase;								// Time Base
 	double LVDC_TB_ETime;                           // Time elapsed since timebase start
 	int IGMCycle;									// IGM Cycle Counter (for debugging)
-	double BoiloffTime;
 
 	// These are boolean flags that are NOT real flags in the LVDC SOFTWARE. (I.E. Hardware flags)
 	bool LVDC_GRR;                                  // Guidance Reference Released
@@ -455,6 +469,7 @@ private:
 	VECTOR3 AttitudeError;                          // Attitude Error
 	VECTOR3 DeltaAtt;
 	int CommandSequence;
+	bool SCControlPoweredFlight;
 
 	// Event Times
 	double t_fail;									// S1C Engine Failure time
@@ -495,6 +510,7 @@ private:
 	bool PermanentSCControl;						// SC has permanent control of the FCC
 
 	// LVDC software variables, PAD-LOADED BUT NOT NECESSARILY CONSTANT!
+	double A_zL;									// Position I Azimuth
 	double B_11,B_21;								// Coefficients for determining freeze time after S1C engine failure
 	double B_12,B_22;								// Coefficients for determining freeze time after S1C engine failure	
 	double V_ex1,V_ex2;								// IGM Exhaust Velocities
@@ -509,10 +525,11 @@ private:
 	double eps_4;									// Time for cutoff logic entry
 	double ROV,ROVs;								// Constant for biasing terminal-range-angle
 	double mu;										// Product of G and Earth's mass
-	double sin_phi_L;								// Geodetic latitude of launch site: sin
-	double cos_phi_L;								// Geodetic latitude of launch site: cos
-	double phi_lng;
-	double phi_lat;
+	double PHI;										// Geodetic latitude of launch site
+	double PHIP;									// Geocentric latitude of launch site
+	double KSCLNG;									// Longitude of the launch site
+	double R_L;										// Radius from geocentric center of the Earth to the center of the IU on launch pad
+	double omega_E;									// Rotational rate of the Earth
 	double dotM_1;									// Mass flowrate of S2 from approximately LET jettison to second MRS
 	double dotM_2;									// Mass flowrate of S2 after second MRS
 	double t_B1;									// Transition time for the S2 mixture ratio to shift from 5.5 to 4.7

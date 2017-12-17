@@ -23,6 +23,8 @@
   **************************************************************************/
 #pragma once
 
+#include "s1bsystems.h"
+
 ///
 /// \brief Saturn V launch vehicle class.
 /// \ingroup Saturns
@@ -66,7 +68,15 @@ public:
 	/// 
 	void SwitchSelector(int item);
 	void SISwitchSelector(int channel);
-	void SIVBSwitchSelector(int channel);
+
+	void SIEDSCutoff(bool cut);
+	void GetSIThrustOK(bool *ok);
+	bool GetSIInboardEngineOut();
+	bool GetSIOutboardEngineOut();
+	bool GetSIPropellantDepletionEngineCutoff();
+	bool GetSIBLowLevelSensorsDry();
+	void SetSIEngineStart(int n);
+	void SetSIThrusterDir(int n, double yaw, double pitch);
 
 protected:
 
@@ -89,19 +99,23 @@ protected:
 	void CreateStageOne();
 	void SaveVehicleStats(FILEHANDLE scn);
 	void LoadIU(FILEHANDLE scn);
-	void SaveIU(FILEHANDLE scn);
 	void LoadLVDC(FILEHANDLE scn);
+	void LoadSIVB(FILEHANDLE scn);
+	void SaveSI(FILEHANDLE scn);
+	void LoadSI(FILEHANDLE scn);
 	void SeparateStage (int stage);
 	void DoFirstTimestep(double simt);
 	void Timestep (double simt, double simdt, double mjd);
 	void SetVehicleStats();
 	void CalculateStageMass ();
-	void SetSIVBMixtureRatio(double ratio);
 	void ActivateStagingVent();
 	void DeactivateStagingVent();
 	void ActivatePrelaunchVenting();
 	void DeactivatePrelaunchVenting();
 	void SetRandomFailures();
+	void SetEngineFailure(int failstage, int faileng, double failtime);
+
+	SIBSystems sib;
 };
 
 

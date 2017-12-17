@@ -233,7 +233,7 @@ void SaturnCryoQuantityMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 
 			#define O2FAILURETIME	(46.0 * 3600.0 + 45.0 * 60.0)
 
-			if (Sat->GetApolloNo() == 13) {
+			if (Sat->GetApolloNo() == 1301) {
 				if (Sat->GetMissionTime() >= (O2FAILURETIME + 5.0)) {
 					v = 1.05;
 				}
@@ -2360,5 +2360,27 @@ void SaturnLMDPGauge::DrawNeedle (SURFHANDLE surf, int x, int y, double rad, dou
 	LineTo (hDC, x + (int)(3*dx+0.5), y - (int)(3*dy+0.5));
 	SelectObject (hDC, oldObj);
 	oapiReleaseDC (surf, hDC);
+}
+
+// Right Docking Target Switch
+bool DockingTargetSwitch::SwitchTo(int newState, bool dontspring)
+{
+	if (SaturnThreePosSwitch::SwitchTo(newState, dontspring)) {
+		switch (state) {
+		case THREEPOSSWITCH_UP:  // BRIGHT
+			sat->CMdocktgt = true;
+			break;
+		case THREEPOSSWITCH_CENTER:  // DIM
+			sat->CMdocktgt = true;
+			break;
+		case THREEPOSSWITCH_DOWN:  // OFF
+			sat->CMdocktgt = false;
+			break;
+		}
+		sat->SetCMdocktgtMesh();
+		//sprintf(oapiDebugString(), "Flag %d, Index number %d", sat->CMdocktgt, sat->cmdocktgtidx);
+		return true;
+	}
+	return false;
 }
 

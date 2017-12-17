@@ -22,6 +22,10 @@
 
   **************************************************************************/
 
+#pragma once
+
+#include "s1csystems.h"
+
 ///
 /// \brief Saturn V launch vehicle class.
 /// \ingroup Saturns
@@ -81,7 +85,17 @@ public:
 	void SwitchSelector(int item);
 	void SISwitchSelector(int channel);
 	void SIISwitchSelector(int channel);
-	void SIVBSwitchSelector(int channel);
+
+	void GetSIThrustOK(bool *ok);
+	void SIEDSCutoff(bool cut);
+	void GetSIIThrustOK(bool *ok);
+	bool GetSIPropellantDepletionEngineCutoff();
+	bool GetSIInboardEngineOut();
+	bool GetSIOutboardEngineOut();
+	bool GetSIIPropellantDepletionEngineCutoff();
+	bool GetSIIEngineOut();
+	void SetSIEngineStart(int n);
+	void SetSIThrusterDir(int n, double yaw, double pitch);
 
 	//
 	// Functions that external code shouldn't need to access.
@@ -99,9 +113,6 @@ private:
 	void SetThirdStageMesh (double offset);
 	void SetThirdStageEngines (double offset);
 	MESHHANDLE GetInterstageMesh();
-	void SetSIICMixtureRatio (double ratio);
-	void SetSIVbCMixtureRatio(double ratio);
-	void SetSIIThrustLevel(double lvl);
 	void MoveEVA();
 
 	void SeparateStage (int stage);
@@ -133,8 +144,10 @@ protected:
 
 	void SaveVehicleStats(FILEHANDLE scn);
 	void LoadIU(FILEHANDLE scn);
-	void SaveIU(FILEHANDLE scn);
 	void LoadLVDC(FILEHANDLE scn);
+	void LoadSIVB(FILEHANDLE scn);
+	void SaveSI(FILEHANDLE scn);
+	void LoadSI(FILEHANDLE scn);
 
 	//
 	// Odds and ends.
@@ -146,6 +159,7 @@ protected:
 	void ActivateStagingVent();
 	void DeactivateStagingVent();
 	void SetRandomFailures();
+	void SetEngineFailure(int failstage, int faileng, double failtime);
 
 	//
 	// Class variables.
@@ -181,6 +195,8 @@ protected:
 	Sound S5P100;
 	Sound SRover;
 	Sound SecoSound;
+
+	SICSystems sic;
 
 	friend class MCC;
 	friend class ApolloRTCCMFD;

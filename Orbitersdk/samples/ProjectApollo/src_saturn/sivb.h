@@ -26,7 +26,6 @@
 #define _PA_SIVB_H
 
 #include "payload.h"
-#include "SIVBSystems.h"
 
 //
 // Data structure passed from main vessel to SIVB to configure stage.
@@ -55,6 +54,9 @@ union SIVbSettingFlags
 	///
 	SIVbSettingFlags() { word = 0; };
 };
+
+class IU;
+class SIVBSystems;
 
 ///
 /// Data structure passed from main vessel to SIVb to configure it after staging.
@@ -280,8 +282,11 @@ public:
 	bool GetSIVBThrustOK();
 
 	void SetSIVBThrusterDir(double yaw, double pitch);
-	void SetAPSThrusterLevel(int n, double level) { SetThrusterLevel(th_aps_rot[n], level); }
+	void SetAPSAttitudeEngine(int n, bool on) { sivbsys->SetAPSAttitudeEngine(n, on); }
 	void SIVBEDSCutoff(bool cut);
+	void SIVBSwitchSelector(int channel);
+
+	IU *GetIU() { return iu; };
 
 	///
 	/// \brief Get main propellant mass.
@@ -446,7 +451,9 @@ protected:
 	///
 	IU* iu;
 
-	SIVBSystems sivbsys;
+	bool iuinitflag;
+
+	SIVBSystems *sivbsys;
 
 	///
 	/// \brief Connector from SIVb to CSM when docked.

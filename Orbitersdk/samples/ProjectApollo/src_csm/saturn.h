@@ -41,7 +41,6 @@
 #include "missiontimer.h"
 #include "FDAI.h"
 #include "dsky.h"
-#include "iu.h"
 #include "cdu.h"
 #include "IMU.h"
 #include "satswitches.h"
@@ -61,6 +60,7 @@
 #include "payload.h"
 #include "csmcomputer.h"
 #include "qball.h"
+#include "siisystems.h"
 #include "sivbsystems.h"
 
 #define DIRECTINPUT_VERSION 0x0800
@@ -72,6 +72,8 @@
 //
 
 #include "IMFD/IMFD_Client.h"
+
+class IU;
 
 
 #define RCS_SM_QUAD_A		0
@@ -681,7 +683,7 @@ public:
 			unsigned PostSplashdownPlayed:1;		///< Have we played the post-splashdown sound?
 			unsigned unused:1;						///< Unused bit for backwards compatibility. Can be used for other things.
 			unsigned TLISoundsLoaded:1;				///< Have we loaded the TLI sounds?
-			unsigned unused3:1;						///< Spare
+			unsigned CMdocktgt:1;                   ///< CM docking target on
 			unsigned unused4:1;						///< Spare
 			unsigned unused5:1;						///< Spare
 			unsigned unused6:2;						///< Spare
@@ -762,8 +764,6 @@ public:
 	/// \param AbortJettison If we're jettisoning during an abort, the BPC will take the docking probe with it.
 	///
 	void JettisonLET(bool AbortJettison = false);
-
-	void SetEDSAbort(int eds);
 
 	///
 	/// This function can be used during the countdown to update the MissionTime. Since we launch when
@@ -930,19 +930,36 @@ public:
 
 	double GetFirstStageThrust() { return THRUST_FIRST_VAC; }
 
-	double GetSIThrusterLevel(int n);
-	double GetSIIThrusterLevel(int n);
+	virtual void GetSIThrustOK(bool *ok) = 0;
+	virtual void GetSIIThrustOK(bool *ok);
 	bool GetSIVBThrustOK();
-	void SetSIThrusterDir(int n, VECTOR3 &dir);
-	void SetSIIThrusterDir(int n, VECTOR3 &dir);
+	virtual bool GetSIPropellantDepletionEngineCutoff() = 0;
+	virtual bool GetSIIPropellantDepletionEngineCutoff();
+	virtual bool GetSIInboardEngineOut() = 0;
+	virtual bool GetSIOutboardEngineOut() = 0;
+	virtual bool GetSIBLowLevelSensorsDry();
+	virtual bool GetSIIEngineOut();
+	virtual void SetSIThrusterDir(int n, double yaw, double pitch) = 0;
+	void SetSIIThrusterDir(int n, double yaw, double pitch);
 	void SetSIVBThrusterDir(double yaw, double pitch);
-	void SetSIThrusterLevel(int n, double level);
-	void SetSIIThrusterLevel(int n, double level);
-	void SetAPSThrusterLevel(int n, double level);
-	void ClearSIThrusterResource(int n);
-	void ClearSIIThrusterResource(int n);
+	void SetAPSAttitudeEngine(int n, bool on);
+	virtual void SIEDSCutoff(bool cut) = 0;
+	void SIIEDSCutoff(bool cut);
 	void SIVBEDSCutoff(bool cut);
 	void SetQBallPowerOff();
+	virtual void SetSIEngineStart(int n) = 0;
+
+	virtual void ActivateStagingVent() {}
+
+	virtual void SetIUUmbilicalState(bool connect);
+
+	//CSM to IU interface functions
+	bool GetCMCSIVBTakeover();
+	bool GetCMCSIVBIgnitionSequenceStart();
+	bool GetCMCSIVBCutoff();
+	bool GetSIISIVbDirectStagingSignal();
+	bool GetTLIInhibitSignal();
+	bool GetIUUPTLMAccept();
 
 	///
 	/// \brief Triggers Virtual AGC core dump
@@ -981,7 +998,7 @@ public:
 	virtual void SwitchSelector(int item) = 0;
 	virtual void SISwitchSelector(int channel) = 0;
 	virtual void SIISwitchSelector(int channel);
-	virtual void SIVBSwitchSelector(int channel) = 0;
+	void SIVBSwitchSelector(int channel);
 
 	///
 	/// \brief Has an abort been initiated?
@@ -1001,7 +1018,6 @@ public:
 	void GetDisplayedAtmosStatus(DisplayedAtmosStatus &atm);
 	void GetTankPressures(TankPressures &press);
 	void GetTankQuantities(TankQuantities &q);
-	void SetO2TankQuantities(double q);
 
 	///
 	/// Get information on the status of a fuel cell in the CSM.
@@ -1117,34 +1133,12 @@ public:
 	///
 	double GetJ2ThrustLevel();
 
-	void SIVBBoiloff();
-
-	double GetSIPropellantMass();
-
-	///
-	/// \brief Get propellant mass in the SIVb stage.
-	/// \return Propellant mass in kg.
-	///
-	double GetSIVbPropellantMass();
-
 	///
 	/// \brief Set propellant mass in the SIVb stage.
 	/// \param mass Propellant mass in kg.
 	///
 	void SetSIVbPropellantMass(double mass);
 
-	///
-	/// \brief Get the state of the SII/SIVb Sep switch.
-	/// \return Switch state.
-	///
-	int GetSIISIVbSepSwitchState();
-
-	///
-	/// \brief Get the state of the TLI Enable switch.
-	/// \return Switch state.
-	///
-	int GetTLIEnableSwitchState();
-	int GetLVGuidanceSwitchState();
 	int GetEDSSwitchState();
 	int GetLVRateAutoSwitchState();
 	int GetTwoEngineOutAutoSwitchState();
@@ -1224,6 +1218,12 @@ public:
 	/// \brief Set optics cover mesh
 	///
 	void SetOpticsCoverMesh();
+
+	///
+	/// \brief Set CM docking target mesh
+	///
+	
+	void SetCMdocktgtMesh();
 
 	///
 	/// \brief Set nosecap mesh
@@ -1972,7 +1972,7 @@ protected:
 	//
 
 	SwitchRow LVRow;
-	GuardedToggleSwitch LVGuidanceSwitch;
+	AGCIOGuardedToggleSwitch LVGuidanceSwitch;
 	GuardedToggleSwitch SIISIVBSepSwitch;
 	XLunarSwitch TLIEnableSwitch;
 
@@ -2448,7 +2448,7 @@ protected:
 	ToggleSwitch RightUtilityPowerSwitch;
 
 	SwitchRow RightDockingTargetSwitchRow;
-	ThreePosSwitch RightDockingTargetSwitch;
+	DockingTargetSwitch RightDockingTargetSwitch;
 
 	//////////////////////
 	// Panel 5 switches //
@@ -3416,9 +3416,6 @@ protected:
 	double LastSimt[LASTVELOCITYCOUNT];
 	int LastVelocityFilled;
 
-	double ThrustAdjust;
-	double MixtureRatio;
-
 	bool KEY1;
 	bool KEY2;
 	bool KEY3;
@@ -3492,6 +3489,8 @@ protected:
 	OMNI omnib;
 	OMNI omnic;
 	OMNI omnid;
+	VHFAntenna vhfa;
+	VHFAntenna vhfb;
 	EMS  ems;
 
 	// CM Optics
@@ -3620,7 +3619,8 @@ protected:
 	CDU tcdu;
 	CDU scdu;
 	IU* iu;
-	SIVBSystems sivb;
+	SIISystems sii;
+	SIVBSystems *sivb;
 	CSMCautionWarningSystem cws;
 
 	DockingProbe dockingprobe;
@@ -3683,6 +3683,7 @@ protected:
 	bool TLISoundsLoaded;
 	bool SkylabSM;
 	bool NoHGA;
+	bool CMdocktgt;
 	bool SkylabCM;
 	bool S1bPanel;
 	bool bRecovery;
@@ -3712,6 +3713,7 @@ protected:
 	int sidehatchburnedidx;
 	int sidehatchburnedopenidx;
 	int opticscoveridx;
+	int cmdocktgtidx;
 	int nosecapidx;
 	int meshLM_1;
 
@@ -3885,7 +3887,7 @@ protected:
 	void RedrawPanel_MFDButton (SURFHANDLE surf, int mfd, int side, int xoffset, int yoffset, int ydist);
 	void CryoTankHeaterSwitchToggled(ToggleSwitch *s, int *pump);
 	void FuelCellHeaterSwitchToggled(ToggleSwitch *s, int *pump);
-	void FuelCellReactantsSwitchToggled(ToggleSwitch *s, CircuitBrakerSwitch *cb, CircuitBrakerSwitch *cbLatch, int *start);
+	void FuelCellReactantsSwitchToggled(ToggleSwitch *s, CircuitBrakerSwitch *cb, CircuitBrakerSwitch *cbLatch, int *h2open, int *o2open);
 	void MousePanel_MFDButton(int mfd, int event, int mx, int my);
 	void initSaturn();
 	void SwitchClick();
@@ -3924,7 +3926,6 @@ protected:
 	void StageSix(double simt);
 	void JostleViewpoint(double amount);
 	void UpdatePayloadMass();
-	double GetJ2ISP(double ratio);
 	void GetPayloadName(char *s);
 	void GetApolloName(char *s);
 	void AddSM(double offet, bool showSPS);
@@ -3975,9 +3976,13 @@ protected:
 	virtual void CalculateStageMass () = 0;
 	virtual void SaveVehicleStats(FILEHANDLE scn) = 0;
 	virtual void LoadIU(FILEHANDLE scn) = 0;
-	virtual void SaveIU(FILEHANDLE scn) = 0;
+	void SaveIU(FILEHANDLE scn);
 	void SaveLVDC(FILEHANDLE scn);
 	virtual void LoadLVDC(FILEHANDLE scn) = 0;
+	virtual void LoadSIVB(FILEHANDLE scn) = 0;
+	virtual void SaveSI(FILEHANDLE scn) = 0;
+	virtual void LoadSI(FILEHANDLE scn) = 0;
+	virtual void SetEngineFailure(int failstage, int faileng, double failtime) = 0;
 
 	void GetScenarioState (FILEHANDLE scn, void *status);
 	bool ProcessConfigFileLine (FILEHANDLE scn, char *line);
@@ -4294,6 +4299,9 @@ protected:
 	int AEAPadLoadCount;
 	int AEAPadValueCount;
 
+#define SISYSTEMS_START_STRING		"SISYSTEMS_BEGIN"
+#define SISYSTEMS_END_STRING		"SISYSTEMS_END"
+
 	//
 	// IMFD5 communication support
 	//
@@ -4336,6 +4344,7 @@ protected:
 	friend class ELS;
 	friend class ELSC;
 	friend class PCVB;
+	friend class LDEC;
 	friend class CrewStatus;
 	friend class OpticsHandcontrollerSwitch;
 	friend class MinImpulseHandcontrollerSwitch;
@@ -4357,6 +4366,7 @@ protected:
 	friend class ProjectApolloMFD;
 	friend class ApolloRTCCMFD;
 	friend class RTCC;
+	friend class DockingTargetSwitch;
 };
 
 extern void BaseInit();

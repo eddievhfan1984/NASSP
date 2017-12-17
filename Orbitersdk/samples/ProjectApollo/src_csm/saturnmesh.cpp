@@ -82,6 +82,7 @@ MESHHANDLE hsat5tower;
 MESHHANDLE hFHO2;
 MESHHANDLE hCMPEVA;
 MESHHANDLE hopticscover;
+MESHHANDLE hcmdocktgt;
 
 extern void CoeffFunc(double aoa, double M, double Re ,double *cl ,double *cm  ,double *cd);
 
@@ -197,6 +198,7 @@ void SaturnInitMeshes()
 	LOAD_MESH(hFHO2, "ProjectApollo/CMB-HatchO");
 	LOAD_MESH(hCMPEVA, "ProjectApollo/CM-CMPEVA");
 	LOAD_MESH(hopticscover, "ProjectApollo/CM-OpticsCover");
+	LOAD_MESH(hcmdocktgt, "ProjectApollo/CM-Docktgt");
 
 	SURFHANDLE contrail_tex = oapiRegisterParticleTexture("Contrail2");
 	lem_exhaust.tex = contrail_tex;
@@ -459,6 +461,11 @@ void Saturn::SetCSMStage ()
 		ph_ullage3 = 0;
 	}
 
+	if (ph_1st) {
+		DelPropellantResource(ph_1st);
+		ph_1st = 0;
+	}
+
 	if (ph_2nd) {
 		DelPropellantResource(ph_2nd);
 		ph_2nd = 0;
@@ -479,25 +486,24 @@ void Saturn::SetCSMStage ()
 		ph_sep2 = 0;
 	}
 
-	SetSize(10);
-	SetCOG_elev(3.5);
-	SetEmptyMass(CM_EmptyMass + SM_EmptyMass);
-
-	// ************************* propellant specs **********************************
-	if (!ph_sps) {
-		ph_sps  = CreatePropellantResource(SM_FuelMass, SM_FuelMass); //SPS stage Propellant
+	if (ph_aps1) {
+		DelPropellantResource(ph_aps1);
+		ph_aps1 = 0;
 	}
 
-	if (ApolloExploded && !ph_o2_vent) {
+	if (ph_aps2) {
+		DelPropellantResource(ph_aps2);
+		ph_aps2 = 0;
+	}
 
-		double tank_mass = CSM_O2TANK_CAPACITY / 500.0;
+	SetSize(10);
+	SetCOG_elev(3.5);
+	SetEmptyMass(CM_EmptyMass + SM_EmptyMass + (LESAttached ? Abort_Mass : 0.0));
 
-		ph_o2_vent = CreatePropellantResource(tank_mass, tank_mass); //SPS stage Propellant
+	// ************************* propellant specs **********************************
 
-		TankQuantities t;
-		GetTankQuantities(t);
-
-		SetPropellantMass(ph_o2_vent, t.O2Tank1QuantityKg + t.O2Tank2QuantityKg);
+	if (!ph_sps) {
+		ph_sps = CreatePropellantResource(SM_FuelMass, SM_FuelMass); //SPS stage propellant
 	}
 
 	SetDefaultPropellantResource (ph_sps); // display SPS stage propellant level in generic HUD
@@ -509,7 +515,11 @@ void Saturn::SetCSMStage ()
 	DelThrusterGroup(THGROUP_MAIN, true);
 	thg_sps = CreateThrusterGroup(th_sps, 1, THGROUP_MAIN);
 
-	AddExhaust(th_sps[0], 20.0, 2.25, SMExhaustTex);
+	EXHAUSTSPEC es_sps[1] = {
+		{ th_sps[0], NULL, NULL, NULL, 20.0, 2.25, 0, 0.1, SMExhaustTex }
+	};
+
+	AddExhaust(es_sps);
 	//SetPMI(_V(12, 12, 7));
 	SetPMI(_V(4.3972, 4.6879, 1.6220));
 	SetCrossSections(_V(40,40,14));
@@ -521,6 +531,33 @@ void Saturn::SetCSMStage ()
 
 	const double CGOffset = 12.25+21.5-1.8+0.35;
 	AddSM(30.25 - CGOffset, true);
+
+	double Mass = (CM_EmptyMass + SM_EmptyMass + (SM_FuelMass / 2));
+	double ro = 4;
+	TOUCHDOWNVTX td[4];
+	double x_target = -0.1;
+	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(Mass*stiffness));
+	for (int i = 0; i<4; i++) {
+		td[i].damping = damping;
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+		td[i].stiffness = stiffness;
+	}
+	td[0].pos.x = -cos(30 * RAD)*ro;
+	td[0].pos.y = -sin(30 * RAD)*ro;
+	td[0].pos.z = -6;
+	td[1].pos.x = 0;
+	td[1].pos.y = 1 * ro;
+	td[1].pos.z = -6;
+	td[2].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.y = -sin(30 * RAD)*ro;
+	td[2].pos.z = -6;
+	td[3].pos.x = 0;
+	td[3].pos.y = 0;
+	td[3].pos.z = 5.5;
+
+	SetTouchdownPoints(td, 4);
 
 	VECTOR3 mesh_dir;
 
@@ -538,6 +575,14 @@ void Saturn::SetCSMStage ()
 	meshidx = AddMesh (hCM, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_VCEXTERNAL);
 
+	if (LESAttached) {
+		TowerOffset = 4.95;
+		VECTOR3 mesh_dir_tower = mesh_dir + _V(0, 0, TowerOffset);
+
+		meshidx = AddMesh(hsat5tower, &mesh_dir_tower);
+		SetMeshVisibilityMode(meshidx, MESHVIS_VCEXTERNAL);
+	}
+
 	// And the Crew
 	if (Crewed) {
 		cmpidx = AddMesh (hCMP, &mesh_dir);
@@ -548,7 +593,13 @@ void Saturn::SetCSMStage ()
 		crewidx = -1;
 	}
 
-	meshidx = AddMesh (hCMInt, &mesh_dir);
+	//CM docking target
+	VECTOR3 dt_dir = _V(0.66, 1.07, 2.1);
+	cmdocktgtidx = AddMesh(hcmdocktgt, &dt_dir);
+	SetCMdocktgtMesh();
+
+	//Interior
+    meshidx = AddMesh (hCMInt, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_EXTERNAL);
 
 	//Don't Forget the Hatch
@@ -604,13 +655,29 @@ void Saturn::SetCSMStage ()
 	//
 	// Apollo 13 special handling
 	//
+
+	if (ApolloExploded && !ph_o2_vent) {
+
+		double tank_mass = CSM_O2TANK_CAPACITY / 1000.0;
+
+		ph_o2_vent = CreatePropellantResource(tank_mass, tank_mass); //"Thruster" created by O2 venting
+
+		TankQuantities t;
+
+		GetTankQuantities(t);
+
+		SetPropellantMass(ph_o2_vent, t.O2Tank1QuantityKg);
+
+	}
+	
 	if (ApolloExploded) {
 		VECTOR3 vent_pos = {0, 1.5, 30.25 - CGOffset};
 		VECTOR3 vent_dir = {0.5, 1, 0};
 
-		th_o2_vent = CreateThruster (vent_pos, vent_dir, 450.0, ph_o2_vent, 300.0);
+		th_o2_vent = CreateThruster (vent_pos, vent_dir, 30.0, ph_o2_vent, 300.0);
 		AddExhaustStream(th_o2_vent, &o2_venting_spec);
 	}
+
 
 	SetView(0.4 + 1.8 - 0.35);
 
@@ -618,8 +685,6 @@ void Saturn::SetCSMStage ()
 	InitNavRadios (4);
 	EnableTransponder (true);
 	OrbiterAttitudeToggle.SetActive(true);
-
-	ThrustAdjust = 1.0;
 }
 
 void Saturn::CreateSIVBStage(char *config, VESSELSTATUS &vs1, bool SaturnVStage)
@@ -736,14 +801,14 @@ void Saturn::SetCrewMesh() {
 
 	if (cmpidx != -1) {
 		if (Crewed && (Crew->number == 1 || Crew->number >= 3)) {
-			SetMeshVisibilityMode(cmpidx, MESHVIS_VCEXTERNAL);
+			SetMeshVisibilityMode(cmpidx, MESHVIS_EXTERNAL);
 		} else {
 			SetMeshVisibilityMode(cmpidx, MESHVIS_NEVER);
 		}
 	}
 	if (crewidx != -1) {
 		if (Crewed && Crew->number >= 2) {
-			SetMeshVisibilityMode(crewidx, MESHVIS_VCEXTERNAL);
+			SetMeshVisibilityMode(crewidx, MESHVIS_EXTERNAL);
 		} else {
 			SetMeshVisibilityMode(crewidx, MESHVIS_NEVER);
 		}
@@ -759,6 +824,19 @@ void Saturn::SetOpticsCoverMesh() {
 		SetMeshVisibilityMode(opticscoveridx, MESHVIS_EXTERNAL);
 	} else {
 		SetMeshVisibilityMode(opticscoveridx, MESHVIS_NEVER);
+	}
+}
+
+void Saturn::SetCMdocktgtMesh() {
+
+	if (cmdocktgtidx == -1)
+		return;
+
+	if (CMdocktgt && ApexCoverAttached) {
+		SetMeshVisibilityMode(cmdocktgtidx, MESHVIS_VCEXTERNAL);
+	}
+	else {
+		SetMeshVisibilityMode(cmdocktgtidx, MESHVIS_NEVER);
 	}
 }
 
@@ -785,18 +863,44 @@ void Saturn::SetReentryStage ()
 	ClearLVGuidLight();
 	ClearLVRateLight();
 	ClearSIISep();
-
 	double EmptyMass = CM_EmptyMass + (LESAttached ? 2000.0 : 0.0);
-
 	SetSize(6.0);
+	SetEmptyMass(EmptyMass);
+
+	double Mass = 5430;
+	double ra;
 	if (ApexCoverAttached) {
-		SetCOG_elev(1);
-		SetTouchdownPoints(_V(0, -10, -1), _V(-10, 10, -1), _V(10, 10, -1));
-	} else {
-		SetCOG_elev(2.2);
-		SetTouchdownPoints(_V(0, -10, -2.2), _V(-10, 10, -2.2), _V(10, 10, -2.2));
+		ra = -1.0;
 	}
-	SetEmptyMass (EmptyMass);
+	else {
+		ra = -2.2;
+	}
+	double ro = 2;
+	TOUCHDOWNVTX td[4];
+	double x_target = -0.5;
+	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(Mass*stiffness));
+	for (int i = 0; i<4; i++) {
+		td[i].damping = damping;
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+		td[i].stiffness = stiffness;
+	}
+	td[0].pos.x = -cos(30 * RAD)*ro;
+	td[0].pos.y = -sin(30 * RAD)*ro;
+	td[0].pos.z = ra;
+	td[1].pos.x = 0;
+	td[1].pos.y = 1 * ro;
+	td[1].pos.z = ra;
+	td[2].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.y = -sin(30 * RAD)*ro;
+	td[2].pos.z = ra;
+	td[3].pos.x = 0;
+	td[3].pos.y = 0;
+	td[3].pos.z = ra + 5.0;
+
+	SetTouchdownPoints(td, 4);
+
 	if (LESAttached)
 	{
 		SetPMI(_V(15.0, 15.0, 1.5));
@@ -947,7 +1051,13 @@ void Saturn::SetReentryMeshes() {
 		cmpidx = -1;
 		crewidx = -1;
 	}
-
+	
+	//CM docking target
+	VECTOR3 dt_dir = _V(0.66, 1.07, 0);
+	cmdocktgtidx = AddMesh(hcmdocktgt, &dt_dir);
+	SetCMdocktgtMesh();
+	
+	//Interior
 	meshidx = AddMesh (hCMInt, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_EXTERNAL);
 

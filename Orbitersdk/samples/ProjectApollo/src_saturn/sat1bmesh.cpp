@@ -46,6 +46,7 @@
 #include "sivb.h"
 #include "s1b.h"
 #include "sm.h"
+#include "Saturn1Abort.h"
 
 //
 // Meshes are loaded globally, once, so we use these global
@@ -217,7 +218,7 @@ void Saturn1b::SetFirstStageMeshes(double offset)
 	double Mass = Stage1Mass + SI_FuelMass;;
 	double ro = 30;
 	TOUCHDOWNVTX td[4];
-	double x_target = -0.5;
+	double x_target = -0.05;
 	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
 	double damping = 0.9*(2 * sqrt(Mass*stiffness));
 	for (int i = 0; i<4; i++) {
@@ -290,8 +291,20 @@ void Saturn1b::SetFirstStageEngines()
 
 	SURFHANDLE tex = oapiRegisterExhaustTexture ("ProjectApollo/Exhaust2");
 	thg_1st = CreateThrusterGroup (th_1st, 8, THGROUP_MAIN);
+	
+	EXHAUSTSPEC es_1st[8] = {
+		{ th_1st[0], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex },
+		{ th_1st[1], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex },
+		{ th_1st[2], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex },
+		{ th_1st[3], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex },
+		{ th_1st[4], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex },
+		{ th_1st[5], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex },
+		{ th_1st[6], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex },
+	    { th_1st[7], NULL, NULL, NULL, 30.0, 0.80, 0, 0.1, tex }
+	};
+
 	for (i = 0; i < 8; i++)
-		AddExhaust(th_1st[i], 30.0, 0.80, tex);
+		AddExhaust(es_1st + i);
 
 	srb_exhaust.tex = oapiRegisterParticleTexture ("ProjectApollo/Contrail_Saturn2");
 	s1b_exhaust.tex = oapiRegisterParticleTexture ("ProjectApollo/Contrail_Saturn");
@@ -535,13 +548,18 @@ void Saturn1b::SetSecondStageEngines ()
 
 	th_3rd[0] = CreateThruster (m_exhaust_pos1, _V( 0,0,1), THRUST_SECOND_VAC, ph_3rd, ISP_SECOND_VAC, ISP_SECOND_SL);
 	thg_3rd = CreateThrusterGroup (th_3rd, 1, THGROUP_MAIN);
-	AddExhaust (th_3rd[0], 30.0, 2.9, J2Tex);
+	
+	EXHAUSTSPEC es_3rd[1] = {
+		{ th_3rd[0], NULL, NULL, NULL, 30.0, 2.9, 0, 0.1, J2Tex }
+	};
+
+	AddExhaust(es_3rd);
 
 	//
 	// Set the actual stats.
 	//
 
-	SetSIVBMixtureRatio(MixtureRatio);
+	sivb->RecalculateEngineParameters(THRUST_SECOND_VAC);
 
 	// Thrust "calibrated" for apoapsis after venting is about 167.5 nmi
 	// To match the predicted dV of about 25 ft/s (21.7 ft/s actual / 25.6 predicted), use about 320 N thrust, but apoapsis is too high then (> 170 nmi)
@@ -777,14 +795,26 @@ void Saturn1b::SeparateStage (int new_stage)
 		SetSplashStage ();
 	}
 
-	if ((stage == PRELAUNCH_STAGE || stage == LAUNCH_STAGE_ONE) && new_stage == CM_STAGE)
+	if ((stage == PRELAUNCH_STAGE || stage == LAUNCH_STAGE_ONE) && new_stage >= CSM_LEM_STAGE)
 	{
 		vs1.vrot.x = 0.0;
 		vs1.vrot.y = 0.0;
 		vs1.vrot.z = 0.0;
 		StageS.play();
 		habort = oapiCreateVessel("Saturn_Abort", "ProjectApollo/Saturn1bAbort1", vs1);
-		SetReentryStage();
+		
+		Sat1Abort1 *stage1 = static_cast<Sat1Abort1 *> (oapiGetVesselInterface(habort));
+		stage1->SetState(new_stage == CM_STAGE);
+
+		if (new_stage == CSM_LEM_STAGE)
+		{
+			SetCSMStage();
+		}
+		else
+		{
+			SetReentryStage();
+		}
+
 		ShiftCentreOfMass(_V(0, 0, 35.15));
 	}
 

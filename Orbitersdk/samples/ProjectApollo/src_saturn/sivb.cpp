@@ -36,6 +36,7 @@
 #include "powersource.h"
 #include "connector.h"
 #include "iu.h"
+#include "SIVBSystems.h"
 
 #include "toggleswitch.h"
 #include "apolloguidance.h"
@@ -155,8 +156,7 @@ void SIVbLoadMeshes()
 }
 
 SIVB::SIVB (OBJHANDLE hObj, int fmodel) : ProjectApolloConnectorVessel(hObj, fmodel),
-		SIVBToCSMPowerDrain("SIVBToCSMPower", Panelsdk),
-	sivbsys(this, th_main[0], ph_main, th_aps_ull, th_lox_vent, thg_ver)
+		SIVBToCSMPowerDrain("SIVBToCSMPower", Panelsdk)
 
 {
 	PanelSDKInitalised = false;
@@ -167,7 +167,17 @@ SIVB::SIVB (OBJHANDLE hObj, int fmodel) : ProjectApolloConnectorVessel(hObj, fmo
 SIVB::~SIVB()
 
 {
-	delete iu;
+	if (!iuinitflag && iu)
+	{
+		delete iu;
+		iu = 0;
+	}
+
+	if (sivbsys)
+	{
+		delete sivbsys;
+		sivbsys = 0;
+	}
 
 	//
 	// Delete LM PAD data.
@@ -188,6 +198,9 @@ void SIVB::InitS4b()
 	int i;
 
 	iu = NULL;
+	sivbsys = NULL;
+
+	iuinitflag = false;
 
 	PayloadType = PAYLOAD_EMPTY;
 	PanelsHinged = false;
@@ -349,6 +362,35 @@ void SIVB::SetS4b()
     ClearExhaustRefs();
     ClearAttExhaustRefs();
 	HideAllMeshes();
+
+	double TCPS4B = -11;
+
+	double MassS4 = 40296;
+	double ro = 7;
+	TOUCHDOWNVTX td[4];
+	double x_target = -0.1;
+	double stiffness = (-1)*(MassS4*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(MassS4*stiffness));
+	for (int i = 0; i<4; i++) {
+		td[i].damping = damping;
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+		td[i].stiffness = stiffness;
+	}
+	td[0].pos.x = -cos(30 * RAD)*ro;
+	td[0].pos.y = -sin(30 * RAD)*ro;
+	td[0].pos.z = TCPS4B;
+	td[1].pos.x = 0;
+	td[1].pos.y = 1 * ro;
+	td[1].pos.z = TCPS4B;
+	td[2].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.y = -sin(30 * RAD)*ro;
+	td[2].pos.z = TCPS4B;
+	td[3].pos.x = 0;
+	td[3].pos.y = 0;
+	td[3].pos.z = TCPS4B + 25;
+
+	SetTouchdownPoints(td, 4);
 
 	VECTOR3 dockpos = {0,0.03, 12.6};
 	VECTOR3 dockdir = {0,0,1};
@@ -740,7 +782,7 @@ void SIVB::clbkPreStep(double simt, double simdt, double mjd)
 	// thrust it out of the way of the CSM.
 	//
 
-	sivbsys.Timestep(simdt);
+	sivbsys->Timestep(simdt);
 	iu->Timestep(MissionTime, simt, simdt, mjd);
 	Panelsdk.Timestep(MissionTime);
 }
@@ -812,7 +854,7 @@ void SIVB::clbkSaveState (FILEHANDLE scn)
 		}
 	}
 
-	sivbsys.SaveState(scn);
+	sivbsys->SaveState(scn);
 	iu->SaveState(scn);
 	iu->SaveLVDC(scn);
 	Panelsdk.Save(scn);
@@ -920,13 +962,18 @@ void SIVB::AddRCS_S4B()
 
 	th_main[0] = CreateThruster(mainExhaustPos, _V(0, 0, 1), THRUST_THIRD_VAC, ph_main, ISP_THIRD_VAC);
 	thg_main = CreateThrusterGroup(th_main, 1, THGROUP_MAIN);
-	AddExhaust(th_main[0], 25.0, 1.5, SMMETex);
+	
+	EXHAUSTSPEC es_main[1] = {
+		{ th_main[0], NULL, NULL, NULL, 30.0, 2.9, 0, 0.1, SMMETex }
+	};
 
-	//
-	// Clear old thrusters.
-	//
+	AddExhaust(es_main);
 
-	th_lox_vent = CreateThruster(mainExhaustPos, _V(0, 0, 1), 1000.0, ph_main, 30.0, 30.0);
+	sivbsys->RecalculateEngineParameters(THRUST_THIRD_VAC);
+
+	// LOX venting thruster
+
+	th_lox_vent = CreateThruster(mainExhaustPos, _V(0, 0, 1), 3300.0, ph_main, 157.0, 157.0);
 
 	AddExhaustStream(th_lox_vent, &fuel_venting_spec);
 
@@ -1189,7 +1236,15 @@ void SIVB::clbkLoadStateEx (FILEHANDLE scn, void *vstatus)
 			}
 		}
 		else if (!strnicmp(line, SIVBSYSTEMS_START_STRING, sizeof(SIVBSYSTEMS_START_STRING))) {
-			sivbsys.LoadState(scn);
+			if (SaturnVStage)
+			{
+				sivbsys = new SIVB500Systems(this, th_main[0], ph_main, th_aps_rot, th_aps_ull, th_lox_vent, thg_ver);
+			}
+			else
+			{
+				sivbsys = new SIVB200Systems(this, th_main[0], ph_main, th_aps_rot, th_aps_ull, th_lox_vent, thg_ver);
+			}
+			sivbsys->LoadState(scn);
 		}
 		else if (!strnicmp(line, IU_START_STRING, sizeof(IU_START_STRING))) {
 			if (SaturnVStage)
@@ -1212,6 +1267,18 @@ void SIVB::clbkLoadStateEx (FILEHANDLE scn, void *vstatus)
 		{
 			ParseScenarioLineEx (line, vstatus);
         }
+	}
+
+	if (sivbsys == NULL)
+	{
+		if (SaturnVStage)
+		{
+			sivbsys = new SIVB500Systems(this, th_main[0], ph_main, th_aps_rot, th_aps_ull, th_lox_vent, thg_ver);
+		}
+		else
+		{
+			sivbsys = new SIVB200Systems(this, th_main[0], ph_main, th_aps_rot, th_aps_ull, th_lox_vent, thg_ver);
+		}
 	}
 
 	SetS4b();
@@ -1406,12 +1473,15 @@ void SIVB::SetState(SIVBSettings &state)
 		if (SaturnVStage)
 		{
 			iu = new IUSV;
+			sivbsys = new SIVB500Systems(this, th_main[0], ph_main, th_aps_rot, th_aps_ull, th_lox_vent, thg_ver);
 		}
 		else
 		{
 			iu = new IU1B;
+			sivbsys = new SIVB200Systems(this, th_main[0], ph_main, th_aps_rot, th_aps_ull, th_lox_vent, thg_ver);
 		}
 		iu = state.iu_pointer;
+		iuinitflag = true;
 		iu->DisconnectIU();
 	}
 
@@ -1455,17 +1525,22 @@ double SIVB::GetMissionTime()
 
 void SIVB::SetSIVBThrusterDir(double yaw, double pitch)
 {
-	sivbsys.SetThrusterDir(yaw, pitch);
+	sivbsys->SetThrusterDir(yaw, pitch);
 }
 
 bool SIVB::GetSIVBThrustOK()
 {
-	return sivbsys.GetThrustOK();
+	return sivbsys->GetThrustOK();
+}
+
+void SIVB::SIVBSwitchSelector(int channel)
+{
+	sivbsys->SwitchSelector(channel);
 }
 
 void SIVB::SIVBEDSCutoff(bool cut)
 {
-	sivbsys.EDSEngineCutoff(cut);
+	sivbsys->EDSEngineCutoff(cut);
 }
 
 double SIVB::GetSIVbPropellantMass()
@@ -1825,14 +1900,6 @@ bool SIVbToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessage 
 		}
 		break;
 
-	case IULV_GET_SIVB_PROPELLANT_MASS:
-		if (OurVessel)
-		{
-			m.val1.dValue = OurVessel->GetSIVbPropellantMass();
-			return true;
-		}
-		break;
-
 	case IULV_GET_GLOBAL_ORIENTATION:
 		if (OurVessel)
 		{
@@ -1975,10 +2042,10 @@ bool SIVbToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessage 
 		}
 		break;
 
-	case IULV_SET_APS_THRUSTER_LEVEL:
+	case IULV_SET_APS_ATTITUDE_ENGINE:
 		if (OurVessel)
 		{
-			OurVessel->SetAPSThrusterLevel(m.val1.iValue, m.val2.dValue);
+			OurVessel->SetAPSAttitudeEngine(m.val1.iValue, m.val2.bValue);
 			return true;
 		}
 		break;
@@ -1995,6 +2062,14 @@ bool SIVbToIUCommandConnector::ReceiveMessage(Connector *from, ConnectorMessage 
 		if (OurVessel)
 		{
 			OurVessel->AddForce(m.val1.vValue, m.val2.vValue);
+			return true;
+		}
+		break;
+
+	case IULV_SIVB_SWITCH_SELECTOR:
+		if (OurVessel)
+		{
+			OurVessel->SIVBSwitchSelector(m.val1.iValue);
 			return true;
 		}
 		break;
