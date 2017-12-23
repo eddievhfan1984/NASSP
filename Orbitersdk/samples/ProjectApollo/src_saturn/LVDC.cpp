@@ -3078,6 +3078,7 @@ LVDCSV::LVDCSV(LVDA &lvd) : LVDC(lvd)
 	CommandSequence = 0;
 	CommandSequenceStored = 0;
 	SCControlPoweredFlight = false;
+	SIICenterEngineCutoff = false;
 }
 
 // Setup
@@ -3246,7 +3247,7 @@ void LVDCSV::Init(IUToLVCommandConnector* lvCommandConn){
 	TSMC3 = 466;
 	// TSMC1 = 60.6 TSMC2 = 15 // AP11
 	T_c = 8; // T_c = 6.5; 					// Coast time between S2 burnout and S4B ignition
-	T_1 = 249.1; //T_1  = 237.796;			// Time left in first-stage IGM
+	T_1 = 286.2; //T_1  = 237.796;			// Time left in first-stage IGM
 	T_2 = 91.8; //T_2 = 111;					// Time left in second and fourth stage IGM
 	T_2R = 10.0;
 	T_3 = 0;								// Time left in third and fifth stage IGM
@@ -3439,6 +3440,7 @@ void LVDCSV::Init(IUToLVCommandConnector* lvCommandConn){
 	// INTERNAL (NON-REAL-LVDC) FLAGS
 	CountPIPA = false;
 	SCControlPoweredFlight = false;
+	SIICenterEngineCutoff = false;
 	if(!Initialized){ lvlog = fopen("lvlog.txt","w+"); }
 	fprintf(lvlog,"init complete\r\n");
 	fflush(lvlog);
@@ -3486,6 +3488,7 @@ void LVDCSV::SaveState(FILEHANDLE scn) {
 	oapiWriteScenario_int(scn, "LVDC_S4B_IGN", S4B_IGN);
 	oapiWriteScenario_int(scn, "LVDC_S4B_REIGN", S4B_REIGN);
 	oapiWriteScenario_int(scn, "LVDC_SCControlPoweredFlight", SCControlPoweredFlight);
+	oapiWriteScenario_int(scn, "LVDC_SIICenterEngineCutoff", SIICenterEngineCutoff);
 	oapiWriteScenario_int(scn, "LVDC_TerminalConditions", TerminalConditions);
 	oapiWriteScenario_int(scn, "LVDC_theta_N_op", theta_N_op);
 	oapiWriteScenario_int(scn, "LVDC_TU", TU);
@@ -4127,6 +4130,7 @@ void LVDCSV::LoadState(FILEHANDLE scn){
 		papiReadScenario_bool(line, "LVDC_S4B_IGN", S4B_IGN);
 		papiReadScenario_bool(line, "LVDC_S4B_REIGN", S4B_REIGN);
 		papiReadScenario_bool(line, "LVDC_SCControlPoweredFlight", SCControlPoweredFlight);
+		papiReadScenario_bool(line, "LVDC_SIICenterEngineCutoff", SIICenterEngineCutoff);
 		papiReadScenario_bool(line, "LVDC_TerminalConditions", TerminalConditions);
 		papiReadScenario_bool(line, "LVDC_theta_N_op", theta_N_op);
 		papiReadScenario_bool(line, "LVDC_TU", TU);
@@ -5556,17 +5560,14 @@ void LVDCSV::TimeStep(double simt, double simdt) {
 				}
 
 				// IECO
-				/*if (LVDC_TB_ETime >= 299.0)
+				if (SIICenterEngineCutoff && S2_ENGINE_OUT == false && LVDC_TB_ETime >= 299.0)
 				{
-					if (oapiGetPropellantMass(owner->ph_2nd) / oapiGetPropellantMaxMass(owner->ph_2nd) < 0.15 && S2_ENGINE_OUT == false)
-					{
-						S2_ENGINE_OUT = true;
-						lvCommandConnector->SwitchSelector(24);
-					}
-				}*/
+					S2_ENGINE_OUT = true;
+					lvda.SwitchSelector(SWITCH_SELECTOR_SII, 17);
+				}
 			
 				// MR Shift
-				if(LVDC_TB_ETime > 284.4 && MRS == false){
+				if(T_1 <= 0.0 && MRS == false){
 					fprintf(lvlog,"[TB%d+%f] MR Shift\r\n",LVDC_Timebase,LVDC_TB_ETime);
 					// sprintf(oapiDebugString(),"LVDC: EMR SHIFT"); LVDC_GP_PC = 30; break;
 					lvda.SwitchSelector(SWITCH_SELECTOR_SII, 58);
@@ -5576,7 +5577,7 @@ void LVDCSV::TimeStep(double simt, double simdt) {
 
 				// Check for S2 OECO
 				if(LVDC_TB_ETime > 5.0 && lvda.GetSIIPropellantDepletionEngineCutoff()){
-					fprintf(lvlog,"[MT %f] TB4 Start\r\n",simt);
+					fprintf(lvlog,"[MT %f] TB4 Start\r\n", lvCommandConnector->GetMissionTime());
 					// S2 OECO, start TB4
 					lvda.SwitchSelector(SWITCH_SELECTOR_SII, 18);
 					S2_BURNOUT = true;
