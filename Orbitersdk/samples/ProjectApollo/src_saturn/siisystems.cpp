@@ -33,13 +33,15 @@ See http://nassp.sourceforge.net/license/ for more details.
 
 #include "siisystems.h"
 
-SIISystems::SIISystems(Saturn *v, THRUSTER_HANDLE *j2, PROPELLANT_HANDLE &j2prop, THGROUP_HANDLE &ull, Sound &pushifts, Sound &SepS)
+SIISystems::SIISystems(VESSEL *v, THRUSTER_HANDLE *j2, PROPELLANT_HANDLE &j2prop, THGROUP_HANDLE &ull, Pyro &SII_Inter, Pyro &SII_SIVB_Sep, Sound &pushifts, Sound &SepS)
 	:main_propellant(j2prop), ullage(ull), puShiftSound(pushifts), sepSound(SepS),
 	j2engine1(v, j2[0]),
 	j2engine2(v, j2[1]),
 	j2engine3(v, j2[2]),
 	j2engine4(v, j2[3]),
-	j2engine5(v, j2[4])
+	j2engine5(v, j2[4]),
+	SII_Interstage_Pyros(SII_Inter),
+	SII_SIVB_Separation_Pyros(SII_SIVB_Sep)
 {
 	int i;
 
@@ -344,13 +346,14 @@ void SIISystems::SwitchSelector(int channel)
 		SetDepletionSensorsCutoffArm();
 		break;
 	case 5: //S-II/S-IVB Separation
-		if (SIISIVBOrdnanceArmed && vessel->GetStage() < LAUNCH_STAGE_SIVB)
+		if (SIISIVBOrdnanceArmed)
 		{
-			puShiftSound.done(); // Make sure it's done
-			vessel->SeparateStage(LAUNCH_STAGE_SIVB);
-			vessel->SetStage(LAUNCH_STAGE_SIVB);
-			vessel->AddRCS_S4B();
+			SII_SIVB_Separation_Pyros.SetBlown(true);
 		}
+		break;
+	case 6: //Start Phase Limiter Cutoff Reset
+		break;
+	case 7: //LH2 Step Pressurization
 		break;
 	case 8: //S-II/S-IVB Ordnance Arm
 		SetSIISIVBOrdnanceArm();
@@ -360,29 +363,38 @@ void SIISystems::SwitchSelector(int channel)
 	case 11: //S-II Ordnance Arm
 		SetOrdnanceArm();
 		break;
+	case 12: //Hydraulic Accumulators Unlock
+		break;
+	case 14: //LOX Step Pressurization
+		break;
 	case 17: //S-II Center Engine Cutoff (Actual channel has to be researched!)
 		LVDCCenterEngineCutoff();
 		break;
 	case 18: //S-II Engines Cutoff
 		LVDCEnginesCutoff();
 		break;
+	case 19: //Prevalves Lockout Reset
+		break;
 	case 20: //Engines Ready Bypass
 		SetEnginesReadyBypass();
 		break;
 	case 23: //S-II Aft Interstage Separation
-		if (OrdnanceArmed && vessel->GetStage() == LAUNCH_STAGE_TWO)
+		if (OrdnanceArmed)
 		{
-			vessel->SeparateStage(LAUNCH_STAGE_TWO_ISTG_JET);
-			vessel->SetStage(LAUNCH_STAGE_TWO_ISTG_JET);
+			SII_Interstage_Pyros.SetBlown(true);
 		}
 		break;
 	case 24: //S-II Ullage Trigger
 		FireUllageTrigger();
 		break;
+	case 25: //Start Phase Limiter Cutoff Arm
+		break;
 	case 30: //Start First PAM - FM/FM Relays Reset
 		break;
 	case 31: //S-II Engines Cutoff Reset
 		LVDCEnginesCutoffReset();
+		break;
+	case 32: //PU System Activate
 		break;
 	case 33: //S-II Engine Start
 		EngineStartOn();
@@ -391,6 +403,8 @@ void SIISystems::SwitchSelector(int channel)
 		break;
 	case 42: //S-II LH2 Depletion Sensors Cutoff Arm
 		SetDepletionSensorsCutoffArm();
+		break;
+	case 48: //LH2 Recirculation Pumps Off
 		break;
 	case 49: //Engines Ready Bypass Reset
 		ResetEnginesReadyBypass();
@@ -406,7 +420,19 @@ void SIISystems::SwitchSelector(int channel)
 	case 59: //High (5.5 Engine Mixture Ratio On
 		SetPUValve(PUVALVE_CLOSED);
 		break;
+	case 60: //PU System Open Loop Arm
+		break;
+	case 66: //Start Recorder Times
+		break;
 	case 71: //Start Data Recorders
+		break;
+	case 88: //Chilldown Valves Close
+		break;
+	case 90: //Measurement Control Switch No. 2 Activate
+		break;
+	case 99: //Prevalves Close Arm
+		break;
+	case 104: //Stop Data Recorders
 		break;
 	default:
 		break;

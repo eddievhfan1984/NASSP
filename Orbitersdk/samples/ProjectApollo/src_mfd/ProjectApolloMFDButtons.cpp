@@ -50,9 +50,13 @@ ProjectApolloMFDButtons::ProjectApolloMFDButtons()
 	RegisterFunction("DMP", OAPI_KEY_D, &ProjectApolloMFD::menuVAGCCoreDump);
 
 
-	static const MFDBUTTONMENU mnuECS[4] = {
+	static const MFDBUTTONMENU mnuECS[8] = {
 		{ "Back", 0, 'B' },
 		{ "Crew number", 0, 'C' },
+		{ "CDR in suit", 0, 'D' },
+		{ "LMP in suit", 0, 'L' },
+		{ 0,0,0 },
+		{ 0,0,0 },
 		{ "Primary coolant loop test heating", 0, 'P' },
 		{ "Secondary coolant loop test heating", 0, 'S' }
 	};
@@ -61,6 +65,11 @@ ProjectApolloMFDButtons::ProjectApolloMFDButtons()
 
 	RegisterFunction("BCK", OAPI_KEY_B, &ProjectApolloMFD::menuSetMainPage);
 	RegisterFunction("CRW", OAPI_KEY_C, &ProjectApolloMFD::menuSetCrewNumber);
+	RegisterFunction("CDR", OAPI_KEY_D, &ProjectApolloMFD::menuSetCDRInSuit);
+	RegisterFunction("LMP", OAPI_KEY_L, &ProjectApolloMFD::menuSetLMPInSuit);
+	RegisterFunction("", OAPI_KEY_A, &ProjectApolloMFD::menuVoid);
+	RegisterFunction("", OAPI_KEY_E, &ProjectApolloMFD::menuVoid);
+
 	RegisterFunction("PRM", OAPI_KEY_P, &ProjectApolloMFD::menuSetPrimECSTestHeaterPower);
 	RegisterFunction("SEC", OAPI_KEY_S, &ProjectApolloMFD::menuSetSecECSTestHeaterPower);
 
@@ -97,8 +106,8 @@ ProjectApolloMFDButtons::ProjectApolloMFDButtons()
 		{ "Change Reference Body", 0, 'R' },
 		{ 0,0,0 },
 		{ "Clock Update", 0, 'C' },
-		{ 0,0,0 },
-		{ 0,0,0 },
+		{ "Sunburst Suborbital Abort",0,'F' },
+		{ "Sunburst COI",0,'G' },
 		{ "State Vector Slot", 0, 'T' }
 	};
 
@@ -113,8 +122,8 @@ ProjectApolloMFDButtons::ProjectApolloMFDButtons()
 
 	RegisterFunction("", OAPI_KEY_E, &ProjectApolloMFD::menuVoid);
 	RegisterFunction("CLK", OAPI_KEY_C, &ProjectApolloMFD::menuClockUpdate);
-	RegisterFunction("", OAPI_KEY_F, &ProjectApolloMFD::menuVoid);
-	RegisterFunction("", OAPI_KEY_G, &ProjectApolloMFD::menuVoid);
+	RegisterFunction("SAB", OAPI_KEY_F, &ProjectApolloMFD::menuSunburstSuborbitalAbort);
+	RegisterFunction("COI", OAPI_KEY_G, &ProjectApolloMFD::menuSunburstCOI);
 	RegisterFunction("SLT", OAPI_KEY_T, &ProjectApolloMFD::menuSetSVSlot);
 
 

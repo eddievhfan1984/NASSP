@@ -30,7 +30,7 @@ class LEM_RGA {
 	// RATE GYRO ASSEMBLY
 public:
 	LEM_RGA();
-	void Init(LEM *v, e_object *dcsource);
+	void Init(LEM *v, e_object *dcsource, h_HeatLoad *hl, h_HeatLoad *sechl);
 	void Timestep(double simdt);
 	void SystemTimestep(double simdt);
 
@@ -41,6 +41,8 @@ protected:
 
 	e_object *dc_source;
 	LEM *lem;
+	h_HeatLoad *RGAHeat;
+	h_HeatLoad *SecRGAHeat;
 };
 
 #define ATCA_START_STRING	"ATCA_BEGIN"
@@ -50,8 +52,9 @@ class ATCA {
 	// ATTITUDE & TRANSLATION CONTROL ASSEMBLY
 public:
 	ATCA();								// Cons
-	void Init(LEM *vessel);				// Init
+	void Init(LEM *vessel, h_HeatLoad *hl, h_HeatLoad *sechl);				// Init
 	void Timestep(double simt, double simdt);			// Timestep
+	void SystemTimestep(double simdt);
 	void ProcessLGC(int ch, int val);   // To process LGC commands
 
 	void SaveState(FILEHANDLE scn);
@@ -61,6 +64,8 @@ public:
 	double GetDPSRollGimbalError();
 
 	LEM *lem;
+	h_HeatLoad *ATCAHeat;
+	h_HeatLoad *SECATCAHeat;
 	int lgc_err_x,lgc_err_y,lgc_err_z;	// LGC attitude error counters
 	int lgc_err_ena;                    // LGC error counter enabled
 	int jet_request[16];				// Jet request list
@@ -211,7 +216,7 @@ class GASTA {
 	//GIMBAL ANGLE SEQUENCING TRANSFORMATION ASSEMBLY
 public:
 	GASTA();
-	void Init(LEM *s, e_object *dcsource, e_object *acsource, IMU* imu);
+	void Init(LEM *s, e_object *dcsource, e_object *acsource, h_HeatLoad *hl, IMU* imu);
 	void Timestep(double simt);				// Timestep
 	void SystemTimestep(double simdt);		// System Timestep
 	bool IsPowered();
@@ -224,6 +229,7 @@ protected:
 	LEM *lem;
 	e_object *dc_source;			     // DC source to use when powered
 	e_object *ac_source;			     // AC source to use when powered
+	h_HeatLoad *heat_load;
 	IMU *imu;							 //Connected IMU
 	VECTOR3 imu_att;
 	VECTOR3 gasta_att;

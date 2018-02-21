@@ -51,7 +51,6 @@
 #include "scs.h"
 #include "csm_telecom.h"
 #include "sps.h"
-#include "mcc.h"
 #include "ecs.h"
 #include "csmrcs.h"
 #include "ORDEAL.h"
@@ -148,6 +147,7 @@ typedef struct {
 	double CabinRepressFlowLBH;
 	double EmergencyCabinRegulatorFlowLBH;
 	double O2RepressPressurePSI;
+	double TunnelPressurePSI;
 } AtmosStatus;
 
 ///
@@ -669,7 +669,7 @@ public:
 	///
 	union MainState {
 		struct {
-			unsigned unused2:1;						///< Spare
+			unsigned IUSCContPermanentEnabled:1;	///< Can the IU FCC SC control be permanently enabled?
 			unsigned SIISepState:1;					///< State of the SII Sep light.
 			unsigned TLIBurnDone:1;					///< Have we done our TLI burn?
 			unsigned Scorrec:1;						///< Have we played the course correction sound?
@@ -894,7 +894,8 @@ public:
 	void PanelSwitchToggled(ToggleSwitch *s);
 	void PanelIndicatorSwitchStateRequested(IndicatorSwitch *s); 
 	void PanelRotationalSwitchChanged(RotationalSwitch *s);
-	void PanelRefreshHatch();
+	void PanelRefreshForwardHatch();
+	void PanelRefreshSideHatch();
 
 	// Called by Crawler/ML
 	virtual void LaunchVehicleRolloutEnd() {};	// after arrival on launch pad
@@ -940,11 +941,11 @@ public:
 	virtual bool GetSIBLowLevelSensorsDry();
 	virtual bool GetSIIEngineOut();
 	virtual void SetSIThrusterDir(int n, double yaw, double pitch) = 0;
-	void SetSIIThrusterDir(int n, double yaw, double pitch);
+	virtual void SetSIIThrusterDir(int n, double yaw, double pitch) {};
 	void SetSIVBThrusterDir(double yaw, double pitch);
 	void SetAPSAttitudeEngine(int n, bool on);
 	virtual void SIEDSCutoff(bool cut) = 0;
-	void SIIEDSCutoff(bool cut);
+	virtual void SIIEDSCutoff(bool cut) {};
 	void SIVBEDSCutoff(bool cut);
 	void SetQBallPowerOff();
 	virtual void SetSIEngineStart(int n) = 0;
@@ -960,6 +961,10 @@ public:
 	bool GetSIISIVbDirectStagingSignal();
 	bool GetTLIInhibitSignal();
 	bool GetIUUPTLMAccept();
+
+	//CSM to LM interface functions
+	h_Pipe* GetCMTunnelPipe() { return CMTunnel; }
+	void ConnectTunnelToCabinVent();
 
 	///
 	/// \brief Triggers Virtual AGC core dump
@@ -2873,6 +2878,9 @@ protected:
 	SwitchRow LMDPGaugeRow;
 	SaturnLMDPGauge LMDPGauge;
 
+	SwitchRow PressEqualValveRow;
+	RotationalSwitch PressEqualValve;
+
 	///////////////////
 	// Panel 225/226 //
 	///////////////////
@@ -3500,6 +3508,8 @@ protected:
 	FCell *FuelCells[3];
 	Boiler *FuelCellHeaters[3];
 	Cooling *FuelCellCooling[3];
+	h_Tank *FuelCellO2Manifold[3];
+	h_Tank *FuelCellH2Manifold[3];
 
 	// O2 tanks.
 	h_Tank *O2Tanks[2];
@@ -3510,6 +3520,9 @@ protected:
 	h_Tank *H2Tanks[2];
 	Boiler *H2TanksHeaters[2];
 	Boiler *H2TanksFans[2];
+
+	//Tunnel Pipe
+	h_Pipe *CMTunnel;
 
 	// Main bus A and B.
 	DCbus *MainBusA;
@@ -3604,6 +3617,9 @@ protected:
 	SaturnSideHatch SideHatch;
 	SaturnWaterController WaterController;
 	SaturnGlycolCoolingController GlycolCoolingController;
+	SaturnLMTunnelVent LMTunnelVent;
+	SaturnForwardHatch ForwardHatch;
+	SaturnPressureEqualizationValve PressureEqualizationValve;
 
 	// RHC/THC 
 	PowerMerge RHCNormalPower;
@@ -3619,7 +3635,6 @@ protected:
 	CDU tcdu;
 	CDU scdu;
 	IU* iu;
-	SIISystems sii;
 	SIVBSystems *sivb;
 	CSMCautionWarningSystem cws;
 
@@ -3680,6 +3695,7 @@ protected:
 	//
 
 	bool TLICapableBooster;
+	bool IUSCContPermanentEnabled;
 	bool TLISoundsLoaded;
 	bool SkylabSM;
 	bool NoHGA;
@@ -3982,6 +3998,8 @@ protected:
 	virtual void LoadSIVB(FILEHANDLE scn) = 0;
 	virtual void SaveSI(FILEHANDLE scn) = 0;
 	virtual void LoadSI(FILEHANDLE scn) = 0;
+	virtual void SaveSII(FILEHANDLE scn) {};
+	virtual void LoadSII(FILEHANDLE scn) {};
 	virtual void SetEngineFailure(int failstage, int faileng, double failtime) = 0;
 
 	void GetScenarioState (FILEHANDLE scn, void *status);
@@ -4243,6 +4261,7 @@ protected:
 
 	PowerDrainConnectorObject CSMToLEMPowerDrain;
 	PowerDrainConnector CSMToLEMPowerConnector;
+	CSMToLEMECSConnector lemECSConnector;
 
 	//
 	// PanelSDK pointers.
@@ -4290,6 +4309,7 @@ protected:
 	double *pSecECSAccumulatorQuantity;
 	double *pPotableH2oTankQuantity;
 	double *pWasteH2oTankQuantity;
+	double *pCSMTunnelPressure;
 
 	// InitSaturn is called twice, but some things must run only once
 	bool InitSaturnCalled;
@@ -4362,6 +4382,7 @@ protected:
 	friend class SaturnHighGainAntennaStrengthMeter;
 	friend class SaturnSystemTestAttenuator;
 	friend class SaturnLVSPSPcMeter;
+	friend class SaturnLMDPGauge;
 	// Friend class the MFD too so it can steal our data
 	friend class ProjectApolloMFD;
 	friend class ApolloRTCCMFD;

@@ -152,6 +152,7 @@ public:
 	SCEA_SA_5062();
 	void Reset();
 	double GetVoltage(int chan) { return Output[chan - 1]; }
+	void SetOutput(int n, double val) { Output[n - 1] = val; }
 protected:
 	double Output[4];
 };
@@ -173,7 +174,7 @@ class SCERA
 {
 public:
 	SCERA();
-	void Init(LEM *l, e_object *dc);
+	void Init(LEM *l, e_object *dc, h_HeatLoad *hl, h_HeatLoad *sechl);
 	virtual void Timestep() = 0;
 	virtual void SystemTimestep(double simdt) = 0;
 	virtual double GetVoltage(int sa, int chan) = 0;
@@ -183,6 +184,8 @@ public:
 	bool IsPowered();
 protected:
 	LEM *lem;
+	h_HeatLoad *SCERAHeat;
+	h_HeatLoad *SCERASECHeat;
 	e_object *dcpower;
 	bool Operate;
 };

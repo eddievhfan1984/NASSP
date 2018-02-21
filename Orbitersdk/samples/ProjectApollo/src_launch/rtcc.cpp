@@ -30,6 +30,8 @@ See http://nassp.sourceforge.net/license/ for more details.
 #include "csmcomputer.h"
 #include "papi.h"
 #include "saturn.h"
+#include "LEMcomputer.h"
+#include "LEM.h"
 #include "../src_rtccmfd/OrbMech.h"
 #include "../src_rtccmfd/EntryCalculations.h"
 #include "mcc.h"
@@ -75,7 +77,11 @@ void RTCC::Init(MCC *ptr)
 bool RTCC::Calculation(int mission, int fcn, LPVOID &pad, char * upString, char * upDesc)
 {
 	bool scrubbed = false;
-	if (mission == MTP_C)
+	if (mission == MTP_B)
+	{
+		scrubbed = CalculationMTP_B(fcn, pad, upString, upDesc);
+	}
+	else if (mission == MTP_C)
 	{
 		scrubbed = CalculationMTP_C(fcn, pad, upString, upDesc);
 	}
@@ -89,6 +95,166 @@ bool RTCC::Calculation(int mission, int fcn, LPVOID &pad, char * upString, char 
 	}
 	return scrubbed;
 }
+
+bool RTCC::CalculationMTP_B(int fcn, LPVOID &pad, char * upString, char * upDesc)
+{
+	char* uplinkdata = new char[1000];
+
+	double AGCEpoch = 39856.0;
+	MATRIX3 REFSMMAT = _M(0.749669954748883, -0.141831590016531, 0.646435425251580, 0.318362144838044, 0.933611208066774, -0.16436435, -0.580207293715727, 0.329019622888181, 0.74505405);
+	REFSMMAT = mul(REFSMMAT, OrbMech::J2000EclToBRCS(AGCEpoch));
+
+	switch (fcn)
+	{
+	case 1: //RCS BURN 1 ATTITUDE
+	{
+		AP11LMManPADOpt opt;
+		AP11LMMNV manpad;
+
+		double GET, SVMJD;
+		SVMJD = oapiGetSimMJD();
+		GET = mcc->lm->GetMissionTime();
+		opt.GETbase = SVMJD - GET / 24.0 / 3600.0;
+
+		opt.dV_LVLH = _V(1.0, 0.0, -1.0);
+		opt.engopt = 1;
+		opt.HeadsUp = true;
+		opt.REFSMMAT = REFSMMAT;
+		opt.TIG = OrbMech::HHMMSSToSS(8, 52, 44);
+		opt.vessel = mcc->lm;
+		opt.vesseltype = 2;
+
+		AP11LMManeuverPAD(&opt, manpad);
+
+		sprintf(uplinkdata, "%s", SunburstAttitudeManeuver(manpad.IMUAtt));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "Attitude for RCS Burn #1");
+		}
+	}
+	break;
+	case 2: //CONFIGURE FOR SYSTEM B DEPLETION
+	{
+		sprintf(uplinkdata, "%sKKKKKKKKKK%s", SunburstLMPCommand(168), SunburstLMPCommand(232));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "Configure for RCS system B depletion");
+		}
+	}
+	break;
+	case 3: //PLUS X TRANSLATION ON
+	{
+		sprintf(uplinkdata, "%s", SunburstLMPCommand(128));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "RCS +X translation on");
+		}
+	}
+	break;
+	case 4: //PLUS X TRANSLATION OFF
+	{
+		sprintf(uplinkdata, "%s", SunburstLMPCommand(129));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "RCS +X translation off");
+		}
+	}
+	break;
+	case 5: //CONFIGURE FOR NORMAL RCS A OPERATION
+	{
+		sprintf(uplinkdata, "%sKKKKKKKKKK%s", SunburstLMPCommand(152), SunburstLMPCommand(216));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "Configure for normal RCS system A operation");
+		}
+	}
+	break;
+	case 6: //RCS BURN 2 ATTITUDE
+	{
+		AP11LMManPADOpt opt;
+		AP11LMMNV manpad;
+
+		double GET, SVMJD;
+		SVMJD = oapiGetSimMJD();
+		GET = mcc->lm->GetMissionTime();
+		opt.GETbase = SVMJD - GET / 24.0 / 3600.0;
+
+		opt.dV_LVLH = _V(0.0, 1.0, 0.0);
+		opt.engopt = 1;
+		opt.HeadsUp = true;
+		opt.REFSMMAT = REFSMMAT;
+		opt.TIG = OrbMech::HHMMSSToSS(9, 40, 20);
+		opt.vessel = mcc->lm;
+		opt.vesseltype = 2;
+
+		AP11LMManeuverPAD(&opt, manpad);
+
+		sprintf(uplinkdata, "%s", SunburstAttitudeManeuver(manpad.IMUAtt));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "Attitude for RCS Burn #2");
+		}
+	}
+	break;
+	case 7: //X-FEED OPEN
+	{
+		sprintf(uplinkdata, "%s", SunburstLMPCommand(252));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "X-Feed Open");
+		}
+	}
+	break;
+	case 8: //ERRONEOUS LM WEIGHT
+	{
+		sprintf(uplinkdata, "%s", SunburstMassUpdate(4716.0));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "Update LM mass with erroneous value");
+		}
+	}
+	break;
+	case 9: //RCS BURN 5 ATTITUDE
+	{
+		AP11LMManPADOpt opt;
+		AP11LMMNV manpad;
+
+		double GET, SVMJD;
+		SVMJD = oapiGetSimMJD();
+		GET = mcc->lm->GetMissionTime();
+		opt.GETbase = SVMJD - GET / 24.0 / 3600.0;
+
+		opt.dV_LVLH = _V(1.0, 0.0, 0.0);
+		opt.engopt = 1;
+		opt.HeadsUp = true;
+		opt.REFSMMAT = REFSMMAT;
+		opt.TIG = OrbMech::HHMMSSToSS(12, 52, 18);
+		opt.vessel = mcc->lm;
+		opt.vesseltype = 2;
+
+		AP11LMManeuverPAD(&opt, manpad);
+
+		sprintf(uplinkdata, "%s", SunburstAttitudeManeuver(manpad.IMUAtt));
+		if (upString != NULL) {
+			// give to mcc
+			strncpy(upString, uplinkdata, 1024 * 3);
+			sprintf(upDesc, "Attitude for RCS Burn #5");
+		}
+	}
+	break;
+	}
+
+	return false;
+}
+
 
 bool RTCC::CalculationMTP_D(int fcn, LPVOID &pad, char * upString, char * upDesc)
 {
@@ -457,7 +623,7 @@ bool RTCC::CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString, char * 
 		opt.TIG = TimeofIgnition;
 		opt.TLI = calcParams.TLI;
 		opt.vessel = calcParams.src;
-		opt.SeparationAttitude = _V(0.0*RAD, -120.0*RAD, 0.0);
+		opt.SeparationAttitude = _V(PI, 120.0*RAD, 0.0);
 		opt.uselvdc = true;
 
 		TLI_PAD(&opt, *form);
@@ -3391,6 +3557,7 @@ void RTCC::AP11LMManeuverPAD(AP11LMManPADOpt *opt, AP11LMMNV &pad)
 	ManPADDVR = length(opt->dV_LVLH);
 
 	IMUangles = OrbMech::CALCGAR(opt->REFSMMAT, mul(OrbMech::transpose_matrix(M), M_R));
+	pad.IMUAtt = IMUangles;
 
 	FDAIangles.z = asin(-cos(IMUangles.z)*sin(IMUangles.x));
 	if (abs(sin(FDAIangles.z)) != 1.0)
@@ -6272,7 +6439,7 @@ void RTCC::OrbitAdjustCalc(SV sv_tig, double r_apo, double r_peri, double inc, V
 void RTCC::TLI_PAD(TLIPADOpt* opt, TLIPAD &pad)
 {
 	MATRIX3 M_R, M, M_RTM;
-	VECTOR3 R_A, V_A, R0, V0, UX, UY, UZ, DV_P, DV_C, V_G, U_TD, X_B, IgnAtt, SepATT;
+	VECTOR3 R_A, V_A, R0, V0, UX, UY, UZ, DV_P, DV_C, V_G, U_TD, X_B, IgnAtt, SepATT, ExtATT;
 	double boil, SVMJD, m0, mass, dt, t_go, F, v_e, theta_T, dVC;
 	SV sv0, sv1, sv2, sv3;
 
@@ -6364,10 +6531,11 @@ void RTCC::TLI_PAD(TLIPADOpt* opt, TLIPAD &pad)
 	UZ = unit(-sv3.R);
 	UX = crossp(UY, UZ);
 	M_R = _M(UX.x, UX.y, UX.z, UY.x, UY.y, UY.z, UZ.x, UZ.y, UZ.z);
-	M = OrbMech::CALCSMSC(opt->SeparationAttitude);
-	M_RTM = mul(OrbMech::transpose_matrix(M), M_R);
+	M = OrbMech::CALCSMSC(_V(PI - opt->SeparationAttitude.x, opt->SeparationAttitude.y, opt->SeparationAttitude.z));
+	M_RTM = mul(M, M_R);
 
 	SepATT = OrbMech::CALCGAR(opt->REFSMMAT, M_RTM);
+	ExtATT = _V(300.0*RAD - SepATT.x, SepATT.y + PI, PI2 - SepATT.z);
 
 	dVC = length(opt->dV_LVLH);
 
@@ -6375,6 +6543,7 @@ void RTCC::TLI_PAD(TLIPADOpt* opt, TLIPAD &pad)
 	pad.dVC = dVC / 0.3048;
 	pad.IgnATT = _V(OrbMech::imulimit(IgnAtt.x*DEG), OrbMech::imulimit(IgnAtt.y*DEG), OrbMech::imulimit(IgnAtt.z*DEG));
 	pad.SepATT = _V(OrbMech::imulimit(SepATT.x*DEG), OrbMech::imulimit(SepATT.y*DEG), OrbMech::imulimit(SepATT.z*DEG));
+	pad.ExtATT = _V(OrbMech::imulimit(ExtATT.x*DEG), OrbMech::imulimit(ExtATT.y*DEG), OrbMech::imulimit(ExtATT.z*DEG));
 	pad.TB6P = opt->TIG - 577.6;
 	pad.VI = length(sv2.V) / 0.3048;
 }
@@ -6703,6 +6872,55 @@ char* RTCC::V71Update(int *emem, int n)
 		sprintf(list, "%s%dE", list, emem[i]);
 	}
 	sprintf(list, "%sV33E", list);
+	return list;
+}
+
+char* RTCC::SunburstAttitudeManeuver(VECTOR3 imuangles)
+{
+	int emem[3];
+	char* list = new char[1000];
+
+	if (imuangles.x > PI)
+	{
+		imuangles.x -= PI2;
+	}
+	if (imuangles.y > PI)
+	{
+		imuangles.y -= PI2;
+	}
+	if (imuangles.z > PI)
+	{
+		imuangles.z -= PI2;
+	}
+
+	emem[0] = OrbMech::DoubleToBuffer(imuangles.x / PI, 0, 1);
+	emem[1] = OrbMech::DoubleToBuffer(imuangles.y / PI, 0, 1);
+	emem[2] = OrbMech::DoubleToBuffer(imuangles.z / PI, 0, 1);
+
+	sprintf(list, "V21N1E372E0EV25N1E1631E%dE%dE%dEV25N26E20001E2067E70063EV30ER", emem[0], emem[1], emem[2]);
+
+	return list;
+}
+
+char* RTCC::SunburstLMPCommand(int code)
+{
+	char* list = new char[1000];
+
+	sprintf(list, "V67E%oEV33ER", code);
+
+	return list;
+}
+
+char* RTCC::SunburstMassUpdate(double masskg)
+{
+	int emem[2];
+	char* list = new char[1000];
+
+	emem[0] = OrbMech::DoubleToBuffer(masskg, 15, 1);
+	emem[1] = OrbMech::DoubleToBuffer(masskg, 15, 0);
+
+	sprintf(list, "V24N1E1320E%dE%dER", emem[0], emem[1]);
+
 	return list;
 }
 
@@ -7490,7 +7708,7 @@ void RTCC::LVDCTLIPredict(LVDCTLIparam lvdc, VESSEL* vessel, double GETbase, VEC
 	//State Vector
 	modf(oapiGetSimMJD(), &day);
 	MJD_GRR = day + lvdc.T_L / 24.0 / 3600.0;
-	mat = OrbMech::Orbiter2PACSS13(MJD_GRR, 28.6082888*RAD, -80.6041140*RAD, lvdc.Azimuth);
+	mat = OrbMech::Orbiter2PACSS13(MJD_GRR, lvdc.phi_L, -80.6041140*RAD, lvdc.Azimuth);
 	vessel->GetRelativePos(gravref, R_A);
 	vessel->GetRelativeVel(gravref, V_A);
 	SVMJD = oapiGetSimMJD();
@@ -7647,10 +7865,12 @@ void RTCC::LVDCTLIPredict(LVDCTLIparam lvdc, VESSEL* vessel, double GETbase, VEC
 	coe.TA = f;
 	coe.w = alpha_D;
 
-	OrbMech::PACSS4_from_coe(coe, mu_E, R_TLI, V_TLI);
+	OrbMech::PACSS13_from_coe(coe, lvdc.phi_L, lvdc.Azimuth, mu_E, R_TLI, V_TLI);
 
-	R_TLI = tmul(OrbMech::J2000EclToBRCS(40221.525), R_TLI);	//Temporary fix
-	V_TLI = tmul(OrbMech::J2000EclToBRCS(40221.525), V_TLI);
+	R_TLI = tmul(mat, R_TLI);
+	V_TLI = tmul(mat, V_TLI);
+	R_TLI = _V(R_TLI.x, R_TLI.z, R_TLI.y);
+	V_TLI = _V(V_TLI.x, V_TLI.z, V_TLI.y);
 
 	T_TLI = P30TIG + t_go;
 	dV_LVLH = _V(1.0, 0.0, 0.0)*L;

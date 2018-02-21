@@ -68,11 +68,15 @@ public:
 	void menuSaveEMSScroll();
 	void menuVAGCCoreDump();
 	void menuSetCrewNumber();
+	void menuSetCDRInSuit();
+	void menuSetLMPInSuit();
 	void menuSetPrimECSTestHeaterPower();
 	void menuSetSecECSTestHeaterPower();
 	void menuAbortUplink();
 	void menuStateVectorUpdate();
 	void menuClockUpdate();
+	void menuSunburstSuborbitalAbort();
+	void menuSunburstCOI();
 	void menuSetSource();
 	void menuSetReference();
 	void menuSetSVSlot();
