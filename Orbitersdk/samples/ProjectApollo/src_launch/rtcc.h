@@ -44,6 +44,9 @@ See http://nassp.sourceforge.net/license/ for more details.
 #define RTCC_ENTRY_MINDV 0
 #define RTCC_ENTRY_NOMINAL 1
 
+#define RTCC_VESSELTYPE_CSM 0
+#define RTCC_VESSELTYPE_LM 1
+
 const double LaunchMJD[11] = {//Launch MJD of Apollo missions
 	40140.62691,
 	40211.535417,
@@ -81,7 +84,8 @@ struct LambertMan //Data for Lambert targeting
 	double PhaseAngle; //Phase angle to target, will overwrite offset
 	//bool prograde; //Prograde or retrograde solution
 	int impulsive; //Calculated with nonimpulsive maneuver compensation or without
-	bool csmlmdocked = false; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct AP7ManPADOpt
@@ -126,7 +130,7 @@ struct AP11LMManPADOpt
 	bool HeadsUp; //Orientation during the maneuver
 	MATRIX3 REFSMMAT;//REFSMMAT during the maneuver
 	double sxtstardtime = 0; //time delay for the sextant star check (in case no star is available during the maneuver)
-	int vesseltype = 2; //0=CSM, 1=CSM/LM docked, 2 = LM, 3 = LM/CSM docked
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
 	double alt = 0.0;	//Altitude above mean radius
@@ -168,7 +172,8 @@ struct EntryOpt
 	bool entrylongmanual; //Targeting a landing zone or a manual landing longitude
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked = false;	//0 = CSM or LM alone, 1 = CSM/LM docked
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct EntryResults
@@ -178,6 +183,7 @@ struct EntryResults
 	double latitude, longitude;
 	double GET05G, GET400K, RTGO, VIO, ReA;
 	int precision;
+	SV sv_postburn;
 };
 
 
@@ -208,6 +214,7 @@ struct TEIOpt
 	int RevsTillTEI = 0;	//Revolutions until TEI
 	bool csmlmdocked = false;	//0 = CSM or LM alone, 1 = CSM/LM docked
 	bool entrylongmanual = true; //Targeting a landing zone or a manual landing longitude
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct RTEFlybyOpt
@@ -222,6 +229,7 @@ struct RTEFlybyOpt
 	SV RV_MCC;				//State vector as input
 	bool csmlmdocked = false;	//0 = CSM or LM alone, 1 = CSM/LM docked
 	bool entrylongmanual = true; //Targeting a landing zone or a manual landing longitude
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct REFSMMATOpt
@@ -236,7 +244,8 @@ struct REFSMMATOpt
 	int REFSMMATopt; //REFSMMAT options: 0 = P30 Maneuver, 1 = P30 Retro, 2= LVLH, 3= Lunar Entry, 4 = Launch, 5 = Landing Site, 6 = PTC, 7 = LOI-2, 8 = LS during TLC
 	double REFSMMATTime; //Time for the REFSMMAT calculation
 	double LSLng; //longitude for the landing site REFSMMAT
-	double LSLat; //latitude for the landign site REFSMMAT
+	double LSLat; //latitude for the landing site REFSMMAT
+	double LSAzi; //approach azimuth for the landing site REFSMMAT
 	int mission; //Just for the launch REFSMMAT
 	bool csmlmdocked = false;	//0 = CSM or LM alone, 1 = CSM/LM docked
 	bool HeadsUp = true; //Orientation during the maneuver
@@ -252,6 +261,8 @@ struct CDHOpt
 	int CDHtimemode; //0 = Fixed Time, 1 = Find GETI
 	double TIG; // (Estimated) Time of Ignition
 	int impulsive; //Calculated with nonimpulsive maneuver compensation or without
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct AP7BLKOpt
@@ -267,6 +278,8 @@ struct AP11BLKOpt
 	int n; //number of PAD entries
 	double *lng; //pointer to splashdown longitudes
 	double *GETI; //pointer to ignition times
+	bool useSV = false;		//true if state vector is to be used
+	SV RV_MCC;		//State vector as input
 };
 
 struct EarthEntryPADOpt
@@ -329,7 +342,8 @@ struct MCCNodeMan
 	double h_node;	//node altitude
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct MCCFRMan
@@ -343,7 +357,8 @@ struct MCCFRMan
 	double h_peri;	//pericynthion altitude
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 
 	//LOI targets for BAP
 	double LSlat;			//landing site latitude
@@ -366,7 +381,8 @@ struct MCCNFRMan
 	double h_peri;	//pericynthion altitude
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 
 					  //LOI targets for BAP
 	double LSlat;			//landing site latitude
@@ -388,7 +404,8 @@ struct MCCFlybyMan
 	double h_peri;	//pericynthion altitude
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct MCCSPSLunarFlybyMan
@@ -403,7 +420,8 @@ struct MCCSPSLunarFlybyMan
 	bool AscendingNode;
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 };
 
 struct LOIMan
@@ -420,7 +438,8 @@ struct LOIMan
 	double h_peri;		//perilune altitude
 	bool useSV = false;	//true if state vector is to be used
 	SV RV_MCC;			//State vector as input
-	bool csmlmdocked;	//0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 	int impulsive = RTCC_NONIMPULSIVE;	//Calculated with nonimpulsive maneuver compensation or without
 };
 
@@ -431,7 +450,8 @@ struct LOI2Man
 	double h_circ;			//altitude of circular orbit
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;				//State vector as input
-	bool csmlmdocked;		//0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 	double alt = 0.0;		//altitude of the landing site
 };
 
@@ -446,7 +466,8 @@ struct DOIMan
 	double alt;	//altitude of the landing site
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 	int N = 0;	// Revolutions between DOI and PDI
 	double PeriAng = 15.0*RAD;	//Angle from landing site to perilune
 };
@@ -460,7 +481,8 @@ struct PCMan
 	double t_A; //time when the orbit is aligned with the landing site
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 	bool landed; //0 = use lat/lng/alt to calculate landing site, 1 = target vessel on the surface
 	double lat; //landing site latitude
 	double lng; //landing site longitude
@@ -475,15 +497,17 @@ struct GMPOpt
 	//3 = Fixed TIG, circularize orbit
 	//4 = Circularize orbit at specified altitude
 	//5 = Rotate velocity vector, specify apoapsis altitude
+	//6 = Rotate line of apsides, perigee at specific longitude
 	int type = 0;
 	double GETbase; //usually MJD at launch
 	VESSEL* vessel;
 	bool useSV = false;		//true if state vector is to be used
 	SV RV_MCC;		//State vector as input
 	int impulsive = 1; //Calculated with nonimpulsive maneuver compensation or without
-	bool csmlmdocked; //0 = CSM alone, 1 = CSM/LM
+	bool csmlmdocked = false; //0 = CSM/LM alone, 1 = CSM/LM docked
 	bool AltRef = 0;	//0 = use mean radius, 1 = use launchpad or landing site radius
 	double LSAlt;	//Landing site altitude, if used
+	int vesseltype = 0;			//0 = CSM, 1 = LM
 
 	//maneuver parameters
 
@@ -492,6 +516,8 @@ struct GMPOpt
 	double h_peri;	//periapsis altitude, used for option 0
 	double inc;		//orbital inclination, used for option 0
 	double rot_ang;	//rotate velocity vector, used for option 5
+	double lng;		//Longitude, used for option 6
+	int N;			//Number of orbits, used for option 6
 };
 
 struct TLIPADOpt
@@ -686,6 +712,7 @@ public:
 	void DOITargeting(DOIMan *opt, VECTOR3 &dV_LVLH, double &P30TIG, double &t_PDI, double &t_L, double &CR);
 	void PlaneChangeTargeting(PCMan *opt, VECTOR3 &dV_LVLH, double &P30TIG);
 	void GeneralManeuverProcessor(GMPOpt *opt, VECTOR3 &dV_LVLH, double &P30TIG);
+	void GeneralManeuverProcessor(GMPOpt *opt, VECTOR3 &dV_LVLH, double &P30TIG, double &TOA);
 	OBJHANDLE AGCGravityRef(VESSEL* vessel); // A sun referenced state vector wouldn't be much of a help for the AGC...
 	void NavCheckPAD(SV sv, AP7NAV &pad, double GETbase, double GET = 0.0);
 	void AGSStateVectorPAD(AGSSVOpt *opt, AP11AGSSVPAD &pad);
@@ -696,9 +723,8 @@ public:
 	SevenParameterUpdate TLICutoffToLVDCParameters(VECTOR3 R_TLI, VECTOR3 V_TLI, double GETbase, double P30TIG, double TB5, double mu, double T_RG);
 	void LVDCTLIPredict(LVDCTLIparam lvdc, VESSEL* vessel, double GETbase, VECTOR3 &dV_LVLH, double &P30TIG, VECTOR3 &R_TLI, VECTOR3 &V_TLI, double &T_TLI);
 	void LMThrottleProgram(double F, double v_e, double mass, double dV_LVLH, double &F_average, double &ManPADBurnTime, double &bt_var, int &step);
-	void FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass, VECTOR3 DV, bool main, VECTOR3 &DV_imp, double &t_slip);
-	void FiniteBurntimeCompensation(VESSEL *vessel, SV sv, double attachedMass, VECTOR3 DV, bool main, VECTOR3 &DV_imp, double &t_slip, SV &sv_out);
-	void GetThrusterParameters(VESSEL *vessel, double &f_T, double &isp);
+	void FiniteBurntimeCompensation(int vesseltype, SV sv, double attachedMass, VECTOR3 DV, int engine, VECTOR3 &DV_imp, double &t_slip);
+	void FiniteBurntimeCompensation(int vesseltype, SV sv, double attachedMass, VECTOR3 DV, int engine, VECTOR3 &DV_imp, double &t_slip, SV &sv_out);
 	double GetDockedVesselMass(VESSEL *vessel);
 	SV StateVectorCalc(VESSEL *vessel, double SVMJD = 0.0);
 	SV ExecuteManeuver(VESSEL* vessel, double GETbase, double P30TIG, VECTOR3 dV_LVLH, SV sv, double attachedMass, double F = 0.0, double isp = 0.0);
@@ -745,8 +771,8 @@ private:
 	double lambertelev(VESSEL* vessel, VESSEL* target, double GETbase, double elev);
 	char* CMCExternalDeltaVUpdate(double P30TIG,VECTOR3 dV_LVLH);
 	char* CMCStateVectorUpdate(SV sv, bool csm, double AGCEpoch, bool v66 = false);
-	char* CMCDesiredREFSMMATUpdate(MATRIX3 REFSMMAT, double AGCEpoch);
-	char* CMCREFSMMATUpdate(MATRIX3 REFSMMAT, double AGCEpoch, int offset = 0);
+	char* CMCDesiredREFSMMATUpdate(MATRIX3 REFSMMAT, double AGCEpoch, bool AGCCoordSystem = false);
+	char* CMCREFSMMATUpdate(MATRIX3 REFSMMAT, double AGCEpoch, int offset = 0, bool AGCCoordSystem = false);
 	char* CMCRetrofireExternalDeltaVUpdate(double LatSPL, double LngSPL, double P30TIG, VECTOR3 dV_LVLH);
 	char* CMCEntryUpdate(double LatSPL, double LngSPL);
 	char* V71Update(int* emem, int n);
@@ -758,17 +784,20 @@ private:
 	bool REFSMMATDecision(VECTOR3 Att); //true = everything ok, false = Preferred REFSMMAT necessary
 	SV coast(SV sv0, double dt);
 	double PericynthionTime(VESSEL* vessel);
+	SV FindPericynthion(SV sv0);
 	void CalcSPSGimbalTrimAngles(double CSMmass, double LMmass, double &ManPADPTrim, double &ManPADYTrim);
 
 	bool CalculationMTP_B(int fcn, LPVOID &pad, char * upString = NULL, char * upDesc = NULL);
 	bool CalculationMTP_C(int fcn, LPVOID &pad, char * upString = NULL, char * upDesc = NULL);
 	bool CalculationMTP_C_PRIME(int fcn, LPVOID &pad, char * upString = NULL, char * upDesc = NULL);
 	bool CalculationMTP_D(int fcn, LPVOID &pad, char * upString = NULL, char * upDesc = NULL);
+	bool CalculationMTP_F(int fcn, LPVOID &pad, char * upString = NULL, char * upDesc = NULL);
 
 protected:
 	double TimeofIgnition;
 	double SplashLatitude, SplashLongitude;
 	VECTOR3 DeltaV_LVLH;
+	int REFSMMATType;
 };
 
 

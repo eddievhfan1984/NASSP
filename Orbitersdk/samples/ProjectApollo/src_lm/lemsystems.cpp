@@ -235,13 +235,13 @@ void LEM::SystemsInit()
 	Battery4 = (Battery *) Panelsdk.GetPointerByString("ELECTRIC:DSC_BATTERY_D");
 	Battery5 = (Battery *) Panelsdk.GetPointerByString("ELECTRIC:ASC_BATTERY_A");
 	Battery6 = (Battery *) Panelsdk.GetPointerByString("ELECTRIC:ASC_BATTERY_B");
-	LunarBattery = (Battery *) Panelsdk.GetPointerByString("ELECTRIC:LUNAR_BATTERY");
+	//LunarBattery = (Battery *) Panelsdk.GetPointerByString("ELECTRIC:LUNAR_BATTERY");  //Lunar battery not used on early LM's and will stay commented out until a J Mission LM is created
 	EDBatteryA = (Battery *)Panelsdk.GetPointerByString("ELECTRIC:BATTERY_ED_A");
 	EDBatteryB = (Battery *)Panelsdk.GetPointerByString("ELECTRIC:BATTERY_ED_B");
 
 	// Batteries 1-4 and the Lunar Stay Battery are jettisoned with the descent stage.
 
-	// ECA #1 (DESCENT stage, LMP DC bus)
+	// ECA #1 (DESCENT stage, LMP 28V DC bus)
 	ECA_1a.Init(this, Battery1, 2); // Battery 1 starts on LV
 	ECA_1b.Init(this, Battery2, 0);
 	ECA_1a.dc_source_tb = &DSCBattery1TB;
@@ -249,7 +249,7 @@ void LEM::SystemsInit()
 	ECA_1b.dc_source_tb = &DSCBattery2TB;
 	ECA_1b.dc_source_tb->SetState(0); // Initialize to off
 
-	// ECA #2 (DESCENT stage, CDR DC bus)
+	// ECA #2 (DESCENT stage, CDR 28V DC bus)
 	ECA_2a.Init(this, Battery3, 0);
 	ECA_2b.Init(this, Battery4, 2); 
 	ECA_2a.dc_source_tb = &DSCBattery3TB;
@@ -297,7 +297,7 @@ void LEM::SystemsInit()
 
 	// Main busses can be fed from the ECAs via the BAT FEED TIE CBs,
 	// the other bus via the CROSS TIE BUS / CROSS TIE BAL LOADS CBs,
-	// or the CSM via the XLUNAR bus and associated etcetera.
+	// or the CSM via the XLUNAR bus floating ground return.
 	// At this point, we have the sum of all battery feeds on BTB D and the XLUNAR feeds on BTB A
 	BTB_CDR_D.Init(this,&CDRBatteryFeedTieCB1,&CDRBatteryFeedTieCB2); // Tie dual CBs together for CDR bus
 	BTB_LMP_D.Init(this,&LMPBatteryFeedTieCB1,&LMPBatteryFeedTieCB2); // Tie dual CBs together for LMP bus
@@ -650,6 +650,10 @@ void LEM::SystemsInit()
 	PressRegA->BoilAllAndSetTemp(285.928);
 	PressRegB->BoilAllAndSetTemp(285.928);
 
+	//Tunnel Connection Initialization   
+
+	SetPipeMaxFlow("HYDRAULIC:LMTUNNELUNDOCKED", 1000.0 / LBH);
+
 	//Oxygen Pipe Initialization   
 
 	SetPipeMaxFlow("HYDRAULIC:DESO2PIPE1", 660.0 / LBH);
@@ -843,6 +847,29 @@ void LEM::SystemsInit()
 	tca2B.Init(this, 6);
 	tca3B.Init(this, 4);
 	tca4B.Init(this, 2);
+
+	RCSHtr1Quad1 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD1HTRSYS1");
+	RCSHtr1Quad2 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD2HTRSYS1");
+	RCSHtr1Quad3 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD3HTRSYS1");
+	RCSHtr1Quad4 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD4HTRSYS1");
+	RCSHtr1Quad1->WireTo(&RCS_QUAD_1_CDR_HTR_CB);
+	RCSHtr1Quad2->WireTo(&RCS_QUAD_2_CDR_HTR_CB);
+	RCSHtr1Quad3->WireTo(&RCS_QUAD_3_CDR_HTR_CB);
+	RCSHtr1Quad4->WireTo(&RCS_QUAD_4_CDR_HTR_CB);
+
+	RCSHtr2Quad1 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD1HTRSYS2");
+	RCSHtr2Quad2 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD2HTRSYS2");
+	RCSHtr2Quad3 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD3HTRSYS2");
+	RCSHtr2Quad4 = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:QUAD4HTRSYS2");
+	RCSHtr2Quad1->WireTo(&RCS_QUAD_1_LMP_HTR_CB);
+	RCSHtr2Quad2->WireTo(&RCS_QUAD_2_LMP_HTR_CB);
+	RCSHtr2Quad3->WireTo(&RCS_QUAD_3_LMP_HTR_CB);
+	RCSHtr2Quad4->WireTo(&RCS_QUAD_4_LMP_HTR_CB);
+
+	LMQuad1RCS = (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD1");
+	LMQuad2RCS = (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD2");
+	LMQuad3RCS = (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD3");
+	LMQuad4RCS = (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD4");
 
 	//ACA and TTCA
 	CDR_ACA.Init(this, &ACAPropSwitch);
@@ -1105,7 +1132,7 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(11, 1);
 				SetRCSJet(15, 1);
 
-				SCS_ATT_DIR_CONT_CB.DrawPower(200); // Four thrusters worth
+				SCS_ATT_DIR_CONT_CB.DrawPower(184); // Four thrusters worth
 			}
 			if (CDR_ACA.GetPlusRollHardover()) {
 				// PLUS ROLL
@@ -1114,7 +1141,7 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(8, 1);
 				SetRCSJet(12, 1);
 
-				SCS_ATT_DIR_CONT_CB.DrawPower(200);
+				SCS_ATT_DIR_CONT_CB.DrawPower(184);
 			}
 			if (CDR_ACA.GetMinusPitchHardover()) {
 				// MINUS PITCH
@@ -1123,7 +1150,7 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(11, 1);
 				SetRCSJet(12, 1);
 
-				SCS_ATT_DIR_CONT_CB.DrawPower(100);
+				SCS_ATT_DIR_CONT_CB.DrawPower(184);
 			}
 			if (CDR_ACA.GetPlusPitchHardover()) {
 				// PLUS PITCH
@@ -1132,7 +1159,7 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(8, 1);
 				SetRCSJet(15, 1);
 
-				SCS_ATT_DIR_CONT_CB.DrawPower(100);
+				SCS_ATT_DIR_CONT_CB.DrawPower(184);
 			}
 			if (CDR_ACA.GetMinusYawHardover()) {
 				// MINUS YAW
@@ -1141,7 +1168,7 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(9, 1);
 				SetRCSJet(13, 1);
 
-				SCS_ATT_DIR_CONT_CB.DrawPower(100);
+				SCS_ATT_DIR_CONT_CB.DrawPower(184);
 			}
 			if (CDR_ACA.GetPlusYawHardover()) {
 				// PLUS YAW
@@ -1150,7 +1177,7 @@ void LEM::JoystickTimestep(double simdt)
 				SetRCSJet(10, 1);
 				SetRCSJet(14, 1);
 
-				SCS_ATT_DIR_CONT_CB.DrawPower(100);
+				SCS_ATT_DIR_CONT_CB.DrawPower(184);
 			}
 		}
 
@@ -1167,14 +1194,14 @@ void LEM::JoystickTimestep(double simdt)
 					SetRCSJet(4, 1);
 					SetRCSJet(11, 1);
 
-					SCS_ATT_DIR_CONT_CB.DrawPower(100);
+					SCS_ATT_DIR_CONT_CB.DrawPower(92);
 				}
 				if (CDR_ACA.GetPlusRollBreakout()) {
 					// PLUS ROLL
 					SetRCSJet(3, 1);
 					SetRCSJet(12, 1);
 
-					SCS_ATT_DIR_CONT_CB.DrawPower(100);
+					SCS_ATT_DIR_CONT_CB.DrawPower(92);
 				}
 			}
 
@@ -1185,14 +1212,14 @@ void LEM::JoystickTimestep(double simdt)
 					SetRCSJet(11, 1);
 					SetRCSJet(12, 1);
 
-					SCS_ATT_DIR_CONT_CB.DrawPower(100);
+					SCS_ATT_DIR_CONT_CB.DrawPower(92);
 				}
 				if (CDR_ACA.GetPlusPitchBreakout()) {
 					// PLUS PITCH
 					SetRCSJet(3, 1);
 					SetRCSJet(4, 1);
 
-					SCS_ATT_DIR_CONT_CB.DrawPower(100);
+					SCS_ATT_DIR_CONT_CB.DrawPower(92);
 				}
 			}
 
@@ -1203,14 +1230,14 @@ void LEM::JoystickTimestep(double simdt)
 					SetRCSJet(2, 1);
 					SetRCSJet(9, 1);
 
-					SCS_ATT_DIR_CONT_CB.DrawPower(100);
+					SCS_ATT_DIR_CONT_CB.DrawPower(92);
 				}
 				if (CDR_ACA.GetPlusYawBreakout()) {
 					// PLUS YAW
 					SetRCSJet(1, 1);
 					SetRCSJet(10, 1);
 
-					SCS_ATT_DIR_CONT_CB.DrawPower(100);
+					SCS_ATT_DIR_CONT_CB.DrawPower(92);
 				}
 			}
 		}
@@ -1566,6 +1593,9 @@ void LEM::SystemsTimestep(double simt, double simdt)
 	double *DESO2ManifoldEnergy = (double*)Panelsdk.GetPointerByString("HYDRAULIC:DESO2MANIFOLD:ENERGY");
 	double *DESO2PP = (double*)Panelsdk.GetPointerByString("HYDRAULIC:DESO2TANK:O2_PPRESS");
 
+	double *asco2tk1press = (double*)Panelsdk.GetPointerByString("HYDRAULIC:ASCO2TANK1:PRESS");
+	double *asco2tk2press = (double*)Panelsdk.GetPointerByString("HYDRAULIC:ASCO2TANK2:PRESS");
+
 	int *pressRegAvlv = (int*)Panelsdk.GetPointerByString("HYDRAULIC:PRESSREGA:OUT:ISOPEN");
 	int *pressRegBvlv = (int*)Panelsdk.GetPointerByString("HYDRAULIC:PRESSREGB:OUT:ISOPEN");
 	double *PressRegAPress = (double*)Panelsdk.GetPointerByString("HYDRAULIC:PRESSREGA:PRESS");
@@ -1594,8 +1624,13 @@ void LEM::SystemsTimestep(double simt, double simdt)
 
 	int *fwdHatchvlv = (int*)Panelsdk.GetPointerByString("HYDRAULIC:CABIN:LEAK:ISOPEN");
 	int *ovhdHatchvlv = (int*)Panelsdk.GetPointerByString("HYDRAULIC:CABIN:OUT2:ISOPEN");
-	double *fwdHatchFlow = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABINOVHDHATCHVALVE:FLOW");
-	double *fwdHatchFlowmax = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABINOVHDHATCHVALVE:FLOWMAX");
+	double *ovhdHatchFlow = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABINOVHDHATCHVALVE:FLOW");
+	double *ovhdHatchFlowmax = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABINOVHDHATCHVALVE:FLOWMAX");
+	float *ovhdHatchSize = (float*)Panelsdk.GetPointerByString("HYDRAULIC:CABIN:OUT2:SIZE");
+	double *fwdHatchFlow = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABINFWDHATCHVALVE:FLOW");
+	double *fwdHatchFlowmax = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABINFWDHATCHVALVE:FLOWMAX");
+
+	double *cabinventpress = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABINVENT:PRESS");
 
 	double *CabinMass = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABIN:MASS");
 	double *CabinPress = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABIN:PRESS");
@@ -1854,25 +1889,34 @@ void LEM::SystemsTimestep(double simt, double simdt)
 	double *RRHtr = (double*)Panelsdk.GetPointerByString("ELECTRIC:LEM-RR-Antenna-Heater:ISON");
 	double *LRHtr = (double*)Panelsdk.GetPointerByString("ELECTRIC:LEM-LR-Antenna-Heater:ISON");
 
+	double *QD1Temp = (double*)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD1:TEMP");
+	double *QD2Temp = (double*)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD2:TEMP");
+	double *QD3Temp = (double*)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD3:TEMP");
+	double *QD4Temp = (double*)Panelsdk.GetPointerByString("HYDRAULIC:LMRCSQUAD4:TEMP");
+
 	//CSM LM Connection
 	double *lmcabinpress = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CABIN:PRESS");
 	double *lmtunnelpress = (double*)Panelsdk.GetPointerByString("HYDRAULIC:LMTUNNEL:PRESS");
+	double *lmtunneltemp = (double*)Panelsdk.GetPointerByString("HYDRAULIC:LMTUNNEL:TEMP");
+	double *lmtunnelflow = (double*)Panelsdk.GetPointerByString("HYDRAULIC:LMTUNNELUNDOCKED:FLOW");
 */
 
+	//sprintf(oapiDebugString(), "Quad 1 %lf Quad 2 %lf Quad 3 %lf Quad 4 %lf", KelvinToFahrenheit(*QD1Temp), KelvinToFahrenheit(*QD2Temp), KelvinToFahrenheit(*QD3Temp), KelvinToFahrenheit(*QD4Temp));
+	//sprintf(oapiDebugString(), "PrimGlycolQty %lf SecGlycolQty %lf", ecs.GetPrimaryGlycolQuantity(), ecs.GetSecondaryGlycolQuantity());
+
 	//sprintf(oapiDebugString(), "GlyTmp %lf GlyCoolTmp %lf HXCTmp %lf GlyHeatTmp %lf HXHTmp %lf StTmp %lf CP %lf CT %lf LP %lf LT %lf", (*primglycoltemp)* 1.8 - 459.67, (*glycolsuitcooltemp)* 1.8 - 459.67, (*hxcoolingTemp)* 1.8 - 459.67, (*glycolsuitheattemp)* 1.8 - 459.67, (*hxheatingTemp)* 1.8 - 459.67, (*SuitCircuitTemp)* 1.8 - 459.67, (*cdrsuitpress)*PSI, (*cdrsuittemp)* 1.8 - 459.67, (*lmpsuitpress)*PSI, (*lmpsuittemp)* 1.8 - 459.67);
-
 	//sprintf(oapiDebugString(), "CO2CP %lf SFMP %lf CO2F %lf CO2REM %lf WS1F %lf H2OREM %lf SC Mass: %lf", *primCO2CanisterPress*PSI, *suitfanmanifoldPress*PSI, *primCO2Flow, *primCO2Removal, *WS1Flow, *WS1H2ORemoval, (*hxheatingMass + *cdrsuitmass + *lmpsuitmass + *SuitCircuitMass + *SGDMass + *CO2ManifoldMass + *primCO2CanisterMass + *secCO2CanisterMass + *suitfanmanifoldMass + *hxcoolingMass));
-
 	//sprintf(oapiDebugString(), "Total: %lf HXH %lf CDRS %lf LMPS %lf SC %lf SGD %lf CO2M %lf PCO2 %lf SFM %lf HXC %lf RV %d RVF %lf", (*hxheatingMass + *cdrsuitmass + *lmpsuitmass + *SuitCircuitMass + *SGDMass + *CO2ManifoldMass + *primCO2CanisterMass + *secCO2CanisterMass + *suitfanmanifoldMass + *hxcoolingMass), *hxheatingMass, *cdrsuitmass, *lmpsuitmass, *SuitCircuitMass, *SGDMass, *CO2ManifoldMass, *primCO2CanisterMass, *suitfanmanifoldMass, *hxcoolingMass, *suitReliefvlv, *suitReliefflow*LBH);
-	
 	//sprintf(oapiDebugString(), "HXH %lf CS %lf LS %lf SC %lf SGD %lf CO2M %lf PCO2 %lf SFM %lf HXC %lf WSM %lf CO2F %lf CO2REM %lf WS1F %lf H2OREM %lf", *hxheatingPress*PSI, *cdrsuitpress*PSI, *lmpsuitpress*PSI, *SuitCircuitPress*PSI, *SGDPress*PSI, *CO2ManifoldPress*PSI, *primCO2CanisterPress*PSI, *suitfanmanifoldPress*PSI, *hxcoolingPress*PSI, *WSMPress*PSI, *primCO2Flow, *primCO2Removal, *WS1Flow, *WS1H2ORemoval);
+	//sprintf(oapiDebugString(), "CAB %lf SUIT %lf OVHDFLOW %lf OVHDFLOWMAX %lf OVHDSIZE %f TUNNELPRESS %lf TUNNELFLOW %lf", ecs.GetCabinPressurePSI(), (*SuitCircuitPress)*PSI, *ovhdHatchFlow*LBH, *ovhdHatchFlowmax*LBH, *ovhdHatchSize, *lmtunnelpress*PSI, *lmtunnelflow*LBH);
+	
 	//sprintf(oapiDebugString(), "LM Cabin: %lf LM Tunnel: %lf", *lmcabinpress*PSI, *lmtunnelpress*PSI);
 	//sprintf(oapiDebugString(), "HXH %lf CDRS %lf LMPS %lf SC %lf SGD %lf CO2M %lf PCO2 %lf SFM %lf HXC %lf CO2F %lf CO2REM %lf GRV %d", *hxheatingPress*PSI, *cdrsuitpress*PSI, *lmpsuitpress*PSI, *SuitCircuitPress*PSI, *SGDPress*PSI, *CO2ManifoldPress*PSI, *primCO2CanisterPress*PSI, *suitfanmanifoldPress*PSI, *hxcoolingPress*PSI, *primCO2Flow, *primCO2Removal, *gasreturnvlv);
 	//sprintf(oapiDebugString(), "CAB %lf RVF %lf RVFM %lf HXH %lf CDRS %lf LMPS %lf SC %lf SGD %lf CO2M %lf PCO2 %lf SFM %lf HXC %lf", *CabinMass, *suitReliefflow, *suitReliefflowmax, *hxheatingMass, *cdrsuitmass, *lmpsuitmass, *SuitCircuitMass, *SGDMass, *CO2ManifoldMass, *primCO2Mass, *suitfanmanifoldMass, *hxcoolingMass);
 	
 	//sprintf(oapiDebugString(), "CAB %lf RVF %lf HXH %lf CDRS %lf LMPS %lf SC %lf SGD %lf CO2M %lf PCO2 %lf SFM %lf HXC %lf", *CabinMass, *suitReliefflow, *hxheatingPress*PSI, *cdrsuitpress*PSI, *lmpsuitpress*PSI, *SuitCircuitPress*PSI, *SGDPress*PSI, *CO2ManifoldPress*PSI, *primCO2CanisterPress*PSI, *suitfanmanifoldPress*PSI, *hxcoolingPress*PSI);
 	
-	//sprintf(oapiDebugString(), "SBD: T %lf H %lf RR: T %lf SH %lf H %lf LR: T %lf H %lf", *SBDTemp* 1.8 - 459.67, *SBDHtr, *RRTemp* 1.8 - 459.67, *RRStbyHtr, *RRHtr, *LRTemp* 1.8 - 459.67, *LRHtr);
+	//sprintf(oapiDebugString(), "SBD: T %lf H %lf RR: T %lf SH %lf H %lf LR: T %lf H %lf", KelvinToFahrenheit(*SBDTemp), *SBDHtr, KelvinToFahrenheit(*RRTemp), *RRStbyHtr, *RRHtr, KelvinToFahrenheit(*LRTemp), *LRHtr);
 
 	//sprintf(oapiDebugString(), "ASA %lf GL1 %lf Prim Loop 1 Heat: %lf Prim Loop 2 Heat: %lf", KelvinToFahrenheit(*ASATemp), KelvinToFahrenheit(*primglycoltemp), (*LGCHeat + *CDUHeat + *PSAHeat + *TLEHeat + *GASTAHeat + *LCAHeat + *DSEHeat + *ASAHeat + *PTAHeat + *IMUHeat + *RGAHeat), (*SBPHeat + *AEAHeat + *ATCAHeat + *SCERAHeat + *CWEAHeat + *RREHeat + *SBXHeat + *VHFHeat + *INVHeat + *ECAHeat + *PCMHeat));
 	//sprintf(oapiDebugString(), "ASA %lf PL1 %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf", *ASATemp, *primglycoltemp, *SBPHeat, *AEAHeat, *ATCAHeat, *SCERAHeat, *CWEAHeat, *RREHeat, *SBXHeat, *VHFHeat, *INVHeat, *ECAHeat, *PCMHeat);
@@ -1908,7 +1952,7 @@ void LEM::SystemsTimestep(double simt, double simdt)
 	//sprintf(oapiDebugString(), "DO2Q %lf DO2P %lf DO2TT %lf DO2MQ %lf DO2MP %lf DO2MT %lf O2MQ %lf O2MP %lf O2MT %lf", ecs.DescentOxyTankQuantity(), ecs.DescentOxyTankPressurePSI(), *DESO2TankTemp, *DESO2ManifoldMass, (*DESO2ManifoldPress)*PSI, *O2ManifoldTemp, *O2ManifoldMass, (*O2ManifoldPress)*PSI, *O2ManifoldTemp);
 
 	//sprintf(oapiDebugString(), "CO2 MP %lf PRIM CO2 %lf SEC CO2 %lf CAB %lf SUIT %lf PV %d PF %lf SV %d SF %lf", (*CO2ManifoldPress)*PSI, (*primCO2CanisterPress)*PSI, (*secCO2CanisterPress)*PSI, (*cabinPress)*PSI, (*suitPress)*PSI, *primCO2Vent, *primCO2Flow, *secCO2Vent, *secCO2Flow);
-	//sprintf(oapiDebugString(), "CAB %lf SUIT %lf VLV %d FLOW %lf FLOWMAX %lf", ecs.GetCabinPressurePSI(), (*SuitCircuitPress)*PSI, *suitReliefvlv, *suitReliefflow, *suitReliefflowmax);
+	//sprintf(oapiDebugString(), "CAB %lf SUIT %lf VLV %d SRFLOW %lf SRFLOWMAX %lf FWDFLOW %lf FWDFLOWMAX %lf OVHDFLOW %lf OVHDFLOWMAX %lf TUNNELPRESS %lf TUNNELFLOW %lf", ecs.GetCabinPressurePSI(), (*SuitCircuitPress)*PSI, *suitReliefvlv, *suitReliefflow*LBH, *suitReliefflowmax*LBH, *fwdHatchFlow*LBH, *fwdHatchFlowmax*LBH, *ovhdHatchFlow*LBH, *ovhdHatchFlowmax*LBH, *lmtunnelpress*PSI, *lmtunnelflow*LBH);
 	//sprintf(oapiDebugString(), "CabinP %lf CabinT %lf SuitP %lf SuitT %lf", ecs.GetCabinPressurePSI(), ecs.GetCabinTemperature(), ecs.GetSuitPressurePSI(), ecs.GetSuitTemperature());
 	
 	//sprintf(oapiDebugString(), "DO2Q %lf DO2P %lf DO2T %lf DO2VM %lf DO2E %lf DO2PP %lf", ecs.DescentOxyTankQuantity(), ecs.DescentOxyTankPressurePSI(), *DESO2TankTemp, *DESO2VapMass, *DESO2Energy, (*DESO2PP*PSI));
@@ -1944,6 +1988,35 @@ void LEM::ConnectTunnelToCabinVent()
 
 	pipe->in = &tank->OUT_valve;
 }
+
+double LEM::GetRCSQuadTempF(int index)
+{
+	if (index >= LM_RCS_QUAD_1 && index <= LM_RCS_QUAD_4)
+	{
+		h_Radiator *quad = 0;
+		switch (index)
+		{
+		case LM_RCS_QUAD_1:
+			quad = LMQuad1RCS;
+			break;
+
+		case LM_RCS_QUAD_2:
+			quad = LMQuad2RCS;
+			break;
+
+		case LM_RCS_QUAD_3:
+			quad = LMQuad3RCS;
+			break;
+
+		case LM_RCS_QUAD_4:
+			quad = LMQuad4RCS;
+			break;
+		}
+		return (KelvinToFahrenheit(quad->GetTemp()));
+	}
+		return 0;
+}
+
 
 
 //
@@ -2050,6 +2123,12 @@ void LEM::CheckDescentStageSystems()
 		DesBatCooling->space.Void();
 		DesBatCooling->IN_valve.Close();
 		DesBatCooling->OUT_valve.Close();
+
+		//LR
+
+		Boiler *lrheater = (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:LEM-LR-Antenna-Heater");
+		lrheater->SetPumpOff();
+		lrheater->WireTo(NULL);
 	}
 }
 
@@ -2167,35 +2246,41 @@ void LEM_BusFeed::UpdateFlow(double dt){
 
 	int csrc=0;                             // Current Sources Operational
 	double PowerDrawPerSource;              // Current to draw, per source
-	double power_load_src=power_load;		// Power load when we came in
-	int cba_ok=0,cbb_ok=0;					// Circuit breaker OK flags
-	
-	// Find active sources
-	if(dc_source_a != NULL && dc_source_a->Voltage() > 0){
-		csrc++;
-	}
-	if(dc_source_b != NULL && dc_source_b->Voltage() > 0){
-		csrc++;
-	}
-	// Compute draw
-	if(csrc > 1){
-		PowerDrawPerSource = power_load_src/2;
-	}else{
-		PowerDrawPerSource = power_load_src;
-	}
-
-	// Now take power
-	if(dc_source_a != NULL){
-		dc_source_a->DrawPower(PowerDrawPerSource); 
-	}
-	if(dc_source_b != NULL){
-		dc_source_b->DrawPower(PowerDrawPerSource); 
-	}
-	
 	double A_Volts = 0;
 	double A_Amperes = 0;
 	double B_Volts = 0;
 	double B_Amperes = 0;
+
+	if (dc_source_a != NULL)
+	{
+		A_Volts = dc_source_a->Voltage();
+	}
+	if (dc_source_b != NULL)
+	{
+		B_Volts = dc_source_b->Voltage();
+	}
+	
+	// Find active sources
+	if(A_Volts > 0){
+		csrc++;
+	}
+	if(B_Volts > 0){
+		csrc++;
+	}
+	// Compute draw
+	if(csrc > 1){
+		PowerDrawPerSource = power_load/2;
+	}else{
+		PowerDrawPerSource = power_load;
+	}
+
+	// Now take power
+	if(dc_source_a != NULL && A_Volts > 0){
+		dc_source_a->DrawPower(PowerDrawPerSource); 
+	}
+	if(dc_source_b != NULL && B_Volts > 0){
+		dc_source_b->DrawPower(PowerDrawPerSource); 
+	}
 
 	// Resupply from source
 	if(dc_source_a != NULL){
@@ -2230,7 +2315,7 @@ void LEM_BusFeed::UpdateFlow(double dt){
 	// if(this == &lem->BTB_CDR_D){ sprintf(oapiDebugString(),"LM_BTO: = Voltages %f %f | Load %f PS %f Output %f V",A_Volts,B_Volts,power_load,PowerDrawPerSource,Volts); }
 
 	// Reset for next pass.
-	power_load -= power_load_src;	
+	power_load = 0;
 }
 
 // XLUNAR BUS MANAGER OUTPUT SOURCE
@@ -2246,7 +2331,7 @@ void LEM_XLBSource::SetVoltage(double v){
 void LEM_XLBSource::DrawPower(double watts)
 { 
 	power_load += watts;
-};
+}
 
 // XLUNAR BUS MANAGER
 LEM_XLBControl::LEM_XLBControl(){
@@ -2269,22 +2354,14 @@ void LEM_XLBControl::UpdateFlow(double dt){
 	if(lem == NULL){ return; }
 	// Do we have power from the other side?
 	double sVoltage = lem->CSMToLEMPowerSource.Voltage();	
-	// Is the CDR XLunar tie closed?
-	if(lem->CDRXLunarBusTieCB.GetState() == 1){
+	// Is the CSM Power relay latched?
+	if(lem->CSMToLEMPowerConnector.csm_power_latch == 1){
 		// Yes, we can put voltage on the CDR bus
 		dc_output.SetVoltage(sVoltage);
 	}else{
-		// No -- Are we tied to the LMP bus, and is the XLunar tie closed on the LMP side?
-		if(((lem->CDRCrossTieBalCB.GetState() == 1 || lem->CDRCrossTieBusCB.GetState() == 1) &&
-			(lem->LMPCrossTieBalCB.GetState() == 1 || lem->LMPCrossTieBusCB.GetState() == 1)) &&
-			lem->LMPXLunarBusTieCB.GetState() == 1){
-			// Yes, we can put voltage on the CDR bus and it get there.
-			dc_output.SetVoltage(sVoltage);
-		}else{
 			// No, we have no return path, so we have no voltage.
 			dc_output.SetVoltage(0);
 		}
-	}
 	// Handle switchery
 	switch(lem->CSMToLEMPowerConnector.csm_power_latch){
 		case 1:
@@ -2309,6 +2386,31 @@ void LEM_XLBControl::UpdateFlow(double dt){
 	}
 	
 };
+
+void LEM_XLBControl::SaveState(FILEHANDLE scn, char *start_str, char *end_str)
+
+{
+	oapiWriteLine(scn, start_str);
+	oapiWriteScenario_int(scn, "CSMPOWERLATCH", lem->CSMToLEMPowerConnector.csm_power_latch);
+	oapiWriteLine(scn, end_str);
+}
+
+void LEM_XLBControl::LoadState(FILEHANDLE scn, char *end_str)
+
+{
+	char *line;
+	int dec = 0;
+	int end_len = strlen(end_str);
+
+	while (oapiReadScenario_nextline(scn, line)) {
+		if (!strnicmp(line, end_str, end_len))
+			return;
+		if (!strnicmp(line, "CSMPOWERLATCH", 13)) {
+			sscanf(line + 14, "%d", &dec);
+			lem->CSMToLEMPowerConnector.csm_power_latch = dec;
+		}
+	}
+}
 
 // CROSS-TIE BALANCER OUTPUT SOURCE
 LEM_BCTSource::LEM_BCTSource(){
@@ -2935,8 +3037,12 @@ void LEM_LR::LoadState(FILEHANDLE scn,char *end_str){
 }
 
 double LEM_LR::GetAntennaTempF(){
-	
-	return KelvinToFahrenheit(antenna->GetTemp());
+	if (lem->stage < 2) {
+		return KelvinToFahrenheit(antenna->GetTemp());
+	}
+	else {
+		return KelvinToFahrenheit(0);
+	}
 }
 
 // Rendezvous Radar
@@ -3812,6 +3918,7 @@ LEM_CWEA::LEM_CWEA(){
 	lem = NULL;	
 	CabinLowPressLt = 0;
 	WaterWarningDisabled = 0;
+	GlycolWarningDisabled = 0;
 }
 
 void LEM_CWEA::Init(LEM *s){
@@ -3843,6 +3950,7 @@ void LEM_CWEA::TimeStep(double simdt){
 	// 6DS2 ASC PROP LOW
 	// Pressure of either ascent helium tanks below 2773 psia prior to staging, - This reason goes out when stage deadface opens.
 	// Blanket pressure in fuel or oxi lines at the bi-propellant valves of the ascent stage below 120 psia
+	// FIXME: Finish this!
 	LightStatus[1][0] = 1;
 
 	// 6DS3 HI/LO HELIUM REG OUTLET PRESS
@@ -4061,8 +4169,8 @@ void LEM_CWEA::TimeStep(double simdt){
 	if(lem->TempMonitorRotary.GetState() != 0 && (lem->RR.GetAntennaTempF() < -54.07 || lem->RR.GetAntennaTempF() > 147.69)){
 		LightStatus[2][6] = 1;
 	}
-	if(lem->TempMonitorRotary.GetState() != 1 && (lem->LR.GetAntennaTempF() < -15.6 || lem->LR.GetAntennaTempF() > 148.9)){
-		LightStatus[2][6] = 1; //Needs to not be looked at after staging as the LR is no loger attached.
+	if(lem->stage < 2 && lem->TempMonitorRotary.GetState() != 1 && (lem->LR.GetAntennaTempF() < -15.6 || lem->LR.GetAntennaTempF() > 148.9)){
+		LightStatus[2][6] = 1; //Needs to not be looked at after staging as the LR is no longer attached.
 	}
 	if (lem->TempMonitorRotary.GetState() != 6 && (lem->SBandSteerable.GetAntennaTempF() < -64.08 || lem->SBandSteerable.GetAntennaTempF() > 152.63)) {
 		LightStatus[2][6] = 1;
@@ -4085,7 +4193,8 @@ void LEM_CWEA::TimeStep(double simdt){
 	// Restoration of normal CO2 pressure
 	// Restoration of normal water separator speed
 	// Selection of #2 suit fan
-	LightStatus[0][7] = 1;
+	// FIXME: Turned off for now.
+	LightStatus[0][7] = 0;
 
 	// 6DS37 OXYGEN QUANTITY CAUTION
 	// On when:
@@ -4093,15 +4202,21 @@ void LEM_CWEA::TimeStep(double simdt){
 	// Less than 99.6 psia in ascent oxygen tank #1
 	// Off by positioning O2/H20 QTY MON switch to CWEA RESET position.
 	LightStatus[1][7] = 0;
-	if(lem->stage < 2 && (lem->ecs.AscentOxyTank1PressurePSI() < 99.6 || lem->ecs.AscentOxyTank2PressurePSI() < 99.6)){ LightStatus[1][7] = 1; }
+	if(lem->stage < 2 && (lem->ecs.AscentOxyTank1PressurePSI() < 681.6 || lem->ecs.AscentOxyTank2PressurePSI() < 682.4)){ LightStatus[1][7] = 1; }
 	if(lem->stage < 2 && (lem->ecs.DescentOxyTankPressurePSI() < 135)){ LightStatus[1][7] = 1; }
 	if(lem->ecs.AscentOxyTank1PressurePSI() < 99.6){ LightStatus[1][7] = 1; }
-	if(lem->ecs.DescentOxyTankPressurePSI() < 99.6) { LightStatus[1][7] = 1; }
 
 	// 6DS38 GLYCOL FAILURE CAUTION
-	// On when glycol qty low in primary coolant loop or primary loop glycol temp @ water evap outlet > 49.98F
+	// On when glycol qty low in primary coolant loop or primary loop glycol temp @ accumulator > 50F
 	// Disabled by Glycol Pump to INST(SEC) position
-	LightStatus[2][7] = 1;
+	LightStatus[2][7] = 0;
+	if (GlycolWarningDisabled == 0) {
+		if (lem->ecs.GetPrimaryGlycolTempF() > 50.0) { LightStatus[2][7] = 1; }
+		if (lem->ecs.GetPrimaryGlycolQuantity() < 2.5 || lem->ecs.GetSecondaryGlycolQuantity() < 0.5) { LightStatus[2][7] = 1; }
+	}
+	if (lem->GlycolRotary.GetState() == 0 && LightStatus[2][7] != 0){
+		GlycolWarningDisabled = 1;
+	}
 
 	// 6DS39 WATER QUANTITY CAUTION
 	// On when:
@@ -4127,7 +4242,7 @@ void LEM_CWEA::TimeStep(double simdt){
 		LightStatus[4][7] = 1;
 	}
 
-	// RendezVous Radar Caution
+	// Rendezvous Radar Caution
 
 	LightStatus[2][5]=0;
 	if(lem->RendezvousRadarRotary.GetState()==0 && lem->RR.IsRadarDataGood() == 0 ) {

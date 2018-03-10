@@ -685,24 +685,23 @@ double TempMonitorInd::QueryValue()
 	if (!lem) { return 0; }
 	switch (lem->TempMonitorRotary) {
 	case 0: // RR
-		return (lem->RR.GetAntennaTempF());
+		return lem->scera1.GetVoltage(21, 4) * 80 - 200;
 	case 1: // LR
-		return (lem->LR.GetAntennaTempF());
-		//FIXME: Quads need to be added and scaled
+		return lem->scera1.GetVoltage(21, 3) * 80 - 200;
+		//Quad temperatures are scaled to the proper display increments
 	case 2: // Quad 1
-		return (50);  
+		return lem->scera1.GetVoltage(20, 4) * 23 + 50;  //Scaled for the right hand scale of the display
 	case 3: // Quad 2
-		return (50);
+		return lem->scera1.GetVoltage(20, 3) * 23 + 50;  //Scaled for the right hand scale of the display
 	case 4: // Quad 3
-		return (50);
+		return lem->scera1.GetVoltage(20, 2) * 23 + 50;  //Scaled for the right hand scale of the display
 	case 5: // Quad 4
-		return (50);
-	case 6: // S-Band Ant
-		return (lem->SBandSteerable.GetAntennaTempF()); 
+		return lem->scera1.GetVoltage(20, 1) * 23 + 50;  //Scaled for the right hand scale of the display
+	case 6: // S-Band
+		return lem->scera2.GetVoltage(21, 1) * 80 - 200;
 	default:
 		return 0;
 	}
-	//return 40;
 }
 
 void TempMonitorInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -989,13 +988,6 @@ bool LEMBatterySwitch::SwitchTo(int newState, bool dontspring)
 {
 	//sprintf(oapiDebugString(),"NewState %d",newState);
 	if (LEMThreePosSwitch::SwitchTo(newState, dontspring)) {
-		// Check for control power
-		if (afl == 1) {
-			if (lem->CDRAscECAContCB.Voltage() < 24 && lem->LMPAscECAContCB.Voltage() < 24) { return true; }
-		}
-		else {
-			if (lem->CDRDesECAContCB.Voltage() < 24 && lem->LMPDesECAContCB.Voltage() < 24) { return true; }
-		}
 		switch (state) {
 		case THREEPOSSWITCH_UP:
 			switch (srcno) {
@@ -1014,6 +1006,13 @@ bool LEMBatterySwitch::SwitchTo(int newState, bool dontspring)
 			}
 			break;
 		case THREEPOSSWITCH_DOWN:
+			// Check for control power
+			if (afl == 1) {
+				if (lem->CDRAscECAContCB.Voltage() < 24 && lem->LMPAscECAContCB.Voltage() < 24) { return true; }
+			}
+			else {
+				if (lem->CDRDesECAContCB.Voltage() < 24 && lem->LMPDesECAContCB.Voltage() < 24) { return true; }
+			}
 			if (eca->dc_source_tb != NULL) {
 				eca->dc_source_tb->SetState(0);
 			}
