@@ -1069,15 +1069,15 @@ bool ApolloRTCCMFD::Update (oapi::Sketchpad *skp)
 					skp->Text((int)(0.5 * W / 8), 2 * H / 14, "CSM/LM", 6);
 				}
 
-				if (G->ManPADSPS == 0)
+				if (G->csmenginetype == RTCC_ENGINETYPE_SPSDPS)
 				{
 					skp->Text((int)(0.5 * W / 8), 4 * H / 14, "SPS", 3);
 				}
-				else if (G->ManPADSPS == 1)
+				else if (G->csmenginetype == RTCC_ENGINETYPE_RCS && G->directiontype == RTCC_DIRECTIONTYPE_PLUSX)
 				{
 					skp->Text((int)(0.5 * W / 8), 4 * H / 14, "RCS +X", 6);
 				}
-				else
+				else if (G->csmenginetype == RTCC_ENGINETYPE_RCS && G->directiontype == RTCC_DIRECTIONTYPE_MINUSX)
 				{
 					skp->Text((int)(0.5 * W / 8), 4 * H / 14, "RCS -X", 6);
 				}
@@ -1132,7 +1132,7 @@ bool ApolloRTCCMFD::Update (oapi::Sketchpad *skp)
 				sprintf(Buffer, "%+06.0f WGT", G->manpad.Weight);
 				skp->Text((int)(3.5 * W / 8), 3 * H / 26, Buffer, strlen(Buffer));
 
-				if (G->ManPADSPS == 0)
+				if (G->csmenginetype == RTCC_ENGINETYPE_SPSDPS)
 				{
 					sprintf(Buffer, "%+07.2f PTRIM", G->manpad.pTrim);
 					skp->Text((int)(3.5 * W / 8), 4 * H / 26, Buffer, strlen(Buffer));
@@ -1224,17 +1224,21 @@ bool ApolloRTCCMFD::Update (oapi::Sketchpad *skp)
 			{
 				skp->Text(5 * W / 8, (int)(0.5 * H / 14), "P30 LM Maneuver", 15);
 
-				if (G->ManPADSPS == 0)
+				if (G->lmenginetype == RTCC_ENGINETYPE_SPSDPS)
 				{
 					skp->Text((int)(0.5 * W / 8), 4 * H / 14, "DPS", 3);
 				}
-				else if (G->ManPADSPS == 1)
+				else if (G->lmenginetype == RTCC_ENGINETYPE_RCS && G->directiontype == RTCC_DIRECTIONTYPE_PLUSX)
 				{
 					skp->Text((int)(0.5 * W / 8), 4 * H / 14, "RCS +X", 6);
 				}
-				else
+				else if (G->lmenginetype == RTCC_ENGINETYPE_RCS && G->directiontype == RTCC_DIRECTIONTYPE_MINUSX)
 				{
 					skp->Text((int)(0.5 * W / 8), 4 * H / 14, "RCS -X", 6);
+				}
+				else if (G->lmenginetype == RTCC_ENGINETYPE_APS)
+				{
+					skp->Text((int)(0.5 * W / 8), 4 * H / 14, "APS", 3);
 				}
 
 				if (G->vesseltype == 2)
@@ -1447,7 +1451,7 @@ bool ApolloRTCCMFD::Update (oapi::Sketchpad *skp)
 					skp->Text((int)(0.5 * W / 8), 2 * H / 14, "No LS REFSMMAT!", 15);
 				}
 
-				if (!G->ManPADdirect)
+				if (!G->PDIPADdirect)
 				{
 					skp->Text((int)(0.5 * W / 8), 14 * H / 20, "DOI:", 4);
 
@@ -1695,23 +1699,23 @@ bool ApolloRTCCMFD::Update (oapi::Sketchpad *skp)
 		{
 			skp->Text(6 * W / 8, 4 * H / 14, "Moon", 4);
 
-			GET_Display(Buffer2, G->LOSGET);
+			GET_Display(Buffer2, G->mapupdate.LOSGET);
 			sprintf(Buffer, "LOS %s", Buffer2);
 			skp->Text(1 * W / 8, 4 * H / 14, Buffer, strlen(Buffer));
 
-			GET_Display(Buffer2, G->SRGET);
+			GET_Display(Buffer2, G->mapupdate.SRGET);
 			sprintf(Buffer, "SR  %s", Buffer2);
 			skp->Text(1 * W / 8, 5 * H / 14, Buffer, strlen(Buffer));
 
-			GET_Display(Buffer2, G->PMGET);
+			GET_Display(Buffer2, G->mapupdate.PMGET);
 			sprintf(Buffer, "PM  %s", Buffer2);
 			skp->Text(1 * W / 8, 6 * H / 14, Buffer, strlen(Buffer));
 
-			GET_Display(Buffer2, G->AOSGET);
+			GET_Display(Buffer2, G->mapupdate.AOSGET);
 			sprintf(Buffer, "AOS %s", Buffer2);
 			skp->Text(1 * W / 8, 7 * H / 14, Buffer, strlen(Buffer));
 
-			GET_Display(Buffer2, G->SSGET);
+			GET_Display(Buffer2, G->mapupdate.SSGET);
 			sprintf(Buffer, "SS  %s", Buffer2);
 			skp->Text(1 * W / 8, 8 * H / 14, Buffer, strlen(Buffer));
 		}
@@ -1828,29 +1832,29 @@ bool ApolloRTCCMFD::Update (oapi::Sketchpad *skp)
 		sprintf(Buffer, "%.3f°", G->LmkLng*DEG);
 		skp->Text(1 * W / 8, 6 * H / 14, Buffer, strlen(Buffer));
 
-		GET_Display(Buffer2, G->LmkT1);
+		GET_Display(Buffer2, G->landmarkpad.T1[0]);
 		sprintf(Buffer, "T1: %s (HOR)", Buffer2);
 		skp->Text(4 * W / 8, 6 * H / 14, Buffer, strlen(Buffer));
-		GET_Display(Buffer2, G->LmkT2);
+		GET_Display(Buffer2, G->landmarkpad.T2[0]);
 		sprintf(Buffer, "T2: %s (35°)", Buffer2);
 		skp->Text(4 * W / 8, 7 * H / 14, Buffer, strlen(Buffer));
 
-		if (G->LmkRange > 0)
+		if (G->landmarkpad.CRDist[0] > 0)
 		{
-			sprintf(Buffer, "%.1f NM North", G->LmkRange / 1852.0);
+			sprintf(Buffer, "%.1f NM North", G->landmarkpad.CRDist[0] / 1852.0);
 		}
 		else
 		{
-			sprintf(Buffer, "%.1f NM South", abs(G->LmkRange) / 1852.0);
+			sprintf(Buffer, "%.1f NM South", abs(G->landmarkpad.CRDist[0]) / 1852.0);
 		}
 		
 		skp->Text(4 * W / 8, 8 * H / 14, Buffer, strlen(Buffer));
 		skp->Text(4 * W / 8, 9 * H / 14, "N89", 3);
-		sprintf(Buffer, "Lat %+07.3f°", G->LmkN89Lat*DEG);
+		sprintf(Buffer, "Lat %+07.3f°", G->landmarkpad.Lat[0]);
 		skp->Text(4 * W / 8, 10 * H / 14, Buffer, strlen(Buffer));
-		sprintf(Buffer, "Long/2 %+07.3f°", G->LmkLng*DEG*0.5);
+		sprintf(Buffer, "Long/2 %+07.3f°", G->landmarkpad.Lng05[0]);
 		skp->Text(4 * W / 8, 11 * H / 14, Buffer, strlen(Buffer));
-		sprintf(Buffer, "Alt %+07.2f NM", G->LmkN89Alt/1852.0);
+		sprintf(Buffer, "Alt %+07.2f NM", G->landmarkpad.Alt[0]);
 		skp->Text(4 * W / 8, 12 * H / 14, Buffer, strlen(Buffer));
 	}
 	else if (screen == 14)
@@ -2585,7 +2589,7 @@ bool ApolloRTCCMFD::Update (oapi::Sketchpad *skp)
 			skp->Text(1 * W / 8, 10 * H / 14, "Min DV", 6);
 		}
 
-		if (G->DeorbitEngineOpt == 0)
+		if (G->csmenginetype == RTCC_ENGINETYPE_SPSDPS)
 		{
 			skp->Text(1 * W / 8, 12 * H / 14, "SPS Deorbit", 11);
 		}
@@ -4346,11 +4350,23 @@ void ApolloRTCCMFD::menuSwitchHeadsUp()
 	}
 }
 
-void ApolloRTCCMFD::menuSwitchManPADDirect()
+void ApolloRTCCMFD::menuManDirection()
+{
+	if (G->directiontype < 1)
+	{
+		G->directiontype++;
+	}
+	else
+	{
+		G->directiontype = 0;
+	}
+}
+
+void ApolloRTCCMFD::menuSwitchPDIPADDirect()
 {
 	if (G->manpadopt == 2 && G->vesseltype > 1)
 	{
-		G->ManPADdirect = !G->ManPADdirect;
+		G->PDIPADdirect = !G->PDIPADdirect;
 	}
 }
 
@@ -4490,13 +4506,27 @@ void ApolloRTCCMFD::menuSwitchManPADEngine()
 {
 	if (G->manpadopt == 0)
 	{
-		if (G->ManPADSPS < 2)
+		if (G->vesseltype < 2)
 		{
-			G->ManPADSPS++;
+			if (G->csmenginetype < 1)
+			{
+				G->csmenginetype++;
+			}
+			else
+			{
+				G->csmenginetype = 0;
+			}
 		}
 		else
 		{
-			G->ManPADSPS = 0;
+			if (G->lmenginetype < 2)
+			{
+				G->lmenginetype++;
+			}
+			else
+			{
+				G->lmenginetype = 0;
+			}
 		}
 	}
 }
@@ -4892,13 +4922,13 @@ void ApolloRTCCMFD::menuSwitchEntryNominal()
 
 void ApolloRTCCMFD::menuSwitchDeorbitEngineOption()
 {
-	if (G->DeorbitEngineOpt < 1)
+	if (G->csmenginetype < 1)
 	{
-		G->DeorbitEngineOpt++;
+		G->csmenginetype++;
 	}
 	else
 	{
-		G->DeorbitEngineOpt = 0;
+		G->csmenginetype = 0;
 	}
 }
 

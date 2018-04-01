@@ -817,6 +817,17 @@
 #define IDB_LEM_UPPER_HATCH_OPEN        1091
 #define AID_LEM_UPPER_HATCH_HANDLE		1092
 #define AID_LEM_UPPER_HATCH_VALVE	    1093
+#define AID_CO2_LIGHT					1094
+#define AID_SUITFAN_LIGHT				1095
+#define AID_H2OSEP_LIGHT				1096
+#define AID_GLYCOL_LIGHT				1097
+#define AID_DC_BUS_LIGHT				1098
+#define AID_BAT_FAULT_LIGHT				1099
+#define IDB_LEM_MASTERALARM             2000
+#define AID_LEM_MA_LEFT                 2001
+#define AID_LEM_MA_RIGHT                2002
+#define IDB_BORDER_47x43                2003
+
 #define IDB_LEM_FDAI_ROLL               10006
 
 // Next default values for new objects

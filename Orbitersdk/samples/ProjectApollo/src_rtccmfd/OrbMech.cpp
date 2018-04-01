@@ -2296,6 +2296,51 @@ double GetPlanetCurrentRotation(OBJHANDLE plan, double t)
 
 double findelev(VECTOR3 R_A0, VECTOR3 V_A0, VECTOR3 R_P0, VECTOR3 V_P0, double mjd0, double E, OBJHANDLE gravref)
 {
+	double w_A, w_P, r_A, v_A, r_P, v_P, alpha, t, dt, E_err, E_A, mu;
+	VECTOR3 u, R_A, V_A, R_P, V_P, U_L, U_P;
+
+	mu = GGRAV * oapiGetMass(gravref);
+	t = 0;
+	E_err = 1.0;
+	dt = 10.0;
+	R_A = R_A0;
+	V_A = V_A0;
+	R_P = R_P0;
+	V_P = V_P0;
+
+	r_A = length(R_A);
+	v_A = length(V_A);
+	r_P = length(R_P);
+	v_P = length(V_P);
+
+	while (abs(E_err) > 0.005*RAD || abs(dt)>1.0)
+	{
+		u = unit(crossp(R_A, V_A));
+		w_A = dotp(V_A, unit(crossp(u, R_A)) / r_A);
+		w_P = dotp(V_P, unit(crossp(crossp(R_P, V_P), R_P)) / r_P);
+		alpha = E + sign(dotp(crossp(R_A, R_P), u))*acos(dotp(R_A / r_A, R_P / r_P));
+		dt = (alpha - PI + sign(r_P - r_A)*(PI - acos(r_A*cos(E) / r_P))) / (w_A - w_P);
+		oneclickcoast(R_A, V_A, mjd0 + t / 24.0 / 3600.0, dt, R_A, V_A, gravref, gravref);
+		oneclickcoast(R_P, V_P, mjd0 + t / 24.0 / 3600.0, dt, R_P, V_P, gravref, gravref);
+		t += dt;
+		r_A = length(R_A);
+		v_A = length(V_A);
+		r_P = length(R_P);
+		v_P = length(V_P);
+		U_L = unit(R_P - R_A);
+		U_P = unit(U_L - R_A*dotp(U_L, R_A) / r_A / r_A);
+		E_A = acos(dotp(U_L, U_P*sign(dotp(U_P, crossp(u, R_A)))));
+		if (dotp(U_L, R_A) < 0)
+		{
+			E_A = PI2 - E_A;
+		}
+		E_err = E - E_A;
+	}
+	return t;
+}
+
+double findelev_conic(VECTOR3 R_A0, VECTOR3 V_A0, VECTOR3 R_P0, VECTOR3 V_P0, double E, double mu)
+{
 	double w_A, w_P, r_A, v_A, r_P, v_P, alpha, t, dt, E_err, E_A;
 	VECTOR3 u, R_A, V_A, R_P, V_P, U_L, U_P;
 
@@ -2319,17 +2364,20 @@ double findelev(VECTOR3 R_A0, VECTOR3 V_A0, VECTOR3 R_P0, VECTOR3 V_P0, double m
 		w_P = dotp(V_P, unit(crossp(crossp(R_P, V_P), R_P)) / r_P);
 		alpha = E + sign(dotp(crossp(R_A, R_P), u))*acos(dotp(R_A / r_A, R_P / r_P));
 		dt = (alpha - PI + sign(r_P - r_A)*(PI - acos(r_A*cos(E) / r_P))) / (w_A - w_P);
-
-		oneclickcoast(R_A, V_A, mjd0+t/24.0/3600.0, dt, R_A, V_A, gravref, gravref);
-		oneclickcoast(R_P, V_P, mjd0+t/24.0/3600.0, dt, R_P, V_P, gravref, gravref);
+		rv_from_r0v0(R_A, V_A, dt, R_A, V_A, mu);
+		rv_from_r0v0(R_P, V_P, dt, R_P, V_P, mu);
 		t += dt;
 		r_A = length(R_A);
 		v_A = length(V_A);
 		r_P = length(R_P);
 		v_P = length(V_P);
 		U_L = unit(R_P - R_A);
-		U_P = unit(U_L - R_A*dotp(U_L, R_A) / r_A / r_A);
+		U_P = unit(U_L - R_A * dotp(U_L, R_A) / r_A / r_A);
 		E_A = acos(dotp(U_L, U_P*sign(dotp(U_P, crossp(u, R_A)))));
+		if (dotp(U_L, R_A) < 0)
+		{
+			E_A = PI2 - E_A;
+		}
 		E_err = E - E_A;
 	}
 	return t;
@@ -2896,7 +2944,7 @@ void umbra(VECTOR3 R, VECTOR3 V, VECTOR3 sun, OBJHANDLE planet, bool rise, doubl
 	OELEMENTS coe;
 	VECTOR3 P, Q;
 	//double beta1, beta2, p, A,B, C, D, tol, f, f_dot, f_ddot,x, R_E, sinv, cosv, v, x_alt,mu,f0,f1;
-	double tol, R_E, f, beta1, beta2, a, b, c, d, e, p, q, QQ, D0, D1, S, DD, phi, SS,sinx,pp, alpha, cond, aa, mu;
+	double tol, R_E, f, beta1, beta2, a, b, c, d, e, p, q, D0, D1, S, DD, SS, sinx, pp, alpha, cond, aa, mu;
 	double x[4];
 	double cosv[2], sinv[2];
 	int j;
@@ -2940,7 +2988,7 @@ void umbra(VECTOR3 R, VECTOR3 V, VECTOR3 sun, OBJHANDLE planet, bool rise, doubl
 
 	a = pow(alpha,4)*pow(coe.e, 4) - 2.0*pow(alpha, 2)*(beta2*beta2 - beta1*beta1)*coe.e*coe.e + pow(beta1*beta1 + beta2*beta2, 2);
 	b = 4.0*pow(alpha, 4)*pow(coe.e, 3) - 4.0*pow(alpha, 2)*(beta2*beta2 - beta1*beta1)*coe.e;
-	c = 6.0*pow(alpha, 4)*coe.e*coe.e - 2.0*pow(alpha, 2)*(beta2*beta2 - beta1*beta1) - 2.0*pow(alpha, 2)*pow(1.0 - beta2*beta2, 1)*coe.e*coe.e + 2.0*(beta2*beta2 - beta1*beta1)*(1.0 - beta2*beta2) - 4.0*beta1*beta1*beta2*beta2;
+	c = 6.0*pow(alpha, 4)*coe.e*coe.e - 2.0*pow(alpha, 2)*(beta2*beta2 - beta1*beta1) - 2.0*pow(alpha, 2)*(1.0 - beta2*beta2)*coe.e*coe.e + 2.0*(beta2*beta2 - beta1*beta1)*(1.0 - beta2*beta2) - 4.0*beta1*beta1*beta2*beta2;
 	d = 4.0*pow(alpha, 4)*coe.e - 4.0*pow(alpha, 2)*(1.0 - beta2*beta2)*coe.e;
 	e = pow(alpha, 4) - 2.0*pow(alpha, 2)*(1.0 - beta2*beta2) + pow(1.0 - beta2*beta2,2);
 
@@ -2951,11 +2999,15 @@ void umbra(VECTOR3 R, VECTOR3 V, VECTOR3 sun, OBJHANDLE planet, bool rise, doubl
 	DD = -(D1*D1 - 4.0*D0*D0*D0)/27.0;
 	if (DD > 0)
 	{
+		double phi;
+
 		phi = acos(D1 / (2.0*sqrt(D0*D0*D0)));
 		S = 0.5*sqrt(-2.0 / 3.0*pp + 2.0 / 3.0 / a*sqrt(D0)*cos(phi / 3.0));
 	}
 	else
 	{
+		double QQ;
+
 		QQ = OrbMech::power((D1 + sqrt(D1*D1 - 4.0*D0*D0*D0)) / 2.0, 1.0 / 3.0);
 		S = 0.5*sqrt(-2.0 / 3.0*pp + 1.0 / (3.0*a)*(QQ + D0 / QQ));
 	}
@@ -2966,6 +3018,7 @@ void umbra(VECTOR3 R, VECTOR3 V, VECTOR3 sun, OBJHANDLE planet, bool rise, doubl
 
 	j = 0;
 
+	//Select the two physicals solutions from the (up to) four real roots of the quartic
 	for (int i = 0; i < 4; i++)
 	{
 		sinx = sqrt(1.0 - x[i] * x[i]);
@@ -2993,9 +3046,13 @@ void umbra(VECTOR3 R, VECTOR3 V, VECTOR3 sun, OBJHANDLE planet, bool rise, doubl
 			}
 		}
 	}
+
+	//Choose entry vs. exit
+	double dSS0 = 2.0*p*p*(beta2*cosv[0] - beta1 * sinv[0])*(beta1*cosv[0] + beta2 * sinv[0]) - 2.0*R_E*R_E*coe.e*sinv[0] * (coe.e*cosv[0] + 1.0);
+
 	if (rise)
 	{
-		if (-4.0*a*sinv[0] * pow(cosv[0], 3) - 3.0*b*sinv[0] * pow(cosv[0], 2) - 2.0*c*sinv[0] * cosv[0] < 0)
+		if (dSS0 < 0)
 		{
 			v1 = atan2(sinv[0], cosv[0]);
 		}
@@ -3006,7 +3063,7 @@ void umbra(VECTOR3 R, VECTOR3 V, VECTOR3 sun, OBJHANDLE planet, bool rise, doubl
 	}
 	else
 	{
-		if (-4.0*a*sinv[0] * pow(cosv[0], 3) - 3.0*b*sinv[0] * pow(cosv[0], 2) - 2.0*c*sinv[0] * cosv[0] > 0)
+		if (dSS0 > 0)
 		{
 			v1 = atan2(sinv[0], cosv[0]);
 		}
@@ -3015,93 +3072,6 @@ void umbra(VECTOR3 R, VECTOR3 V, VECTOR3 sun, OBJHANDLE planet, bool rise, doubl
 			v1 = atan2(sinv[1], cosv[1]);
 		}
 	}
-
-	/*x = 0;
-	x_alt = 1;
-
-
-
-	f0 = A - B + D;
-	f1 = A + B + D;
-	//if (f0*f1 <= 0)
-	//{
-		while (abs(f) > tol && abs(x - x_alt) > 1e-12)
-		{
-			f = A*x*x + B*x + C*x*sqrt(1.0 - x*x) + D;
-			f_dot = 2.0*A*x + B + C*(1.0 - 2.0*x*x) / sqrt(1.0 - x*x);
-			f_ddot = 2.0*A + C*x*(2.0*x*x*x - 3.0) / OrbMech::power(1.0 - x*x, 1.5);
-			x_alt = x;
-			x = x - f / (f*f_ddot / (2.0*f_dot));
-			if (x > 1.0)
-			{
-				x -= 2.0;
-			}
-			else if (x < -1.0)
-			{
-				x += 2.0;
-			}
-		}
-		cosv = x;
-		sinv = sqrt(1.0 - cosv*cosv);
-		if (beta1*cosv + beta2*sinv<0)
-		{
-			v = atan2(sinv, cosv);
-		}
-		else
-		{
-			v = atan2(-sinv, cosv);
-		}
-		if (f_dot>0)
-		{
-			v1 = v;
-		}
-		else
-		{
-			v2 = v;
-		}
-		f = 1;
-		x = 0.999;
-		x_alt = 1;
-
-		while (abs(f) > tol && abs(x - x_alt) > 1e-12)
-		{
-			f = A*x*x + B*x + C*x*sqrt(1.0 - x*x) + D;
-			f_dot = 2.0*A*x + B + C*(1.0 - 2.0*x*x) / sqrt(1.0 - x*x);
-			f_ddot = 2.0*A + C*x*(2.0*x*x*x - 3.0) / OrbMech::power(1.0 - x*x, 1.5);
-			x_alt = x;
-			x = x - f / (f*f_ddot / (2.0*f_dot));//
-			if (x > 1.0)
-			{
-				x -= 2.0;
-			}
-			else if (x < -1.0)
-			{
-				x += 2.0;
-			}
-		}
-		cosv = x;
-		sinv = sqrt(1.0 - cosv*cosv);
-		if (beta1*cosv + beta2*sinv<0)
-		{
-			v = atan2(sinv, cosv);
-		}
-		else
-		{
-			v = atan2(-sinv, cosv);
-		}
-		if (f_dot>0)
-		{
-			v1 = v;
-		}
-		else
-		{
-			v2 = v;
-		}
-	//}
-	//else
-	//{
-	//	v1 = v2 = 0;
-	//}*/
 }
 
 bool sight(VECTOR3 R1, VECTOR3 R2, double R_E)
@@ -3576,7 +3546,7 @@ double sunrise(VECTOR3 R, VECTOR3 V, double MJD, OBJHANDLE planet, OBJHANDLE pla
 	//CELBODY *cSun = oapiGetCelbodyInterface(hSun);
 
 	OELEMENTS coe;
-	double h, e, theta0, a, T, n, E_0, t_0, E_1, dt, t_f, dt_alt;
+	double h, e, theta0, a, E_0, t_0, E_1, dt, t_f, dt_alt;
 
 	dt = 0;
 	dt_alt = 1;
@@ -3637,19 +3607,40 @@ double sunrise(VECTOR3 R, VECTOR3 V, double MJD, OBJHANDLE planet, OBJHANDLE pla
 		e = coe.e;
 		theta0 = coe.TA;
 
-		a = h*h / mu * 1.0 / (1.0 - e*e);
-		T = PI2 / sqrt(mu)*OrbMech::power(a, 3.0 / 2.0);
-		n = PI2 / T;
-		E_0 = 2.0 * atan(sqrt((1.0 - e) / (1.0 + e))*tan(theta0 / 2.0));
-		t_0 = (E_0 - e*sin(E_0)) / n;
-		E_1 = 2.0 * atan(sqrt((1.0 - e) / (1.0 + e))*tan(v1 / 2.0));
-		t_f = (E_1 - e*sin(E_1)) / n;
-		dt_alt = dt;
-		dt = t_f - t_0;
-
-		if (dt < 0 && future)
+		if (e > 1.0)
 		{
-			dt += T;
+			VECTOR3 R1, V1;
+			double ddt;
+
+			rv_from_r0v0(R, V, dt, R1, V1, mu);
+
+			coe = coe_from_sv(R1, V1, mu);
+			h = coe.h;
+			e = coe.e;
+			theta0 = coe.TA;
+
+			dt_alt = dt;
+			ddt = time_theta(R1, V1, calculateDifferenceBetweenAngles(theta0, v1), mu);
+			dt += ddt;
+		}
+		else
+		{
+			double T, n;
+
+			a = h * h / mu * 1.0 / (1.0 - e * e);
+			T = PI2 / sqrt(mu)*OrbMech::power(a, 3.0 / 2.0);
+			n = PI2 / T;
+			E_0 = 2.0 * atan(sqrt((1.0 - e) / (1.0 + e))*tan(theta0 / 2.0));
+			t_0 = (E_0 - e * sin(E_0)) / n;
+			E_1 = 2.0 * atan(sqrt((1.0 - e) / (1.0 + e))*tan(v1 / 2.0));
+			t_f = (E_1 - e * sin(E_1)) / n;
+			dt_alt = dt;
+			dt = t_f - t_0;
+
+			if (dt < 0 && future)
+			{
+				dt += T;
+			}
 		}
 	}
 
@@ -4873,7 +4864,7 @@ void REVUP(VECTOR3 R, VECTOR3 V, double n, double mu, VECTOR3 &R1, VECTOR3 &V1, 
 	double a;
 
 	a = 1.0 / (2.0/length(R) - dotp(V, V) / mu);
-	t = n*2.0*PI*sqrt(power(a, 3) / mu);
+	t = n * PI2*sqrt(power(a, 3.0) / mu);
 	rv_from_r0v0(R, V, t, R1, V1, mu);
 }
 
@@ -4961,7 +4952,7 @@ bool QDRTPI(VECTOR3 R, VECTOR3 V, double MJD, OBJHANDLE gravref, double mu, doub
 			rv_from_r0v0(R, V, t, R_J, V_J, mu);
 		}
 
-		e_T = PI05 - E_L - asin(((length(R_J) - dh)*cos(E_L) / length(R))) - acos(dotp(unit(R), unit(R_J)))*sign(dotp(crossp(R_J, R), crossp(R, V)));
+		e_T = PI05 - E_L - asin(((length(R_J) - dh)*cos(E_L) / length(R))) - acos2(dotp(unit(R), unit(R_J)))*sign(dotp(crossp(R_J, R), crossp(R, V)));
 
 		if (abs(e_T) >= eps1)
 		{
@@ -4974,6 +4965,61 @@ bool QDRTPI(VECTOR3 R, VECTOR3 V, double MJD, OBJHANDLE gravref, double mu, doub
 
 	} while (abs(e_T) >= eps1);
 	return true;
+}
+
+bool CSIToDH(VECTOR3 R_A1, VECTOR3 V_A1, VECTOR3 R_P2, VECTOR3 V_P2, double DH, double mu, double &dv)
+{
+	int s_F;
+	double c_I, tt, e_H, dvo, eps2, p_H, e_Ho;
+	VECTOR3 u, R_A2, V_A2, V_A1F, R_PH2, V_PH2;
+
+	p_H = c_I = 0.0;
+	s_F = 0;
+	eps2 = 1.0;
+
+	u = unit(crossp(R_P2, V_P2));
+	R_A1 = unit(R_A1 - u * dotp(R_A1, u))*length(R_A1);
+	V_A1 = unit(V_A1 - u * dotp(V_A1, u))*length(V_A1);
+
+	do
+	{
+		V_A1F = V_A1 + unit(crossp(u, R_A1))*dv;
+		OrbMech::REVUP(R_A1, V_A1F, 0.5, mu, R_A2, V_A2, tt);
+		//t_H2 = t_H1 + tt;
+		OrbMech::RADUP(R_P2, V_P2, R_A2, mu, R_PH2, V_PH2);
+		e_H = length(R_PH2) - length(R_A2) - DH;
+		if (p_H == 0 || abs(e_H) >= eps2)
+		{
+			ITER(c_I, s_F, e_H, p_H, dv, e_Ho, dvo);
+			if (s_F == 1)
+			{
+				return false;
+			}
+		}
+	} while (abs(e_H) >= eps2);
+
+	return true;
+}
+
+VECTOR3 CoellipticDV(VECTOR3 R_A2, VECTOR3 R_PC, VECTOR3 V_PC, double mu)
+{
+	VECTOR3 u;
+	double dH, v_PV, epsilon, a_P, a_A, v_AV, v_AH;
+
+	u = unit(crossp(R_PC, V_PC));
+	dH = length(R_PC) - length(R_A2);
+	v_PV = dotp(V_PC, R_A2 / length(R_A2));
+	epsilon = (length(V_PC)*length(V_PC)) / 2.0 - mu / length(R_PC);
+	a_P = -mu / (2.0 * epsilon);
+	a_A = a_P - dH;
+	v_AV = v_PV * power((a_P / a_A), 1.5);
+	v_AH = sqrt(mu*(2.0 / length(R_A2) - 1.0 / a_A) - (v_AV*v_AV));
+	return unit(crossp(u, R_A2))*v_AH + unit(R_A2)*v_AV;
+}
+
+VECTOR3 ApplyHorizontalDV(VECTOR3 R, VECTOR3 V, double dv)
+{
+	return unit(crossp(unit(crossp(R, V)), R))*dv;
 }
 
 MATRIX3 LVLH_Matrix(VECTOR3 R, VECTOR3 V)
@@ -5295,6 +5341,30 @@ void impulsive(VECTOR3 R, VECTOR3 V, double MJD, OBJHANDLE gravref, double f_T, 
 double GETfromMJD(double MJD, double GETBase)
 {
 	return (MJD - GETBase)*24.0*3600.0;
+}
+
+double MJDfromGET(double GET, double GETBase)
+{
+	return GETBase + GET / 24.0 / 3600.0;
+}
+
+void format_time_HHMMSS(char *buf, double time) {
+	buf[0] = 0; // Clobber
+	int hours, minutes, seconds;
+	if (time < 0) { return; } // don't do that
+	hours = (int)(time / 3600);
+	minutes = (int)((time / 60) - (hours * 60));
+	seconds = (int)((time - (hours * 3600)) - (minutes * 60));
+	sprintf(buf, "%03d:%02d:%02d", hours, minutes, seconds);
+}
+
+void format_time_MMSS(char *buf, double time) {
+	buf[0] = 0; // Clobber
+	int minutes, seconds;
+	if (time < 0) { return; } // don't do that
+	minutes = (int)(time / 60);
+	seconds = (int)(time - (minutes * 60));
+	sprintf(buf, "%d:%02d", minutes, seconds);
 }
 
 double findlatitude(VECTOR3 R, VECTOR3 V, double mjd, OBJHANDLE gravref, double lat, bool up, VECTOR3 &Rlat, VECTOR3 &Vlat)

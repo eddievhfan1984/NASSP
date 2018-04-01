@@ -25,8 +25,6 @@
 #include "Orbitersdk.h"
 #include "soundlib.h"
 #include "toggleswitch.h"
-#include "apolloguidance.h"
-#include "LEMcomputer.h"
 #include "LEM.h"
 #include "lm_ecs.h"
 
@@ -337,8 +335,39 @@ void LEMSuitCircuitReliefValve::SystemTimestep(double simdt)
 	}
 }
 
+LEMPressureSwitch::LEMPressureSwitch()
+{
+	switchtank = NULL;
+	maxpress = 0;
+	minpress = 0;
+	PressureSwitch = true;
+
+}
+
+void LEMPressureSwitch::Init(h_Tank *st, double max, double min)
+{
+	switchtank = st;
+	maxpress = max;
+	minpress = min;
+}
+
+void LEMPressureSwitch::SystemTimestep(double simdt)
+{
+	double press = switchtank->space.Press;
+
+	if (press < minpress)
+	{
+		PressureSwitch = true;
+	}
+	else if (press > maxpress)
+	{
+		PressureSwitch = false;
+	}
+}
+
 LEMCabinRepressValve::LEMCabinRepressValve()
 {
+	lem = NULL;
 	cabinRepressValve = NULL;
 	cabinRepressValveSwitch = NULL;
 	cabinRepressCB = NULL;
@@ -347,8 +376,9 @@ LEMCabinRepressValve::LEMCabinRepressValve()
 	EmergencyCabinRepressRelay = false;
 }
 
-void LEMCabinRepressValve::Init(h_Pipe *crv, CircuitBrakerSwitch *crcb, RotationalSwitch *crvs, RotationalSwitch* pras, RotationalSwitch *prbs)
+void LEMCabinRepressValve::Init(LEM *l, h_Pipe *crv, CircuitBrakerSwitch *crcb, RotationalSwitch *crvs, RotationalSwitch* pras, RotationalSwitch *prbs)
 {
+	lem = l;
 	cabinRepressValve = crv;
 	cabinRepressValveSwitch = crvs;
 	cabinRepressCB = crcb;
@@ -381,20 +411,20 @@ void LEMCabinRepressValve::SystemTimestep(double simdt)
 	{
 		cabinRepressValve->flowMax = 396.0 / LBH;
 
-		if (cabinRepressCB->IsPowered() && !pressRegulatorASwitch->GetState() == 0 && !pressRegulatorBSwitch->GetState() == 0)
+		if (cabinRepressCB->IsPowered() && (pressRegulatorASwitch->GetState() != 0 || pressRegulatorBSwitch->GetState() != 0))
 		{
-			//Cabin pressure
-			double cabinpress = cabinRepressValve->out->parent->space.Press;
-
-			if (cabinpress < 4.07 / PSI && cabinRepressValve->in->open == 0)
+			if (lem->CabinPressureSwitch.GetPressureSwitch() != 0 && cabinRepressValve->in->open == 0)
 			{
 				cabinRepressValve->in->Open();
-				EmergencyCabinRepressRelay = true;
 			}
-			else if (cabinpress > 4.7 / PSI && cabinRepressValve->in->open == 1)
+			else if (lem->CabinPressureSwitch.GetPressureSwitch() == 0 && cabinRepressValve->in->open == 1)
 			{
 				cabinRepressValve->in->Close();
 			}
+			if (cabinRepressValve->in->open)
+				{
+				EmergencyCabinRepressRelay = true;
+				}
 		}
 		else
 		{
@@ -677,15 +707,17 @@ LEMCabinFan::LEMCabinFan(Sound &cabinfanS) : cabinfansound(cabinfanS)
 	pressRegulatorASwitch = NULL;
 	pressRegulatorBSwitch = NULL;
 	cabinFan = NULL;
+	cabinFanHeat = 0;
 }
 
-void LEMCabinFan::Init(CircuitBrakerSwitch *cf1cb, CircuitBrakerSwitch *cfccb, RotationalSwitch *pras, RotationalSwitch *prbs, Pump *cf)
+void LEMCabinFan::Init(CircuitBrakerSwitch *cf1cb, CircuitBrakerSwitch *cfccb, RotationalSwitch *pras, RotationalSwitch *prbs, Pump *cf, h_HeatLoad *cfh)
 {
 	cabinFan1CB = cf1cb;
 	cabinFanContCB = cfccb;
 	pressRegulatorASwitch = pras;
 	pressRegulatorBSwitch = prbs;
 	cabinFan = cf;
+	cabinFanHeat = cfh;
 }
 
 void LEMCabinFan::SystemTimestep(double simdt)
@@ -706,14 +738,15 @@ void LEMCabinFan::SystemTimestep(double simdt)
 	{
 		cabinFan->SetPumpOn();
 		CabinFanSound();
-
-		//TBD: Switching heat exchanger on I guess?
 	}
 	else
 	{
 		cabinFan->SetPumpOff();
 		StopCabinFanSound();
-		//TBD: Switching heat exchanger off I guess?
+	}
+
+	if (cabinFan->pumping) {
+		cabinFanHeat->GenerateHeat(36.5);
 	}
 }
 
@@ -789,13 +822,15 @@ LEMPrimGlycolPumpController::LEMPrimGlycolPumpController()
 	glycolRotary = NULL;
 	glycolPump1 = NULL;
 	glycolPump2 = NULL;
+	glycolPump1Heat = 0;
+	glycolPump2Heat = 0;
 
 	GlycolAutoTransferRelay = false;
 	GlycolPumpFailRelay = false;
 	PressureSwitch = true;
 }
 
-void LEMPrimGlycolPumpController::Init(h_Tank *pgat, h_Tank *pgpmt, Pump *gp1, Pump *gp2, RotationalSwitch *gr, CircuitBrakerSwitch *gp1cb, CircuitBrakerSwitch *gp2cb, CircuitBrakerSwitch *gpatcb)
+void LEMPrimGlycolPumpController::Init(h_Tank *pgat, h_Tank *pgpmt, Pump *gp1, Pump *gp2, RotationalSwitch *gr, CircuitBrakerSwitch *gp1cb, CircuitBrakerSwitch *gp2cb, CircuitBrakerSwitch *gpatcb, h_HeatLoad *gp1h, h_HeatLoad *gp2h)
 {
 	primGlycolAccumulatorTank = pgat;
 	primGlycolPumpManifoldTank = pgpmt;
@@ -805,6 +840,8 @@ void LEMPrimGlycolPumpController::Init(h_Tank *pgat, h_Tank *pgpmt, Pump *gp1, P
 	glycolPump1CB = gp1cb;
 	glycolPump2CB = gp2cb;
 	glycolPumpAutoTransferCB = gpatcb;
+	glycolPump1Heat = gp1h;
+	glycolPump2Heat = gp2h;
 }
 
 void LEMPrimGlycolPumpController::SystemTimestep(double simdt)
@@ -844,6 +881,7 @@ void LEMPrimGlycolPumpController::SystemTimestep(double simdt)
 	if (glycolRotary->GetState() == 1 && !GlycolAutoTransferRelay && glycolPump1CB->IsPowered())
 	{
 		glycolPump1->SetPumpOn();
+		glycolPump1Heat->GenerateHeat(30.5);
 	}
 	else
 	{
@@ -858,6 +896,14 @@ void LEMPrimGlycolPumpController::SystemTimestep(double simdt)
 	else
 	{
 		glycolPump2->SetPumpOff();
+	}
+
+	if (glycolPump1->pumping) {
+		glycolPump1Heat->GenerateHeat(30.5);
+	}
+
+	if (glycolPump2->pumping) {
+		glycolPump2Heat->GenerateHeat(30.5);
 	}
 
 	//sprintf(oapiDebugString(), "DP %f DPSwitch %d ATRelay %d Pump1 %d Pump2 %d", DPSensor*PSI, PressureSwitch, GlycolAutoTransferRelay, glycolPump1->h_pump, glycolPump2->h_pump);
@@ -904,11 +950,11 @@ void LEMSuitFanDPSensor::SystemTimestep(double simdt)
 
 	double DPSensor = suitCircuitHeatExchangerCoolingTank->space.Press - suitFanManifoldTank->space.Press;
 
-	if (PressureSwitch == false && DPSensor < 1.0 / PSI)
+	if (PressureSwitch == false && DPSensor <=  6.0 / INH2O)
 	{
 		PressureSwitch = true;
 	}
-	else if (PressureSwitch == true && DPSensor > 1.33 / PSI)
+	else if (PressureSwitch == true && DPSensor >= 8.0 / INH2O)
 	{
 		PressureSwitch = false;
 	}
@@ -987,7 +1033,7 @@ LEM_ECS::LEM_ECS(PanelSDK &p) : sdk(p)
 	Cabin_Press = 0; Cabin_Temp = 0;
 	Suit_Press = 0; Suit_Temp = 0;
 	SuitCircuit_CO2 = 0; HX_CO2 = 0;
-	Water_Sep1_Flow = 0; Water_Sep2_Flow = 0;
+	Water_Sep1_RPM = 0; Water_Sep2_RPM = 0;
 	Suit_Circuit_Relief = 0;
 	Cabin_Gas_Return = 0;
 	Asc_Water1Temp = 0; Asc_Water2Temp = 0;
@@ -996,7 +1042,7 @@ LEM_ECS::LEM_ECS(PanelSDK &p) : sdk(p)
 void LEM_ECS::Init(LEM *s) {
 	lem = s;
 }
-void LEM_ECS::TimeStep(double simdt) {
+void LEM_ECS::Timestep(double simdt) {
 	if (lem == NULL) { return; }
 	// **** Atmosphere Revitalization Section ****
 	// First, get air from the suits and/or the cabin into the system.
@@ -1258,19 +1304,18 @@ double LEM_ECS::GetWaterSeparatorRPM()
 {
 	if (!lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
 
-	if (!Water_Sep1_Flow) {
-		Water_Sep1_Flow = (double*)sdk.GetPointerByString("HYDRAULIC:WATERSEP1:FLOW");
+	if (!Water_Sep1_RPM) {
+		Water_Sep1_RPM = (double*)sdk.GetPointerByString("HYDRAULIC:WATERSEP1:RPM");
 	}
-	if (!Water_Sep2_Flow) {
-		Water_Sep2_Flow = (double*)sdk.GetPointerByString("HYDRAULIC:WATERSEP2:FLOW");
+	if (!Water_Sep2_RPM) {
+		Water_Sep2_RPM = (double*)sdk.GetPointerByString("HYDRAULIC:WATERSEP2:RPM");
 	}
 
-	if (*Water_Sep1_Flow > *Water_Sep2_Flow)
+		if (*Water_Sep1_RPM > *Water_Sep2_RPM)
 	{
-		return (*Water_Sep1_Flow)*100.0;
+			return (*Water_Sep1_RPM);
 	}
-	
-	return (*Water_Sep2_Flow)*100.0;
+		return (*Water_Sep2_RPM);
 }
 
 double LEM_ECS::GetAscWaterTank1TempF()

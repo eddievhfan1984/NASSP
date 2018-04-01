@@ -133,6 +133,7 @@ void LEM::SetLmVesselDockStage()
 	ClearThrusterDefinitions();
 	SetEmptyMass(AscentFuelMassKg + AscentEmptyMassKg + DescentEmptyMassKg);
 	SetSize (6);
+	SetVisibilityLimit(1e-3, 4.6401e-4);
 	SetPMI(_V(2.5428, 2.2871, 2.7566));
 	SetCrossSections (_V(24.53,21.92,24.40));
 	SetCW (0.1, 0.3, 1.4, 1.4);
@@ -141,6 +142,7 @@ void LEM::SetLmVesselDockStage()
 	SetYawMomentScale (0);
 	SetLiftCoeffFunc (0); 
 	ClearMeshes();
+	ClearBeacons();
 	ClearExhaustRefs();
 	ClearAttExhaustRefs();
 
@@ -262,6 +264,10 @@ void LEM::SetLmVesselDockStage()
 	VECTOR3 lpd_dir = _V(-0.191, 1.827, 0.383);
 	lpdgret = AddMesh(hLPDgret, &lpd_dir);
 	SetLPDMesh();
+
+	// Exterior lights
+	SetTrackLight();
+	SetDockingLights();
 }
 
 void LEM::SetLmVesselHoverStage()
@@ -271,6 +277,7 @@ void LEM::SetLmVesselHoverStage()
 	SetEmptyMass(AscentFuelMassKg + AscentEmptyMassKg + DescentEmptyMassKg);
 
 	SetSize (7);
+	SetVisibilityLimit(1e-3, 5.4135e-4);
 	SetPMI(_V(2.5428, 2.2871, 2.7566));
 	SetCrossSections (_V(24.53,21.92,24.40));
 	SetCW (0.1, 0.3, 1.4, 1.4);
@@ -279,6 +286,7 @@ void LEM::SetLmVesselHoverStage()
 	SetYawMomentScale (0);
 	SetLiftCoeffFunc (0); 
 	ClearMeshes();
+	ClearBeacons();
 	ClearExhaustRefs();
 	ClearAttExhaustRefs();
 
@@ -426,6 +434,10 @@ void LEM::SetLmVesselHoverStage()
 	VECTOR3 lpd_dir = _V(-0.003, -0.03, 0.004);
 	lpdgext = AddMesh(hLPDgext, &lpd_dir);
 	SetLPDMesh();
+
+	// Exterior lights
+	SetTrackLight();
+	SetDockingLights();
 }
 
 void LEM::SetLmAscentHoverStage()
@@ -434,6 +446,7 @@ void LEM::SetLmAscentHoverStage()
 	ClearThrusterDefinitions();
 	ShiftCentreOfMass(_V(0.0,3.0,0.0));
 	SetSize (5);
+	SetVisibilityLimit(1e-3, 3.8668e-4);
 	SetEmptyMass (AscentEmptyMassKg);
 	SetPMI(_V(2.8, 2.29, 2.37));
 	SetCrossSections (_V(21,23,17));
@@ -443,6 +456,7 @@ void LEM::SetLmAscentHoverStage()
 	SetYawMomentScale (0);
 	SetLiftCoeffFunc (0); 
 	ClearMeshes();
+	ClearBeacons();
 	ClearExhaustRefs();
 	ClearAttExhaustRefs();
 
@@ -554,6 +568,10 @@ void LEM::SetLmAscentHoverStage()
 	VECTOR3 lpd_dir = _V(-0.191, -0.02, 0.383);
 	lpdgret = AddMesh(hLPDgret, &lpd_dir);
 	SetLPDMesh();
+
+	// Exterior lights
+	SetTrackLight();
+	SetDockingLights();
 }
 
 void LEM::SeparateStage (UINT stage)
@@ -691,6 +709,54 @@ void LEM::SetOvhdHatchMesh() {
 	}
 	else {
 		SetMeshVisibilityMode(ovhdhatch, MESHVIS_VCEXTERNAL);
+	}
+}
+
+void LEM::SetTrackLight() {
+	
+	static VECTOR3 beaconPos = _V(0.05, 1.44, 2.58);
+	static VECTOR3 beaconPosAsc = _V(0.053, -0.41, 2.576);
+	static VECTOR3 beaconCol = _V(1, 1, 1);
+	trackLight.shape = BEACONSHAPE_STAR;
+	if (stage == 2) {
+		trackLight.pos = &beaconPosAsc;
+	}
+	else {
+		trackLight.pos = &beaconPos;
+	}
+	trackLight.col = &beaconCol;
+	trackLight.size = 0.5;
+	trackLight.falloff = 0.5;
+	trackLight.period = 1.0;
+	trackLight.duration = 0.1;
+	trackLight.tofs = 0;
+	trackLight.active = false;
+	AddBeacon(&trackLight);
+}
+
+void LEM::SetDockingLights() {
+
+	int i;
+	double xoffset = 0.003, yoffset = -1.85, zoffset = -0.004;
+	static VECTOR3 beaconPos[5] = { { 0.32, 1.52, 2.55 },{ 0.05, 1.95, -1.75 },{ -0.22, 1.52, 2.55 },{ -2.805, -0.1, -0.3 },{ 2.1, 0.28, -0.3 } };
+	static VECTOR3 beaconPosAsc[5] = { { 0.32 + xoffset, 1.52 + yoffset, 2.55 + zoffset },{ 0.05 + xoffset, 1.95 + yoffset, -1.75 + zoffset },{ -0.22 + xoffset, 1.52 + yoffset, 2.55 + zoffset },{ -2.805 + xoffset, -0.1 + yoffset, -0.3 + zoffset },{ 2.1 + xoffset, 0.28 + yoffset, -0.3 + zoffset } };
+	static VECTOR3 beaconCol[4] = { { 1, 1, 1 },{ 1, 1, 0 },{ 1, 0, 0 },{ 0, 1, 0 } };
+	for (i = 0; i < 5; i++) {
+		dockingLights[i].shape = BEACONSHAPE_DIFFUSE;
+		if (stage == 2) {
+			dockingLights[i].pos = beaconPosAsc+i;
+		}
+		else {
+			dockingLights[i].pos = beaconPos+i;
+		}
+		dockingLights[i].col = (i < 2 ? beaconCol : i < 3 ? beaconCol+1 : i < 4 ? beaconCol+2 : beaconCol+3);
+		dockingLights[i].size = 0.15;
+		dockingLights[i].falloff = 0.5;
+		dockingLights[i].period = 0.0;
+		dockingLights[i].duration = 1.0;
+		dockingLights[i].tofs = 0;
+		dockingLights[i].active = false;
+		AddBeacon(dockingLights+i);
 	}
 }
 

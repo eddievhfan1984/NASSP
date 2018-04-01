@@ -53,6 +53,8 @@ class ATCA {
 public:
 	ATCA();								// Cons
 	void Init(LEM *vessel, h_HeatLoad *hl, h_HeatLoad *sechl);				// Init
+	double GetPrimPowerVoltage();
+	double GetBackupPowerVoltage();
 	void Timestep(double simt, double simdt);			// Timestep
 	void SystemTimestep(double simdt);
 	void ProcessLGC(int ch, int val);   // To process LGC commands
@@ -144,8 +146,11 @@ public:
 	bool GetK1() { return K1; }
 	bool GetK10() { return K10; }
 	bool GetK16() { return K16; }
+	bool GetK21() { return K21; }
+	bool GetK22() { return K22; }
 	bool GetK23() { return K23; }
 	bool GetThrustOn() { return engOn; }
+	bool GetEngArm();
 	double GetAutoThrustVoltage() { return AutoThrust * 12.0; }
 	double GetManualThrustVoltage() { return ManualThrust * 14.6; }
 
@@ -252,6 +257,7 @@ public:
 	bool GetK15() { return K15; }
 	bool GetK17() { return K17; }
 	bool GetK18() { return K18; }
+	bool GetK19() { return K19; }
 	bool GetK20() { return K20; }
 	bool GetK203() { return K203; }
 	bool GetK204() { return K204; }
@@ -345,6 +351,7 @@ public:
 	bool GetK3() { return K3; }
 	bool GetK4() { return K4; }
 	bool GetK5() { return K5; }
+	bool GetK7() { return K7; }
 	bool GetK8() { return K8; }
 	bool GetK11() { return K11; }
 	bool GetK12() { return K12; }

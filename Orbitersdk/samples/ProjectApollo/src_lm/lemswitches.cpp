@@ -301,7 +301,7 @@ double LMCO2Meter::QueryValue()
 
 {
 	if(!lem){ return 0; }
-	return lem->ecs.GetSensorCO2MMHg();
+	return lem->scera1.GetVoltage(5, 2)*6.0;
 }
 
 void LMCO2Meter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -685,22 +685,22 @@ double TempMonitorInd::QueryValue()
 	if (!lem) { return 0; }
 	switch (lem->TempMonitorRotary) {
 	case 0: // RR
-		return lem->scera1.GetVoltage(21, 4) * 80 - 200;
+		return lem->scera1.GetVoltage(21, 4) * 80.0 - 200.0;
 	case 1: // LR
-		return lem->scera1.GetVoltage(21, 3) * 80 - 200;
+		return lem->scera1.GetVoltage(21, 3) * 80.0 - 200.0;
 		//Quad temperatures are scaled to the proper display increments
 	case 2: // Quad 1
-		return lem->scera1.GetVoltage(20, 4) * 23 + 50;  //Scaled for the right hand scale of the display
+		return lem->scera1.GetVoltage(20, 4) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
 	case 3: // Quad 2
-		return lem->scera1.GetVoltage(20, 3) * 23 + 50;  //Scaled for the right hand scale of the display
+		return lem->scera1.GetVoltage(20, 3) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
 	case 4: // Quad 3
-		return lem->scera1.GetVoltage(20, 2) * 23 + 50;  //Scaled for the right hand scale of the display
+		return lem->scera1.GetVoltage(20, 2) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
 	case 5: // Quad 4
-		return lem->scera1.GetVoltage(20, 1) * 23 + 50;  //Scaled for the right hand scale of the display
+		return lem->scera1.GetVoltage(20, 1) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
 	case 6: // S-Band
-		return lem->scera2.GetVoltage(21, 1) * 80 - 200;
+		return lem->scera2.GetVoltage(21, 1) * 80.0 - 200.0;
 	default:
-		return 0;
+		return 0.0;
 	}
 }
 
@@ -993,15 +993,9 @@ bool LEMBatterySwitch::SwitchTo(int newState, bool dontspring)
 			switch (srcno) {
 			case 1: // HV
 				eca->input = 1;
-				if (eca->dc_source_tb != NULL) {
-					eca->dc_source_tb->SetState(1);
-				}
 				break;
 			case 2: // LV
 				eca->input = 2;
-				if (eca->dc_source_tb != NULL) {
-					eca->dc_source_tb->SetState(2);
-				}
 				break;
 			}
 			break;
@@ -1012,9 +1006,6 @@ bool LEMBatterySwitch::SwitchTo(int newState, bool dontspring)
 			}
 			else {
 				if (lem->CDRDesECAContCB.Voltage() < 24 && lem->LMPDesECAContCB.Voltage() < 24) { return true; }
-			}
-			if (eca->dc_source_tb != NULL) {
-				eca->dc_source_tb->SetState(0);
 			}
 			eca->input = 0;
 			break;
@@ -1087,11 +1078,6 @@ bool LEMDeadFaceSwitch::SwitchTo(int newState, bool dontspring)
 				lem->DES_LMPs28VBusB.WireTo(&lem->ECA_1b);
 				lem->DES_CDRs28VBusA.WireTo(&lem->ECA_2a);
 				lem->DES_CDRs28VBusB.WireTo(&lem->ECA_2b);
-				// Reconnect EPS monitor stuff
-				lem->EPSMonitorSelectRotary.SetSource(1, lem->Battery1);
-				lem->EPSMonitorSelectRotary.SetSource(2, lem->Battery2);
-				lem->EPSMonitorSelectRotary.SetSource(3, lem->Battery3);
-				lem->EPSMonitorSelectRotary.SetSource(4, lem->Battery4);
 				lem->DSCBattFeedTB.SetState(1);
 			}
 			break;
@@ -1102,10 +1088,6 @@ bool LEMDeadFaceSwitch::SwitchTo(int newState, bool dontspring)
 			lem->DES_LMPs28VBusB.Disconnect();
 			lem->DES_CDRs28VBusA.Disconnect();
 			lem->DES_CDRs28VBusB.Disconnect();
-			lem->EPSMonitorSelectRotary.SetSource(1, NULL);
-			lem->EPSMonitorSelectRotary.SetSource(2, NULL);
-			lem->EPSMonitorSelectRotary.SetSource(3, NULL);
-			lem->EPSMonitorSelectRotary.SetSource(4, NULL);
 			lem->DSCBattFeedTB.SetState(0);
 			break;
 		}
@@ -1138,21 +1120,15 @@ void LEMInverterSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURF
 
 bool LEMInverterSwitch::ChangeState(int newState){
 	switch(newState){
-		case THREEPOSSWITCH_UP:      // INV 2			
-			if(inv1 != NULL){ inv1->active = 0; }
-			if(inv2 != NULL){ inv2->active = 1; }
+		case THREEPOSSWITCH_UP:      // INV 2
 			lem->ACBusA.WireTo(&lem->AC_A_INV_2_FEED_CB);
 			lem->ACBusB.WireTo(&lem->AC_B_INV_2_FEED_CB);
 			break;
 		case THREEPOSSWITCH_CENTER:  // INV 1
-			if(inv1 != NULL){ inv1->active = 1; }
-			if(inv2 != NULL){ inv2->active = 0; }			
 			lem->ACBusA.WireTo(&lem->AC_A_INV_1_FEED_CB);
 			lem->ACBusB.WireTo(&lem->AC_B_INV_1_FEED_CB);
 			break;
-		case THREEPOSSWITCH_DOWN:    // OFF				
-			if(inv1 != NULL){ inv1->active = 0; }
-			if(inv2 != NULL){ inv2->active = 0; }
+		case THREEPOSSWITCH_DOWN:    // OFF
 			lem->ACBusA.Disconnect();
 			lem->ACBusB.Disconnect();
 			break;
@@ -1209,57 +1185,50 @@ void LEMRoundMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s)
 }
 
 // DC Voltmeter
+
+void LEMDCVoltMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
 double LEMDCVoltMeter::QueryValue()
 
 {
-	switch(lem->EPSMonitorSelectRotary.GetState()){
+	if (!lem) { return 0; }
+	switch (lem->EPSMonitorSelectRotary) {
 		case 0: // ED/OFF
-			switch(lem->EPSEDVoltSelect.GetState()){
-				case THREEPOSSWITCH_UP:		// ED Battery A
-				case THREEPOSSWITCH_DOWN:	// ED Battery B
-					return 37.1; // Fake unloaded battery
-					break;
-				case THREEPOSSWITCH_CENTER: // OFF
-					return 0;
-					break;
-				default:
-					return 0;
-					break;
-			}
+			return(lem->scera1.GetVoltage(7, 4) * 8.0);
 			break;
 		case 1: // Battery 1
-			if(lem->Battery1){ return(lem->Battery1->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 1) * 8.0);
 			break;
 		case 2: // Battery 2
-			if(lem->Battery2){ return(lem->Battery2->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 2) * 8.0);
 			break;
 		case 3: // Battery 3
-			if(lem->Battery3){ return(lem->Battery3->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 3) * 8.0);
 			break;
 		case 4: // Battery 4
-			if(lem->Battery4){ return(lem->Battery4->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 4) * 8.0);
 			break;
 		case 5: // Battery 5
-			if(lem->Battery5){ return(lem->Battery5->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(17, 1) * 8.0);
 			break;
 		case 6: // Battery 6
-			if(lem->Battery6){ return(lem->Battery6->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(18, 1) * 8.0);
 			break;
 		case 7: // CDR DC BUS
-			return(lem->CDRs28VBus.Voltage());
+			return(lem->scera1.GetVoltage(18, 3) * 8.0);
 			break;
 		case 8: // LMP DC BUS
-			return(lem->LMPs28VBus.Voltage());
+			return(lem->scera2.GetVoltage(8, 3) * 8.0);
 			break;
-		case 9: // AC BUS (?)
-			if(lem->ACBusA.Voltage() > 85){
-				return(lem->ACBusA.Voltage()-85);
-			}else{
-				return(0);
-			}
+		case 9: // AC BUS
+			return((lem->scera1.GetVoltage(18, 2) * 25.0)/3.125);	//3.125 factor from AOH
 			break;		
 		default:
-			return(0);
+			return 0.0;
 	}
 }
 
@@ -1274,26 +1243,34 @@ void LEMDCVoltMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface){
 }
 
 // DC Ammeter
+
+void LEMDCAmMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
 double LEMDCAmMeter::QueryValue(){	
-	switch(lem->EPSMonitorSelectRotary.GetState()){
+	if (!lem) { return 0; }
+	switch (lem->EPSMonitorSelectRotary) {
 		case 0: // ED/OFF
-			return 0; // Means either off or unloaded ED battery
+			return 0.0; // Means either off or unloaded ED battery
 			break;
 		case 1: // Battery 1
 			if(lem->Battery1 && lem->Battery1->Voltage() > 0){ 
-				return(lem->Battery1->PowerLoad()/lem->Battery1->Voltage()); }else{ return 0; }
+				return((lem->Battery1->PowerLoad()/lem->Battery1->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 2: // Battery 2
 			if(lem->Battery2 && lem->Battery2->Voltage() > 0){
-				return(lem->Battery2->PowerLoad()/lem->Battery2->Voltage()); }else{ return 0; }
+				return((lem->Battery2->PowerLoad()/lem->Battery2->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 3: // Battery 3
 			if(lem->Battery3 && lem->Battery3->Voltage() > 0){
-				return(lem->Battery3->PowerLoad()/lem->Battery3->Voltage()); }else{ return 0; }
+				return((lem->Battery3->PowerLoad()/lem->Battery3->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 4: // Battery 4
 			if(lem->Battery4 && lem->Battery4->Voltage() > 0){
-				return(lem->Battery4->PowerLoad()/lem->Battery4->Voltage()); }else{ return 0; }
+				return((lem->Battery4->PowerLoad()/lem->Battery4->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 5: // Battery 5
 			if(lem->Battery5 && lem->Battery5->Voltage() > 0){
@@ -1304,22 +1281,16 @@ double LEMDCAmMeter::QueryValue(){
 				return(lem->Battery6->PowerLoad()/lem->Battery6->Voltage()); }else{ return 0; }
 			break;
 		case 7: // CDR DC BUS
-			if(lem->CDRs28VBus.Voltage() > 0){
-				return(lem->CDRs28VBus.PowerLoad()/lem->CDRs28VBus.Voltage()); }else{ return 0; }
+			return 0.0; // No current is read for this
 			break;
 		case 8: // LMP DC BUS
-			if(lem->LMPs28VBus.Voltage() > 0){
-				return(lem->LMPs28VBus.PowerLoad()/lem->LMPs28VBus.Voltage()); }else{ return 0; }
+			return 0.0; // No current is read for this
 			break;
-		case 9: // AC BUS (?)
-			if(lem->ACBusA.Voltage() > 0){
-				return(lem->ACBusA.PowerLoad()/lem->ACBusA.Voltage());
-			}else{
-				return(0);
-			}
-			break;		
+		case 9: // AC BUS
+			return 0.0; // No current is read for this
+			break;	
 		default:
-			return(0);
+			return 0.0;
 	}	
 }
 
@@ -1345,8 +1316,9 @@ double LEMVoltCB::Current()
 	return Amperes;
 }
 
-void EngineStartButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* stopbutton) {
+void EngineStartButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* stopbutton, LEM *l) {
 	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
+	lem = l;
 	this->stopbutton = stopbutton;
 }
 
@@ -1381,13 +1353,38 @@ bool EngineStartButton::Push()
 	return false;
 }
 
-void EngineStopButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* startbutton) {
+void EngineStartButton::DoDrawSwitch(SURFHANDLE DrawSurface) {
+
+	if (lem->lca.GetAnnunVoltage() > 2.25 && (lem->LampToneTestRotary.GetState() == 3 || IsUp())) {
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+	}
+	else {
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset, width, height, SURF_PREDEF_CK);
+		}
+	}
+}
+
+void EngineStopButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* startbutton, LEM *l) {
 	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
+	lem = l;
 	this->startbutton = startbutton;
 }
 
 bool EngineStopButton::CheckMouseClick(int event, int mx, int my) {
-
+	
 	int OldState = state;
 
 	if (!visible) return false;
@@ -1419,6 +1416,30 @@ bool EngineStopButton::Push()
 	}
 
 	return false;
+}
+
+void EngineStopButton::DoDrawSwitch(SURFHANDLE DrawSurface) {
+	
+	if (lem->lca.GetAnnunVoltage() > 2.25 && (lem->LampToneTestRotary.GetState() == 3 || IsUp())){
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+	}
+	else {
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset, width, height, SURF_PREDEF_CK);
+		}
+	}
 }
 
 bool LMAbortButton::CheckMouseClick(int event, int mx, int my) {
@@ -1672,6 +1693,40 @@ int LEMSCEATalkback::GetState()
 	return state;
 }
 
+LEMDoubleSCEATalkback::LEMDoubleSCEATalkback()
+{
+	ssswitch1 = 0;
+	ssswitch2 = 0;
+}
+
+void LEMDoubleSCEATalkback::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SwitchRow &row, SCEA_SolidStateSwitch *s1, SCEA_SolidStateSwitch *s2)
+
+{
+	IndicatorSwitch::Init(xp, yp, w, h, surf, row);
+	ssswitch1 = s1;
+	ssswitch2 = s2;
+}
+
+int LEMDoubleSCEATalkback::GetState()
+
+{
+	if (SRC && SRC->Voltage() > SP_MIN_DCVOLTAGE)
+	{
+		if (ssswitch1 && ssswitch1->IsClosed())
+			state = 1;
+		else if (ssswitch2 && ssswitch2->IsClosed())
+			state = 2;
+		else
+			state = 0;
+	}
+	else
+	{
+		state = 0;
+	}
+
+	return state;
+}
+
 LEMRCSQuadTalkback::LEMRCSQuadTalkback()
 {
 	ssswitch = 0;
@@ -1770,11 +1825,11 @@ double LEMDigitalHeliumPressureMeter::QueryValue()
 	}
 	else if (source->GetState() == 5)
 	{
-		return lem->GetAPSPropellant()->GetAscentHelium1PressPSI();
+		return lem->scera1.GetVoltage(8, 4) * 800.0;
 	}
 	else if (source->GetState() == 6)
 	{
-		return lem->GetAPSPropellant()->GetAscentHelium1PressPSI();
+		return lem->scera1.GetVoltage(19, 1) * 800.0;
 	}
 
 	return 0;

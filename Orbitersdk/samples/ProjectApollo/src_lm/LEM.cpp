@@ -35,7 +35,6 @@
 #include "soundlib.h"
 #include "toggleswitch.h"
 #include "apolloguidance.h"
-#include "LEMcomputer.h"
 #include "lm_channels.h"
 #include "mcc.h"
 
@@ -194,19 +193,16 @@ LEM::LEM(OBJHANDLE hObj, int fmodel) : Payload (hObj, fmodel),
 	agc(soundlib, dsky, imu, scdu, tcdu, Panelsdk),
 	CSMToLEMPowerSource("CSMToLEMPower", Panelsdk),
 	ACVoltsAttenuator("AC-Volts-Attenuator", 62.5, 125.0, 20.0, 40.0),
-	EPSDCAmMeter(0, 120.0, 220.0, -50.0),
-	EPSDCVoltMeter(20.0, 40.0, 215.0, -35.0),
 	RadarSignalStrengthAttenuator("RadarSignalStrengthAttenuator", 0.0, 5.0, 0.0, 5.0),
 	RadarSignalStrengthMeter(0.0, 5.0, 220.0, -50.0),
 	checkControl(soundlib),
 	MFDToPanelConnector(MainPanel, checkControl),
-	//imucase("LM-IMU-Case",_vector3(0.013, 3.0, 0.03),0.03,0.04),
-	//imuheater("LM-IMU-Heater",1,NULL,150,53,0,326,328,&imucase),
 	imu(agc, Panelsdk),
 	scdu(agc, RegOPTX, 0140, 0),
 	tcdu(agc, RegOPTY, 0141, 0),
 	aea(Panelsdk, deda),
 	deda(this,soundlib, aea),
+	CWEA(soundlib, Bclick),
 	DPS(th_hover),
 	DPSPropellant(ph_Dsc, Panelsdk),
 	APSPropellant(ph_Asc, Panelsdk),
@@ -228,7 +224,8 @@ LEM::LEM(OBJHANDLE hObj, int fmodel) : Payload (hObj, fmodel),
 	OverheadHatch(HatchOpenSound, HatchCloseSound),
 	CabinFan(CabinFans),
 	ecs(Panelsdk),
-	CSMToLEMECSConnector(this)
+	CSMToLEMECSConnector(this),
+	AOTLampFeeder("AOT-Lamp-Feeder", Panelsdk)
 {
 	dllhandle = g_Param.hDLL; // DS20060413 Save for later
 	InitLEMCalled = false;
@@ -241,8 +238,9 @@ LEM::LEM(OBJHANDLE hObj, int fmodel) : Payload (hObj, fmodel),
 }
 
 LEM::~LEM()
-
 {
+	ReleaseSurfaces();
+
 #ifdef DIRECTSOUNDENABLED
     sevent.Stop();
 	sevent.Done();
@@ -1017,22 +1015,18 @@ void LEM::PostLoadSetup()
 	// Also cause the AC busses to wire up
 	switch (EPSInverterSwitch.GetState()) {
 	case THREEPOSSWITCH_UP:      // INV 2
-		INV_1.active = 0;
-		INV_2.active = 1;
 		ACBusA.WireTo(&AC_A_INV_2_FEED_CB);
 		ACBusB.WireTo(&AC_B_INV_2_FEED_CB);
 		break;
 	case THREEPOSSWITCH_CENTER:  // INV 1
-		INV_1.active = 1;
-		INV_2.active = 0;
 		ACBusA.WireTo(&AC_A_INV_1_FEED_CB);
 		ACBusB.WireTo(&AC_B_INV_1_FEED_CB);
 		break;
 	case THREEPOSSWITCH_DOWN:    // OFF	
 		break;                   // Handled later
 	}
-	HRESULT         hr;
 
+	HRESULT         hr;
 	// Having read the configuration file, set up DirectX...	
 	hr = DirectInput8Create(dllhandle, DIRECTINPUT_VERSION, IID_IDirectInput8, (void **)&dx8ppv, NULL); // Give us a DirectInput context
 	if (!FAILED(hr)) {
@@ -1042,7 +1036,7 @@ void LEM::PostLoadSetup()
 		if (js_enabled == 0) {   // Did we get anything?			
 			dx8ppv->Release(); // No. Close down DirectInput
 			dx8ppv = NULL;     // otherwise it won't get closed later
-			sprintf(oapiDebugString(), "DX8JS: No joysticks found");
+			//sprintf(oapiDebugString(), "DX8JS: No joysticks found");
 		}
 		else {
 			while (x < js_enabled) {                                // For each joystick
@@ -1202,6 +1196,12 @@ void LEM::GetScenarioState(FILEHANDLE scn, void *vs)
 		}
 		else if (!strnicmp(line, "STEERABLEANTENNA", 16)) {
 			SBandSteerable.LoadState(line);
+		}
+		else if (!strnicmp(line, "LCA_START", sizeof("LCA_START"))) {
+			lca.LoadState(scn,"LCA_END");
+		}
+		else if (!strnicmp(line, CWEA_START_STRING, sizeof(CWEA_START_STRING))) {
+			CWEA.LoadState(scn, CWEA_END_STRING);
 		}
 		else if (!strnicmp(line, "FORWARDHATCH", 12)) {
 			ForwardHatch.LoadState(line);
@@ -1530,6 +1530,12 @@ void LEM::clbkSaveState (FILEHANDLE scn)
 	// Save COMM
 	SBand.SaveState(scn);
 	SBandSteerable.SaveState(scn);
+
+	// Save Lighting
+	lca.SaveState(scn, "LCA_START", "LCA_END");
+
+	// Save CWEA
+	CWEA.SaveState(scn, CWEA_START_STRING, CWEA_END_STRING);
 
 	// Save ECS
 	ForwardHatch.SaveState(scn);

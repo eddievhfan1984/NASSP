@@ -262,7 +262,6 @@ ARCore::ARCore(VESSEL* v)
 	entrynominal = 1;
 	entryrange = 0.0;
 	EntryRTGO = 0.0;
-	DeorbitEngineOpt = 0;
 
 	SVSlot = true; //true = CSM; false = Other
 	J2000Pos = _V(0.0, 0.0, 0.0);
@@ -305,7 +304,9 @@ ARCore::ARCore(VESSEL* v)
 	sprintf(lmmanpad.remarks, "");
 	entrypadopt = 0;
 	EntryPADdirect = false; //false = Entry PAD with MCC/Deorbit burn, true = Direct Entry
-	ManPADSPS = 0;
+	csmenginetype = 0;
+	lmenginetype = 0;
+	directiontype = 0;
 	TPIPAD_AZ = 0.0;
 	TPIPAD_dH = 0.0;
 	TPIPAD_dV_LOS = _V(0.0, 0.0, 0.0);
@@ -315,13 +316,13 @@ ARCore::ARCore(VESSEL* v)
 	TPIPAD_ddH = 0.0;
 	TPIPAD_BT = _V(0.0, 0.0, 0.0);
 	sxtstardtime = 0.0;
-	ManPADdirect = true;
+	PDIPADdirect = true;
 	P37GET400K = 0.0;
-	LOSGET = 0.0;
-	AOSGET = 0.0;
-	SSGET = 0.0;
-	SRGET = 0.0;
-	PMGET = 0.0;
+	mapupdate.LOSGET = 0.0;
+	mapupdate.AOSGET = 0.0;
+	mapupdate.SSGET = 0.0;
+	mapupdate.SRGET = 0.0;
+	mapupdate.PMGET = 0.0;
 	mappage = 1;
 	mapgs = 0;
 	GSAOSGET = 0.0;
@@ -394,11 +395,12 @@ ARCore::ARCore(VESSEL* v)
 	LmkLat = 0;
 	LmkLng = 0;
 	LmkTime = 0;
-	LmkT1 = 0;
-	LmkT2 = 0;
-	LmkRange = 0;
-	LmkN89Alt = 0;
-	LmkN89Lat = 0;
+	landmarkpad.T1[0] = 0;
+	landmarkpad.T2[0] = 0;
+	landmarkpad.CRDist[0] = 0;
+	landmarkpad.Alt[0] = 0;
+	landmarkpad.Lat[0] = 0;
+	landmarkpad.Lng05[0] = 0;
 
 	VECdirection = 0;
 	VECbody = NULL;
@@ -724,52 +726,16 @@ void ARCore::MinorCycle(double SimT, double SimDT, double mjd)
 
 void ARCore::LmkCalc()
 {
-	VECTOR3 RA0_orb, VA0_orb, RA0, VA0, R_P, RA1, VA1, u;
-	double SVMJD, dt1, dt2, get, MJDguess, sinl, gamma, r_0;
-	OBJHANDLE hEarth, hMoon, gravref;
+	LMARKTRKPADOpt opt;
 
-	hEarth = oapiGetObjectByName("Earth");
-	hMoon = oapiGetObjectByName("Moon");
-	gravref = rtcc->AGCGravityRef(vessel);
+	opt.GETbase = GETbase;
+	opt.lat[0] = LmkLat;
+	opt.LmkTime[0] = LmkTime;
+	opt.lng[0] = LmkLng;
+	opt.vessel = vessel;
+	opt.entries = 1;
 
-	vessel->GetRelativePos(gravref, RA0_orb);
-	vessel->GetRelativeVel(gravref, VA0_orb);
-	SVMJD = oapiGetSimMJD();
-	get = (SVMJD - GETbase)*24.0*3600.0;
-	MJDguess = GETbase + LmkTime / 24.0 / 3600.0;
-
-	RA0 = _V(RA0_orb.x, RA0_orb.z, RA0_orb.y);
-	VA0 = _V(VA0_orb.x, VA0_orb.z, VA0_orb.y);
-
-	R_P = unit(_V(cos(LmkLng)*cos(LmkLat), sin(LmkLat), sin(LmkLng)*cos(LmkLat)))*oapiGetSize(gravref);
-
-	OrbMech::oneclickcoast(RA0, VA0, SVMJD, LmkTime - get, RA1, VA1, gravref, gravref);
-
-	dt1 = OrbMech::findelev_gs(RA1, VA1, R_P, MJDguess, 180.0*RAD, gravref, LmkRange);
-	dt2 = OrbMech::findelev_gs(RA1, VA1, R_P, MJDguess, 145.0*RAD, gravref, LmkRange);
-
-	LmkT1 = dt1 + (MJDguess - GETbase) * 24.0 * 60.0 * 60.0;
-	LmkT2 = dt2 + (MJDguess - GETbase) * 24.0 * 60.0 * 60.0;
-
-	u = unit(_V(R_P.x, R_P.z, R_P.y));
-	sinl = u.z;
-	
-	if (gravref == hEarth)
-	{
-		double a, b, r_F;
-		a = 6378166;
-		b = 6356784;
-		gamma = b*b / a / a;
-		r_F = sqrt(b*b / (1.0 - (1.0 - b*b / a / a)*(1.0 - sinl*sinl)));
-		r_0 = r_F;
-	}
-	else
-	{
-		gamma = 1.0;
-		r_0 = oapiGetSize(gravref);
-	}
-	LmkN89Lat = atan2(u.z, gamma*sqrt(u.x*u.x + u.y*u.y));
-	LmkN89Alt = length(R_P) - r_0;
+	rtcc->LandmarkTrackingPAD(&opt, landmarkpad);
 }
 
 void ARCore::LOICalc()
@@ -954,55 +920,24 @@ void ARCore::TPIPAD()
 
 void ARCore::MapUpdate()
 {
-	VECTOR3 R, V;
-	double MJD;
-	OBJHANDLE gravref = rtcc->AGCGravityRef(vessel);
-	vessel->GetRelativePos(gravref, R);
-	vessel->GetRelativeVel(gravref, V);
-	MJD = oapiGetSimMJD();
-
-	R = _V(R.x, R.z, R.y);
-	V = _V(V.x, V.z, V.y);
+	SV sv0 = rtcc->StateVectorCalc(vessel);
 
 	if (mappage == 0)
 	{
 		int gstat;
 		double ttoGSAOS, ttoGSLOS;
 
-		gstat = OrbMech::findNextAOS(R, V, MJD, gravref);
+		gstat = OrbMech::findNextAOS(sv0.R, sv0.V, sv0.MJD, sv0.gravref);
 
-		OrbMech::groundstation(R, V, MJD, gravref, groundstations[gstat][0], groundstations[gstat][1], 1, ttoGSAOS);
-		OrbMech::groundstation(R, V, MJD, gravref, groundstations[gstat][0], groundstations[gstat][1], 0, ttoGSLOS);
-		GSAOSGET = (MJD - GETbase)*24.0*3600.0 + ttoGSAOS;
-		GSLOSGET = (MJD - GETbase)*24.0*3600.0 + ttoGSLOS;
+		OrbMech::groundstation(sv0.R, sv0.V, sv0.MJD, sv0.gravref, groundstations[gstat][0], groundstations[gstat][1], 1, ttoGSAOS);
+		OrbMech::groundstation(sv0.R, sv0.V, sv0.MJD, sv0.gravref, groundstations[gstat][0], groundstations[gstat][1], 0, ttoGSLOS);
+		GSAOSGET = (sv0.MJD - GETbase)*24.0*3600.0 + ttoGSAOS;
+		GSLOSGET = (sv0.MJD - GETbase)*24.0*3600.0 + ttoGSLOS;
 		mapgs = gstat;
 	}
 	else
 	{
-		double ttoLOS, ttoAOS, ttoSS, ttoSR, ttoPM;
-		OBJHANDLE hEarth, hSun;
-
-		double t_lng;
-
-		hEarth = oapiGetObjectByName("Earth");
-		hSun = oapiGetObjectByName("Sun");
-
-		ttoLOS = OrbMech::sunrise(R, V, MJD, gravref, hEarth, 0, 0, true);
-		ttoAOS = OrbMech::sunrise(R, V, MJD, gravref, hEarth, 1, 0, true);
-
-		LOSGET = (MJD - GETbase)*24.0*3600.0 + ttoLOS;
-		AOSGET = (MJD - GETbase)*24.0*3600.0 + ttoAOS;
-
-		ttoSS = OrbMech::sunrise(R, V, MJD, gravref, hSun, 0, 0, true);
-		ttoSR = OrbMech::sunrise(R, V, MJD, gravref, hSun, 1, 0, true);
-
-		SSGET = (MJD - GETbase)*24.0*3600.0 + ttoSS;
-		SRGET = (MJD - GETbase)*24.0*3600.0 + ttoSR;
-
-		t_lng = OrbMech::P29TimeOfLongitude(R, V, MJD, gravref, -150.0*RAD);
-		ttoPM = (t_lng - MJD)*24.0 * 3600.0;
-		//ttoPM = OrbMech::findlongitude(R, V, MJD, gravref, -150.0 * RAD);
-		PMGET = (MJD - GETbase)*24.0*3600.0 + ttoPM;
+		rtcc->LunarOrbitMapUpdate(sv0, GETbase, mapupdate);
 	}
 }
 
@@ -1751,36 +1686,44 @@ int ARCore::subThread()
 	case 1: //Lambert Targeting
 	{
 		LambertMan opt;
+		SV sv_A, sv_P;
+		VECTOR3 dV;
+		int poweredvesseltype;
+		double attachedMass;
+
+		sv_A = rtcc->StateVectorCalc(vessel);
+		sv_P = rtcc->StateVectorCalc(target);
+
 		opt.axis = !lambertmultiaxis;
 		opt.GETbase = GETbase;
-		opt.impulsive = RTCC_NONIMPULSIVE;
 		opt.N = N;
 		opt.Offset = offvec;
 		opt.Perturbation = lambertopt;
 		opt.PhaseAngle = 0.0;
+		opt.sv_A = sv_A;
+		opt.sv_P = sv_P;
 		opt.T1 = T1;
 		opt.T2 = T2;
-		opt.target = target;
-		opt.vessel = vessel;
 
 		if (vesseltype < 2)
 		{
-			opt.vesseltype = 0;
+			poweredvesseltype = RTCC_VESSELTYPE_CSM;
 		}
 		else
 		{
-			opt.vesseltype = 1;
+			poweredvesseltype = RTCC_VESSELTYPE_LM;
 		}
 
 		if (vesseltype == 0 || vesseltype == 2)
 		{
-			opt.csmlmdocked = false;
+			attachedMass = 0.0;
 		}
 		else
 		{
-			opt.csmlmdocked = true;
+			attachedMass = rtcc->GetDockedVesselMass(target);
 		}
-		rtcc->LambertTargeting(&opt, dV_LVLH, P30TIG);
+		rtcc->LambertTargeting(&opt, dV);
+		rtcc->PoweredFlightProcessor(sv_A, GETbase, opt.T1, poweredvesseltype, RTCC_ENGINETYPE_SPSDPS, attachedMass, dV, P30TIG, dV_LVLH);
 		LambertdeltaV = dV_LVLH;
 
 		Result = 0;
@@ -1914,8 +1857,9 @@ int ARCore::subThread()
 		REFSMMAT = rtcc->REFSMMATCalc(&opt);
 
 		//sprintf(oapiDebugString(), "%f, %f, %f, %f, %f, %f, %f, %f, %f", REFSMMAT.m11, REFSMMAT.m12, REFSMMAT.m13, REFSMMAT.m21, REFSMMAT.m22, REFSMMAT.m23, REFSMMAT.m31, REFSMMAT.m32, REFSMMAT.m33);
-
 		a = mul(REFSMMAT, OrbMech::transpose_matrix(OrbMech::J2000EclToBRCS(AGCEpoch)));
+		//sprintf(oapiDebugString(), "%f, %f, %f, %f, %f, %f, %f, %f, %f", a.m11, a.m12, a.m13, a.m21, a.m22, a.m23, a.m31, a.m32, a.m33);
+
 
 		if (REFSMMATupl == 0)
 		{
@@ -2163,7 +2107,8 @@ int ARCore::subThread()
 			AP11ManPADOpt opt;
 
 			opt.dV_LVLH = dV_LVLH;
-			opt.engopt = ManPADSPS;
+			opt.directiontype = directiontype;
+			opt.enginetype = csmenginetype;
 			opt.GETbase = GETbase;
 			opt.HeadsUp = HeadsUp;
 			opt.REFSMMAT = REFSMMAT;
@@ -2180,7 +2125,8 @@ int ARCore::subThread()
 			AP11LMManPADOpt opt;
 
 			opt.dV_LVLH = dV_LVLH;
-			opt.engopt = ManPADSPS;
+			opt.directiontype = directiontype;
+			opt.enginetype = lmenginetype;
 			opt.GETbase = GETbase;
 			opt.HeadsUp = HeadsUp;
 			opt.REFSMMAT = REFSMMAT;
@@ -2206,6 +2152,8 @@ int ARCore::subThread()
 	case 10:	//DOI Targeting
 	{
 		DOIMan opt;
+		VECTOR3 DOI_DV_imp;
+		double DOI_TIG_imp;
 
 		if (vesseltype < 2)
 		{
@@ -2234,7 +2182,7 @@ int ARCore::subThread()
 		opt.PeriAng = DOI_PeriAng;
 		opt.opt = DOI_option;
 
-		rtcc->DOITargeting(&opt, DOI_dV_LVLH, DOI_TIG, DOI_t_PDI, t_Land, DOI_CR);
+		rtcc->DOITargeting(&opt, DOI_DV_imp, DOI_TIG_imp, DOI_dV_LVLH, DOI_TIG, DOI_t_PDI, t_Land, DOI_CR);
 
 		P30TIG = DOI_TIG;
 		dV_LVLH = DOI_dV_LVLH;
@@ -2478,8 +2426,8 @@ int ARCore::subThread()
 			TLCCFRIncl = res.FRInclination;
 			P30TIG = TLCC_TIG;
 			dV_LVLH = TLCC_dV_LVLH;
-			TLCCFRLat = res.SplashdownLat;
-			TLCCFRLng = res.SplashdownLng;
+			TLCCFRLat = EntryLatcor = res.SplashdownLat;
+			TLCCFRLng = EntryLngcor = res.SplashdownLng;
 		}
 		else if (TLCCmaneuver == 2)
 		{
@@ -2576,8 +2524,8 @@ int ARCore::subThread()
 				TLCCNodeGET = res.NodeGET;
 				TLCCFRIncl = res.FRInclination;
 				TLCCEMPLatcor = res.EMPLatitude;
-				TLCCFRLat = res.SplashdownLat;
-				TLCCFRLng = res.SplashdownLng;
+				TLCCFRLat = EntryLatcor = res.SplashdownLat;
+				TLCCFRLng = EntryLngcor = res.SplashdownLng;
 
 				P30TIG = TLCC_TIG;
 				dV_LVLH = TLCC_dV_LVLH;
@@ -2685,8 +2633,8 @@ int ARCore::subThread()
 				TLCCPeriGETcor = res.PericynthionGET;
 				TLCCReentryGET = res.EntryInterfaceGET;
 				TLCCFRIncl = res.FRInclination;
-				TLCCFRLat = res.SplashdownLat;
-				TLCCFRLng = res.SplashdownLng;
+				TLCCFRLat = EntryLatcor = res.SplashdownLat;
+				TLCCFRLng = EntryLngcor = res.SplashdownLng;
 
 				P30TIG = TLCC_TIG;
 				dV_LVLH = TLCC_dV_LVLH;
@@ -2733,8 +2681,8 @@ int ARCore::subThread()
 				TLCCPeriGETcor = res.PericynthionGET;
 				TLCCReentryGET = res.EntryInterfaceGET;
 				TLCCFRIncl = res.FRInclination;
-				TLCCFRLat = res.SplashdownLat;
-				TLCCFRLng = res.SplashdownLng;
+				TLCCFRLat = EntryLatcor = res.SplashdownLat;
+				TLCCFRLng = EntryLngcor = res.SplashdownLng;
 				TLCCEMPLatcor = res.EMPLatitude;
 
 				P30TIG = TLCC_TIG;
@@ -2766,7 +2714,7 @@ int ARCore::subThread()
 
 		double rad = oapiGetSize(oapiGetObjectByName("Moon"));
 
-		opt.direct = ManPADdirect;
+		opt.direct = PDIPADdirect;
 		opt.GETbase = GETbase;
 		opt.HeadsUp = HeadsUp;
 		opt.REFSMMAT = REFSMMAT;
@@ -2802,7 +2750,7 @@ int ARCore::subThread()
 		
 		opt.GETbase = GETbase;
 
-		if (DeorbitEngineOpt == 0)
+		if (csmenginetype == RTCC_ENGINETYPE_SPSDPS)
 		{
 			opt.impulsive = RTCC_NONIMPULSIVE;
 		}

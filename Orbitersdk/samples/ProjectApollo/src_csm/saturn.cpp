@@ -3779,17 +3779,18 @@ void Saturn::GenericLoadStateSetup()
 
 	HRESULT hr;
 	// Having read the configuration file, set up DirectX...	
-	hr = DirectInput8Create(dllhandle,DIRECTINPUT_VERSION,IID_IDirectInput8,(void **)&dx8ppv,NULL); // Give us a DirectInput context
-	if(!FAILED(hr)){
-		int x=0;
+	hr = DirectInput8Create(dllhandle, DIRECTINPUT_VERSION, IID_IDirectInput8, (void **)&dx8ppv, NULL); // Give us a DirectInput context
+	if (!FAILED(hr)) {
+		int x = 0;
 		// Enumerate attached joysticks until we find 2 or run out.
 		dx8ppv->EnumDevices(DI8DEVCLASS_GAMECTRL, EnumJoysticksCallback, this, DIEDFL_ATTACHEDONLY);
-		if(js_enabled == 0){   // Did we get anything?			
+		if (js_enabled == 0) {   // Did we get anything?			
 			dx8ppv->Release(); // No. Close down DirectInput
 			dx8ppv = NULL;     // otherwise it won't get closed later
-			sprintf(oapiDebugString(),"DX8JS: No joysticks found");
-		}else{
-			while(x < js_enabled){                                // For each joystick
+			//sprintf(oapiDebugString(), "DX8JS: No joysticks found");
+		}
+		else {
+			while (x < js_enabled) {                                // For each joystick
 				dx8_joystick[x]->SetDataFormat(&c_dfDIJoystick2); // Use DIJOYSTATE2 structure to report data
 				// Can't do this because we don't own a window.
 				// dx8_joystick[x]->SetCooperativeLevel(dllhandle,   // We want data all the time,
@@ -3805,7 +3806,8 @@ void Saturn::GenericLoadStateSetup()
 				x++;                                              // Next!
 			}
 		}
-	} else {
+	}
+	else {
 		// We can't print an error message this early in initialization, so save this reason for later investigation.
 		dx8_failure = hr;
 	}

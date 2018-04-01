@@ -25,8 +25,6 @@ See http://nassp.sourceforge.net/license/ for more details.
 #include "Orbitersdk.h"
 #include "soundlib.h"
 #include "toggleswitch.h"
-#include "apolloguidance.h"
-#include "LEMcomputer.h"
 #include "LEM.h"
 #include "papi.h"
 #include "lm_eds.h"
@@ -317,7 +315,10 @@ void LEM_EDRelayBox::LoadState(FILEHANDLE scn, char *end_str) {
 }
 
 // EXPLOSIVE DEVICES SYSTEM
-LEM_EDS::LEM_EDS() {
+LEM_EDS::LEM_EDS() :
+	HeliumPressurizationDelayA(6.0),
+	HeliumPressurizationDelayB(6.0)
+{
 	lem = NULL;
 	LG_Deployed = FALSE;
 	Deadface = false;
@@ -332,13 +333,24 @@ void LEM_EDS::Init(LEM *s) {
 	RelayBoxB.Init(lem, &lem->EDS_CB_LOGIC_B, &lem->ED28VBusB, lem->EDBatteryB);
 }
 
-void LEM_EDS::TimeStep(double simdt) {
+void LEM_EDS::Timestep(double simdt) {
 	
 	if (lem->stage < 2)
 	{
 		RelayBoxA.Timestep(simdt);
+		HeliumPressurizationDelayA.Timestep(simdt);
 	}
 	RelayBoxB.Timestep(simdt);
+	HeliumPressurizationDelayB.Timestep(simdt);
+
+	if (RelayBoxA.GetDescentEngineOnRelay())
+	{
+		HeliumPressurizationDelayA.SetRunning(true);
+	}
+	if (RelayBoxB.GetDescentEngineOnRelay())
+	{
+		HeliumPressurizationDelayB.SetRunning(true);
+	}
 
 	bool pyroA = false, pyroB = false;
 
@@ -465,12 +477,6 @@ void LEM_EDS::TimeStep(double simdt) {
 		lem->DES_LMPs28VBusB.Disconnect();
 		lem->DES_CDRs28VBusA.Disconnect();
 		lem->DES_CDRs28VBusB.Disconnect();
-		// Disconnect monitor select rotaries
-		lem->EPSMonitorSelectRotary.SetSource(1, NULL);
-		lem->EPSMonitorSelectRotary.SetSource(2, NULL);
-		lem->EPSMonitorSelectRotary.SetSource(3, NULL);
-		lem->EPSMonitorSelectRotary.SetSource(4, NULL);
-		lem->EPSEDVoltSelect.SetSource(0, NULL);
 		// Change descent TB
 		lem->DSCBattFeedTB.SetState(0);
 		Deadface = true;
@@ -616,6 +622,8 @@ void LEM_EDS::SaveState(FILEHANDLE scn, char *start_str, char *end_str) {
 	oapiWriteLine(scn, start_str);
 	oapiWriteScenario_int(scn, "LG_DEP", LG_Deployed);
 	oapiWriteScenario_int(scn, "DEADFACE", Deadface);
+	HeliumPressurizationDelayA.SaveState(scn, "HEPRESSDELAYA_BEGIN", "HEPRESSDELAYA_END");
+	HeliumPressurizationDelayB.SaveState(scn, "HEPRESSDELAYB_BEGIN", "HEPRESSDELAYB_END");
 	if (lem->stage < 2)
 		RelayBoxA.SaveState(scn, "LEM_EDS_RELAYBOXA_BEGIN", "LEM_EDS_RELAYBOX_END");
 	RelayBoxB.SaveState(scn, "LEM_EDS_RELAYBOXB_BEGIN", "LEM_EDS_RELAYBOX_END");
@@ -634,9 +642,15 @@ void LEM_EDS::LoadState(FILEHANDLE scn, char *end_str) {
 			sscanf(line + 6, "%d", &dec);
 			LG_Deployed = (bool)(dec != 0);
 		}
-		if (!strnicmp(line, "DEADFACE", 8)) {
+		else if (!strnicmp(line, "DEADFACE", 8)) {
 			sscanf(line + 8, "%d", &dec);
 			Deadface = (bool)(dec != 0);
+		}
+		else if (!strnicmp(line, "HEPRESSDELAYA_BEGIN", sizeof("HEPRESSDELAYA_BEGIN"))) {
+			HeliumPressurizationDelayA.LoadState(scn, "HEPRESSDELAYA_END");
+		}
+		else if (!strnicmp(line, "HEPRESSDELAYB_BEGIN", sizeof("HEPRESSDELAYB_BEGIN"))) {
+			HeliumPressurizationDelayB.LoadState(scn, "HEPRESSDELAYB_END");
 		}
 		if (!strnicmp(line, "LEM_EDS_RELAYBOXA_BEGIN", sizeof("LEM_EDS_RELAYBOXA_BEGIN"))) {
 			RelayBoxA.LoadState(scn, "LEM_EDS_RELAYBOX_END");

@@ -25,9 +25,6 @@ See http://nassp.sourceforge.net/license/ for more details.
 #include "Orbitersdk.h"
 #include "soundlib.h"
 #include "toggleswitch.h"
-#include "apolloguidance.h"
-#include "LEMcomputer.h"
-#include "lm_channels.h"
 #include "LEM.h"
 #include "papi.h"
 #include "lm_rcs.h"
@@ -75,6 +72,7 @@ RCSPropellantSource::RCSPropellantSource(PROPELLANT_HANDLE &ph, PanelSDK &p, boo
 	//Open at launch
 	primOxidInterconnectValve.SetState(true);
 	primFuelInterconnectValve.SetState(true);
+	mainShutoffValve.SetState(true);
 }
 
 RCSPropellantSource::~RCSPropellantSource()

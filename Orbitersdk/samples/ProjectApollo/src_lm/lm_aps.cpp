@@ -26,8 +26,6 @@ See http://nassp.sourceforge.net/license/ for more details.
 #include "soundlib.h"
 #include "toggleswitch.h"
 #include "apolloguidance.h"
-#include "LEMcomputer.h"
-#include "lm_channels.h"
 #include "LEM.h"
 #include "papi.h"
 #include "lm_aps.h"
@@ -79,7 +77,12 @@ void APSPropellantSource::Timestep(double simt, double simdt)
 
 	double p;
 
-	if (!source_prop)
+	if (our_vessel->stage < 2)
+	{
+		helium1PressurePSI = 3020.0;
+		helium2PressurePSI = 3020.0;
+	}
+	else if (!source_prop)
 	{
 		p = 0;
 		helium1PressurePSI = 0;
@@ -328,7 +331,7 @@ void LEM_APS::Init(LEM *s) {
 	lem = s;
 }
 
-void LEM_APS::TimeStep(double simdt) {
+void LEM_APS::Timestep(double simdt) {
 	if (lem == NULL) { return; }
 
 	ChamberPressure = 0.0;

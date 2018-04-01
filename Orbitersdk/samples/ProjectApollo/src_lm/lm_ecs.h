@@ -101,15 +101,32 @@ protected:
 	RotationalSwitch *SuitCircuitReliefValveSwitch;
 };
 
+class LEMPressureSwitch
+{
+public:
+	LEMPressureSwitch();
+	void Init(h_Tank *st, double max, double min);
+	void SystemTimestep(double simdt);
+
+	bool GetPressureSwitch() { return PressureSwitch; }
+protected:
+	h_Tank *switchtank;
+	double maxpress;
+	double minpress;
+
+	bool PressureSwitch;
+};
+
 class LEMCabinRepressValve
 {
 public:
 	LEMCabinRepressValve();
-	void Init(h_Pipe *crv, CircuitBrakerSwitch *crcb, RotationalSwitch *crvs, RotationalSwitch* pras, RotationalSwitch *prbs);
+	void Init(LEM *l, h_Pipe *crv, CircuitBrakerSwitch *crcb, RotationalSwitch *crvs, RotationalSwitch* pras, RotationalSwitch *prbs);
 	void SystemTimestep(double simdt);
 
 	bool GetEmergencyCabinRepressRelay() { return EmergencyCabinRepressRelay; }
 protected:
+	LEM *lem;
 	h_Pipe *cabinRepressValve;
 	CircuitBrakerSwitch *cabinRepressCB;
 	RotationalSwitch *cabinRepressValveSwitch;
@@ -196,7 +213,7 @@ class LEMCabinFan
 {
 public:
 	LEMCabinFan(Sound &cabinfanS);
-	void Init(CircuitBrakerSwitch *cf1cb, CircuitBrakerSwitch *cfccb, RotationalSwitch *pras, RotationalSwitch *prbs, Pump *cf);
+	void Init(CircuitBrakerSwitch *cf1cb, CircuitBrakerSwitch *cfccb, RotationalSwitch *pras, RotationalSwitch *prbs, Pump *cf, h_HeatLoad *cfh);
 	void SystemTimestep(double simdt);
 protected:
 
@@ -209,6 +226,7 @@ protected:
 	RotationalSwitch *pressRegulatorBSwitch;
 	Pump *cabinFan;
 	Sound &cabinfansound;
+	h_HeatLoad *cabinFanHeat;
 };
 
 class LEMWaterTankSelect
@@ -227,7 +245,7 @@ class LEMPrimGlycolPumpController
 {
 public:
 	LEMPrimGlycolPumpController();
-	void Init(h_Tank *pgat, h_Tank *pgpmt, Pump *gp1, Pump *gp2, RotationalSwitch *gr, CircuitBrakerSwitch *gp1cb, CircuitBrakerSwitch *gp2cb, CircuitBrakerSwitch *gpatcb);
+	void Init(h_Tank *pgat, h_Tank *pgpmt, Pump *gp1, Pump *gp2, RotationalSwitch *gr, CircuitBrakerSwitch *gp1cb, CircuitBrakerSwitch *gp2cb, CircuitBrakerSwitch *gpatcb, h_HeatLoad *gp1h, h_HeatLoad *gp2h);
 	void SystemTimestep(double simdt);
 	void SaveState(FILEHANDLE scn);
 	void LoadState(char *line);
@@ -243,6 +261,8 @@ protected:
 	CircuitBrakerSwitch *glycolPump1CB;
 	CircuitBrakerSwitch *glycolPump2CB;
 	CircuitBrakerSwitch *glycolPumpAutoTransferCB;
+	h_HeatLoad *glycolPump1Heat;
+	h_HeatLoad *glycolPump2Heat;
 
 	//7K8 (Latching)
 	bool GlycolAutoTransferRelay;
@@ -279,7 +299,7 @@ public:
 	void Init(LEM *s);
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
-	void TimeStep(double simdt);
+	void Timestep(double simdt);
 	double AscentOxyTank1PressurePSI();
 	double AscentOxyTank2PressurePSI();
 	double DescentOxyTankPressurePSI();
@@ -341,7 +361,7 @@ public:
 	double *Secondary_Glycol_Loop2;								// Loop 2 mass
 	double *Secondary_Glycol_EvapIn;							// Evap inlet mass
 	double *Secondary_Glycol_EvapOut;							// Evap outlet mass
-	double *Water_Sep1_Flow, *Water_Sep2_Flow;					// Water separators RPM
+	double *Water_Sep1_RPM, *Water_Sep2_RPM;					// Water separators RPM
 	int *Asc_H2O_To_PLSS, *Des_H2O_To_PLSS;						// PLSS Water Fill valves
 	int *Water_Tank_Selector;									// WT selection valve
 	int *Pri_Evap_Flow_1, *Pri_Evap_Flow_2;						// Primary evaporator flow valves

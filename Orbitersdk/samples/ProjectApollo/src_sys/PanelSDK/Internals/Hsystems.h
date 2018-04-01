@@ -342,10 +342,14 @@ public:
 
 	virtual void refresh(double dt);
 	virtual void* GetComponent(char *component_name);
+	virtual void Save(FILEHANDLE scn);
 
 	double h2oremovalrate;
+	double h2oremovalratio;
 	double flow;	// in g/s
 	double flowMax;
+	double RPM;
+	double rpmcmd;
 };
 
 class h_HeatLoad : public h_object {

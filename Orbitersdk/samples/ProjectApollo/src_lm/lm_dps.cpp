@@ -26,9 +26,6 @@ See http://nassp.sourceforge.net/license/ for more details.
 #include "soundlib.h"
 #include "toggleswitch.h"
 #include "nasspdefs.h"
-#include "apolloguidance.h"
-#include "LEMcomputer.h"
-#include "lm_channels.h"
 #include "papi.h"
 #include "LEM.h"
 #include "lm_dps.h"
@@ -90,11 +87,14 @@ DPSPropellantSource::DPSPropellantSource(PROPELLANT_HANDLE &ph, PanelSDK &p) :
 
 	//Open by default
 	PrimaryHeRegulatorShutoffValve.SetState(true);
+
+	lem = NULL;
 }
 
-void DPSPropellantSource::Init(e_object *dc1)
+void DPSPropellantSource::Init(LEM *l, e_object *dc1)
 {
 	GaugingPower = dc1;
+	lem = l;
 }
 
 void DPSPropellantSource::Timestep(double simt, double simdt)
@@ -363,7 +363,7 @@ double DPSPropellantSource::GetFuelTank2BulkTempF()
 
 bool DPSPropellantSource::PropellantLevelLow()
 {
-	if (IsGaugingPowered() && (fuel1LevelLow || fuel2LevelLow || oxid1LevelLow || oxid2LevelLow))
+	if (lem->stage < 2 && IsGaugingPowered() && (fuel1LevelLow || fuel2LevelLow || oxid1LevelLow || oxid2LevelLow))
 		return true;
 
 	return false;
@@ -466,7 +466,7 @@ void LEM_DPS::ThrottleActuator(double manthrust, double autothrust)
 	}
 }
 
-void LEM_DPS::TimeStep(double simt, double simdt) {
+void LEM_DPS::Timestep(double simt, double simdt) {
 	if (lem == NULL) { return; }
 	if (lem->stage > 1) { return; }
 
@@ -663,9 +663,12 @@ void DPSGimbalActuator::Timestep(double simt, double simdt) {
 		GimbalTimestep(simdt);
 	}
 
+	gimbalfail = false;
+
 	// Only 6.0 degrees of travel allowed.
-	if (position > 6.0) { position = 6.0; }
-	if (position < -6.0) { position = -6.0; }
+	if (position > 6.0) { position = 6.0; gimbalfail = true; }
+	if (position < -6.0) {position = -6.0; gimbalfail = true; }
+
 
 	//sprintf(oapiDebugString(), "position %.3f commandedPosition %d lgcPosition %d", position, commandedPosition, lgcPosition);
 }

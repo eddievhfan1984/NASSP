@@ -36,8 +36,6 @@
 
 #include "soundlib.h"
 #include "toggleswitch.h"
-#include "apolloguidance.h"
-#include "LEMcomputer.h"
 
 #include "LEM.h"
 #include "tracer.h"
@@ -105,7 +103,7 @@ void LEM_ASA::TurnOff()
 	Initialized = false;
 }
 
-void LEM_ASA::TimeStep(double simdt){
+void LEM_ASA::Timestep(double simdt){
 	if(lem == NULL){ return; }
 	// AGS OFF  = ASA heaters active (OFF mode)
 	// AGS STBY = ASA fully active   (WARMUP mode, becomes OPERATE mode when temp allows)
@@ -380,6 +378,35 @@ bool LEM_ASA::IsPowered()
 	return true;
 }
 
+double LEM_ASA::GetASATempF() {
+
+	return KelvinToFahrenheit(hsink->GetTemp());
+
+}
+
+double LEM_ASA::GetASA12V() {
+	if (IsPowered())
+		return 12.0;
+	else if (GetASATempF() > 145.0)
+		return 0;
+	else
+		return 0;
+}
+
+double LEM_ASA::GetASA28V() {
+	if (IsPowered())
+		return 28.0;
+	else
+		return 0;
+}
+
+double LEM_ASA::GetASAFreq() {
+	if (IsPowered() && (lem->CDR_SCS_AEA_CB.Voltage() > SP_MIN_DCVOLTAGE || lem->SCS_AEA_CB.Voltage() > SP_MIN_DCVOLTAGE))
+		return 400.0;
+	else
+		return 0;
+}
+
 void LEM_ASA::SaveState(FILEHANDLE scn,char *start_str,char *end_str)
 {
 	oapiWriteLine(scn, start_str);
@@ -455,7 +482,7 @@ void LEM_AEA::Init(LEM *s, h_HeatLoad *aeah, h_HeatLoad *secaeah){
 	secaeaHeat = secaeah;
 }
 
-void LEM_AEA::TimeStep(double simt, double simdt){
+void LEM_AEA::Timestep(double simt, double simdt){
 	if(lem == NULL){ return; }
 
 	if (!IsPowered()) return;
@@ -877,6 +904,15 @@ bool LEM_AEA::IsACPowered()
 	return true;
 }
 
+bool LEM_AEA::GetTestModeFailure()
+{
+		if (!IsPowered())
+			return false;
+		AGSChannelValue40 agsval40;
+		agsval40 = OutputPorts[IO_ODISCRETES];
+		return ~agsval40[AGSTestModeFailure];
+}
+
 void LEM_AEA::InitVirtualAGS(char *binfile)
 
 {
@@ -1098,7 +1134,7 @@ void LEM_DEDA::Init(e_object *powered)
 	FirstTimeStep = true;
 }
 
-void LEM_DEDA::TimeStep(double simdt){
+void LEM_DEDA::Timestep(double simdt){
 	if(lem == NULL){ return; }
 
 	if(FirstTimeStep)

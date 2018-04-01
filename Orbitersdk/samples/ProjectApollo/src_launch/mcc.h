@@ -129,6 +129,35 @@
 // ASTP is a manned CSM launched with a Saturn 1B to earth orbit to dock with Soyuz 19.
 #define MTP_ASTP			11
 
+//UPDATE TYPES
+#define UTP_PADONLY				0
+#define UTP_PADWITHCMCUPLINK	1
+#define UTP_CMCUPLINKONLY		2
+#define UTP_LGCUPLINKDIRECT		3
+#define UTP_LGCUPLINKONLY		4
+#define UTP_PADWITHLGCUPLINK	5
+#define UTP_NONE				99
+
+// PAD Types
+#define PT_AP7BLK			1
+#define PT_P27PAD			2
+#define PT_AP7NAV			3
+#define PT_AP7MNV			4
+#define PT_AP7TPI			5
+#define PT_AP7ENT			6
+#define PT_P37PAD			7
+#define PT_AP11MNV			8
+#define PT_AP11ENT			9
+#define PT_TLIPAD			10
+#define PT_STARCHKPAD		11
+#define PT_AP10MAPUPDATE	12
+#define PT_AP11LMARKTRKPAD	13
+#define PT_AP10DAPDATA		14
+#define PT_AP11LMMNV		15
+#define PT_AP10CSI			16
+#define PT_NONE				99
+#define PT_GENERIC			100
+
 // MISSION STATES: GLOBAL
 // The init state is supposed to set up the MCC state engine for the mission and dispatch accordingly. Not called when reloading.
 #define MST_INIT			0
@@ -259,23 +288,6 @@
 #define MST_C_COAST60		71
 #define MST_C_ABORT			75
 // Entered on abort from orbit, works like COAST13, goes to MST_ORBIT_ENTRY
-
-//UPDATE TYPES
-#define UTP_BLOCKDATA		0
-#define UTP_P47MANEUVER		1
-#define UTP_P30MANEUVER		2
-#define UTP_TPI				3
-#define UTP_ENTRY			4
-#define UTP_UPLINKONLY		5
-#define UTP_SVNAVCHECK		6
-#define UTP_P27PAD			7
-#define UTP_TLIPAD			8
-#define UTP_LUNARENTRY		9
-#define UTP_FINALLUNARENTRY 10
-#define UTP_STARCHKPAD		11
-#define UTP_LGCUPLINKDIRECT	12
-#define UTP_P37PAD			13
-#define UTP_NONE			99
 
 // MISSION STATES: MISSION C PRIME
 #define MST_CP_INSERTION	10
@@ -433,6 +445,128 @@
 #define MST_F_TRANSLUNAR17	37
 // Ends at rev 1 map update
 #define MST_F_TRANSLUNAR18	38
+// Ends at LOI-1 update
+#define MST_F_TRANSLUNAR19	39
+// Ends at rev 2 map update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_1		100
+// Ends at LOI-2 update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_2		101
+// Ends at TEI-5 update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_3		102
+// Ends at rev 3 map update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_4		103
+// Ends at F-1 landmark tracking rev 4 update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_5		104
+// Ends at B-1 landmark tracking rev 4 update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_6		105
+// Ends at rev 4 map update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_7		106
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_8		107
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_9		108
+// Ends at TEI-10 update
+#define MST_F_LUNAR_ORBIT_LOI_DAY_10	109
+// Ends at LLS-2 update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_1		200
+// Ends at LLS-2 track PAD update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_2		201
+// Ends at rev 11 map update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_3		202
+// Ends at CSM DAP update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_4		203
+// Ends at LM DAP Load PAD update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_5		204
+// Ends at LM map update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_6		205
+// Ends at LM S-Band pointing angles update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_7		206
+// Ends at LM IMU gyro torquing angle update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_8		207
+// Ends at LGC activation update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_9		208
+// Ends at separation update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_10	209
+// Ends at AGS K Factor update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_11	210
+// Ends at DOI update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_12	211
+// Ends at PDI Abort update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_13	212
+// Ends at Phasing update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_14	213
+// Ends at LGC CSM state vector update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_15	214
+// Ends at CMC CSM+LM state vector update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_16	215
+// Ends at final phasing update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_17	216
+// Ends at CSM backup insertion update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_18	217
+// Ends at LM insertion update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_19	218
+// Ends at CSM backup insertion update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_20	219
+// Ends at LM insertion update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_21	220
+// Ends at CMC LM state vector update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_22	221
+// Ends at CSI update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_23	222
+// Ends at APS depletion update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_24	223
+// Ends at TEI-22 update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_25	224
+// Ends at APS depletion burn
+#define MST_F_LUNAR_ORBIT_DOI_DAY_26	225
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_27	226
+// Ends at rev 22 map update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_28	227
+// Ends at LLS 2 photo PAD update
+#define MST_F_LUNAR_ORBIT_DOI_DAY_29	228
+// Ends at rev 23 map update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_1	300
+// Ends at TEI-23 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_2	301
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_3	302
+// Ends at strip photo update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_4	303
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_5	304
+// Ends at landmark tracking rev 24 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_6	305
+// Ends at TEI-24 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_7	306
+// Ends at rev 24 map update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_8	307
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_9	308
+// Ends at TEI-25 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_10	309
+// Ends at landmark tracking rev 25 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_11	310
+// Ends at rev 25 map update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_12	311
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_13	312
+// Ends at TEI-26 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_14	313
+// Ends at landmark tracking rev 26 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_15	314
+// Ends at rev 26 map update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_16	315
+// Ends at state vector update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_17	316
+// Ends at TEI-27 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_18	317
+// Ends at landmark tracking rev 27 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_19	318
+// Ends at rev 27 map update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_20	319
+// Ends at TEI-29 update
+#define MST_F_LUNAR_ORBIT_LMK_TRACK_DAY_21	320
 
 // Ground Station Information Structure
 struct GroundStation {
@@ -707,6 +841,60 @@ struct AP11AGSSVPAD
 	double DEDA272; //CSM Epoch Time
 };
 
+// APOLLO 10 MAP UPDATE
+
+struct AP10MAPUPDATE
+{
+	int Rev;		//Revolution of update
+	double LOSGET;	//Time of LOS
+	double AOSGET;	//Time of AOS
+	double PMGET;	//Time of meridian crossing (150°W)
+	double SSGET;	//Time of sunset
+	double SRGET;	//Time of sunrise
+};
+
+// APOLLO 11 LANDMARK TRACKING PAD
+
+struct AP11LMARKTRKPAD
+{
+	int entries;
+	char LmkID[4][128];		// Landmark ID
+	double T1[4];			// T1 time (landmark over horizon)
+	double T2[4];			// T2 time (spacecraft at 35° elevation from landmark)
+	double CRDist[4];		// landmark distance to ground track
+	double Lat[4];			// landmark latitude
+	double Lng05[4];		// landmark longitude divided by 2
+	double Alt[4];			// landmark altitude
+};
+
+// APOLLO 10 DAP DATA PAD
+
+struct AP10DAPDATA
+{
+	double ThisVehicleWeight;	// CSM weight (or LM for LM DAP PAD)
+	double OtherVehicleWeight;	// LM weight (or CSM for LM DAP PAD)
+	double PitchTrim;			// Pitch gimbal trim
+	double YawTrim;				// Yaw gimbal trim (or roll for LM DAP PAD)
+};
+
+//APOLLO 10 CSI PAD
+
+struct AP10CSI
+{
+	double t_CSI;
+	double t_TPI;
+	VECTOR3 dV_LVLH;
+	double PLM_FDAI;
+	VECTOR3 dV_AGS;
+};
+
+//GENERIC STRING
+
+struct GENERICPAD
+{
+	char paddata[512];	// generic PAD string
+};
+
 class LEM;
 class Saturn;
 class SIVB;
@@ -722,6 +910,7 @@ public:
 	
 	void Init();											// Initialization
 	void clbkPreStep(double simt, double simdt, double mjd);
+	void clbkPostCreation();
 	void TimeStep(double simdt);					        // Timestep
 	virtual void keyDown(DWORD key);						// Notification of keypress	
 	void addMessage(char *msg);								// Add message into buffer
@@ -739,7 +928,7 @@ public:
 	void drawPad();											// Draw PAD display
 	void allocPad(int Number);								// Allocate memory for PAD form
 	void freePad();											// Free memory occupied by PAD form
-	void UpdateMacro(int type, bool condition, int updatenumber, int nextupdate, bool altcriterium = false, bool altcondition = false, int altnextupdate = 0);
+	void UpdateMacro(int type, int padtype, bool condition, int updatenumber, int nextupdate, bool altcriterium = false, bool altcondition = false, int altnextupdate = 0);
 	int  subThread();										// Subthread entry point
 	int startSubthread(int fcn, int type);					// Subthread start request
 	void subThreadMacro(int type, int updatenumber);
@@ -783,6 +972,7 @@ public:
 	int AbortMode;											// Abort mode
 	double StateTime;										// Time in this state
 	double SubStateTime;									// Time in this substate
+	double MoonRevTime;										// Time in this lunar revolution
 
 	// PAD FORMS
 	int padState;											// PAD display state
@@ -795,7 +985,7 @@ public:
 
 	// UPLINK DATA
 	int uplink_size;										// Size of uplink buffer
-	unsigned char uplink_data[1024];						// Uplink buffer
+	unsigned char uplink_data[2048];						// Uplink buffer
 
 	// CAPCOM INTERFACE
 	NOTEHANDLE NHmenu;										// Menu notification handle
