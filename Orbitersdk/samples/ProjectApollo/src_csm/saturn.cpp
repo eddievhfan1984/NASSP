@@ -204,6 +204,7 @@ Saturn::Saturn(OBJHANDLE hObj, int fmodel) : ProjectApolloConnectorVessel (hObj,
 	sivbControlConnector(agc, dockingprobe, this),
 	sivbCommandConnector(this),
 	lemECSConnector(this),
+	cdi(this),
 	checkControl(soundlib),
 	MFDToPanelConnector(MainPanel, checkControl),
 	ascp(ThumbClick),
@@ -259,10 +260,16 @@ Saturn::Saturn(OBJHANDLE hObj, int fmodel) : ProjectApolloConnectorVessel (hObj,
 		debugString = &oapiDebugString;
 	}
 
+	// Clobber checklist variables
+	for (int i = 0; i < 16; i++) {
+		Checklist_Variable[i][0] = 0;
+	}
+
 	//
 	// Register visible connectors.
 	//
 	RegisterConnector(VIRTUAL_CONNECTOR_PORT, &MFDToPanelConnector);
+	RegisterConnector(VIRTUAL_CONNECTOR_PORT, &cdi);
 	RegisterConnector(0, &CSMToLEMConnector);
 	RegisterConnector(0, &CSMToSIVBConnector);
 	RegisterConnector(0, &lemECSConnector);
@@ -346,6 +353,7 @@ void Saturn::initSaturn()
 	// to having no HGA when the state was read from those files.
 	//
 	NoHGA = false;
+	NoVHFRanging = false;
 
 	CMdocktgt = false;
 
@@ -585,7 +593,7 @@ void Saturn::initSaturn()
 
 	ISP_PCM_SL = 1931.91005;
 	ISP_PCM_VAC = 1971.13665;
-	THRUST_VAC_PCM = 6271.4;
+	THRUST_VAC_PCM = 12542.8;
 
 	//
 	// Propellant handles.
@@ -685,8 +693,6 @@ void Saturn::initSaturn()
 
 	ClearLVGuidLight();
 	ClearLVRateLight();
-	ClearLiftoffLight();
-	ClearNoAutoAbortLight();
 
 	for (i = 0; i < nsurf; i++)
 	{
@@ -1179,7 +1185,7 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	char str[256];
 
 	oapiWriteScenario_int (scn, "NASSPVER", NASSP_VERSION);
-	if (stage < LAUNCH_STAGE_SIVB)
+	if (stage < CSM_LEM_STAGE)
 	{
 		papiWriteScenario_double(scn, "FAILUREMULTIPLIER", FailureMultiplier);
 		if (PlatFail > 0) {
@@ -1321,6 +1327,14 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	papiWriteScenario_double(scn, "FOVSAVE", FovSave);
 	papiWriteScenario_double(scn, "FOVSAVEEXTERNAL", FovSaveExternal);
 
+	for (int i = 0; i < 16; i++) {
+		if (Checklist_Variable[i][0] != 0) {
+			char name[16];
+			sprintf(name, "CHKVAR_%d", i);
+			oapiWriteScenario_string(scn, name, Checklist_Variable[i]);
+		}
+	}
+
 	dsky.SaveState(scn, DSKY_START_STRING, DSKY_END_STRING);
 	dsky2.SaveState(scn, DSKY2_START_STRING, DSKY2_END_STRING);
 	agc.SaveState(scn);
@@ -1332,6 +1346,7 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	if (LESAttached)
 	{
 		qball.SaveState(scn, QBALL_START_STRING, QBALL_END_STRING);
+		canard.SaveState(scn, CANARD_START_STRING, CANARD_END_STRING);
 	}
 
 	if (stage < LAUNCH_STAGE_TWO)
@@ -1415,7 +1430,9 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	ForwardHatch.SaveState(scn);
 	SideHatch.SaveState(scn);
 	usb.SaveState(scn);
-	hga.SaveState(scn);
+	if (!NoHGA) hga.SaveState(scn);
+	vhftransceiver.SaveState(scn);
+	if (!NoVHFRanging) vhfranging.SaveState(scn);
 	dataRecorder.SaveState(scn);
 
 	Panelsdk.Save(scn);	
@@ -1463,6 +1480,7 @@ int Saturn::GetMainState()
 	state.NoHGA = NoHGA;
 	state.TLISoundsLoaded = TLISoundsLoaded;
 	state.CMdocktgt = CMdocktgt;
+	state.NoVHFRanging = NoVHFRanging;
 
 	return state.word;
 }
@@ -1491,6 +1509,7 @@ void Saturn::SetMainState(int s)
 	NoHGA = (state.NoHGA != 0);
 	TLISoundsLoaded = (state.TLISoundsLoaded != 0);
 	CMdocktgt = (state.CMdocktgt != 0);
+	NoVHFRanging = (state.NoVHFRanging != 0);
 }
 
 int Saturn::GetSLAState()
@@ -1586,8 +1605,6 @@ int Saturn::GetLightState()
 	state.Engind7 = ENGIND[7];
 	state.Engind8 = ENGIND[8];
 	state.LVGuidLight = LVGuidLight;
-	state.LiftoffLight = LiftoffLight;
-	state.NoAutoAbortLight = NoAutoAbortLight;
 	state.LVRateLight = LVRateLight;
 
 	return state.word;
@@ -1609,8 +1626,6 @@ void Saturn::SetLightState(int s)
 	ENGIND[7] = (state.Engind7 != 0);
 	ENGIND[8] = (state.Engind8 != 0);
 	LVGuidLight = (state.LVGuidLight != 0);
-	LiftoffLight = (state.LiftoffLight != 0);
-	NoAutoAbortLight = (state.NoAutoAbortLight != 0);
 	LVRateLight = (state.LVRateLight != 0);
 }
 
@@ -1638,8 +1653,7 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 		int st, en;
 		double tim;
 		sscanf(line + 10, "%d %d %lf", &st, &en, &tim);
-		if (GetDamageModel())
-			SetEngineFailure(st, en, tim);
+		SetEngineFailure(st, en, tim);
 	}
 	else if (!strnicmp(line, "PLATFAIL", 8)) {
 		sscanf(line + 8, "%lf", &PlatFail);
@@ -1945,6 +1959,9 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 	else if (!strnicmp(line, QBALL_START_STRING, sizeof(QBALL_START_STRING))) {
 		qball.LoadState(scn, QBALL_END_STRING);
 	}
+	else if (!strnicmp(line, CANARD_START_STRING, sizeof(CANARD_START_STRING))) {
+		canard.LoadState(scn, CANARD_END_STRING);
+	}
 	else if (!strnicmp(line, SISYSTEMS_START_STRING, sizeof(SISYSTEMS_START_STRING))) {
 		LoadSI(scn);
 	}
@@ -1987,6 +2004,16 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 	}
 	else if (!strnicmp (line, "COASENABLED", 11)) {
 		sscanf (line + 11, "%i", &coasEnabled);
+	}
+	else if (!strnicmp(line, "CHKVAR_", 7)) {
+		for (int i = 0; i < 16; i++) {
+			char name[16];
+			sprintf(name, "CHKVAR_%d", i);
+			if(!strnicmp(line,name,strlen(name))){
+				strncpy(Checklist_Variable[i], line + (strlen(name) + 1), 32);
+				break;
+			}
+		}
 	}
 	else
 		found = false;
@@ -2032,6 +2059,14 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 			//
 			sscanf(line + 5, "%d", &i);
 			NoHGA = (i != 0);
+		}
+		else if (!strnicmp(line, "NOVHFRANGING", 12)) {
+			//
+			// NOVHFRANGING isn't saved in the scenario, this is solely to allow you
+			// to override the default NOVHFRANGING state in startup scenarios.
+			//
+			sscanf(line + 12, "%d", &i);
+			NoVHFRanging = (i != 0);
 		}
 		else if (!strnicmp(line, "NOMANUALTLI", 11)) {
 			//
@@ -2095,9 +2130,15 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 	    else if (!strnicmp (line, "UNIFIEDSBAND", 12)) {
 		    usb.LoadState(line);
 	    }
-	    else if (!strnicmp (line, "HIGHGAINANTENNA", 12)) {
+	    else if (!strnicmp (line, "HIGHGAINANTENNA", 15)) {
 		    hga.LoadState(line);
 	    }
+		else if (!strnicmp(line, "VHFTRANSCEIVER", 14)) {
+			vhftransceiver.LoadState(line);
+		}
+		else if (!strnicmp(line, "VHFRANGING", 10)) {
+			vhfranging.LoadState(line);
+		}
 	    else if (!strnicmp (line, "DATARECORDER", 12)) {
 		    dataRecorder.LoadState(line);
 	    }
@@ -2343,7 +2384,7 @@ void Saturn::UpdatePayloadMass()
 {
 	switch (SIVBPayload) {
 	case PAYLOAD_LEM:
-		S4PL_Mass = LMAscentEmptyMassKg + LMDescentEmptyMassKg + LMAscentFuelMassKg + LMDescentFuelMassKg;
+		S4PL_Mass = LMAscentEmptyMassKg + LMDescentEmptyMassKg + LMAscentFuelMassKg + LMDescentFuelMassKg + 2.0*LM_RCS_FUEL_PER_TANK;
 		break;
 
 	case PAYLOAD_ASTP:
@@ -3126,7 +3167,7 @@ void Saturn::AddRCSJets(double TRANZ, double MaxThrust)
 
 	for (i = 0; i < 24; i++) {
 		if (th_att_lin[i])
-			AddExhaust (th_att_lin[i], 1.2, 0.1, SMExhaustTex); 
+			AddExhaust (th_att_lin[i], 3.0, 0.15, SMExhaustTex);
 	}
 
 	//
@@ -4748,6 +4789,10 @@ void Saturn::TLI_Ended()
 	eventControl.TLI_DONE = MissionTime;
 }
 
+void Saturn::VHFRangingReturnSignal()
+{
+	if (!NoVHFRanging) vhfranging.RangingReturnSignal();
+}
 
 //
 // LUA Interface

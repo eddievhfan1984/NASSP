@@ -389,6 +389,8 @@ void Saturn::SystemsInit() {
 	omnid.Init(this);
 	dataRecorder.Init(this);
 	pcm.Init(this);
+	vhfranging.Init(this, &VHFStationAudioRCB, &VHFRangingSwitch, &VHFRNGSwitch, &vhftransceiver);
+	vhftransceiver.Init(&VHFAMASwitch, &VHFAMBSwitch, &RCVOnlySwitch, &VHFStationAudioCTRCB);
 
 	// Optics initialization
 	optics.Init(this);
@@ -597,6 +599,8 @@ void Saturn::SystemsTimestep(double simt, double simdt, double mjd) {
 		omnib.TimeStep();
 		omnic.TimeStep();
 		omnid.TimeStep();
+		if (!NoVHFRanging) vhfranging.TimeStep(simdt);
+		vhftransceiver.Timestep();
 		dataRecorder.TimeStep( MissionTime, simdt );
 
 		//
@@ -1316,6 +1320,7 @@ void Saturn::SystemsInternalTimestep(double simdt)
 		pmp.SystemTimestep(tFactor);
 		usb.SystemTimestep(tFactor);
 		hga.SystemTimestep(tFactor);
+		vhfranging.SystemTimestep(tFactor);
 		ems.SystemTimestep(tFactor);
 		els.SystemTimestep(tFactor);
 		ordeal.SystemTimestep(tFactor);
@@ -2329,28 +2334,6 @@ void Saturn::ClearEngineIndicators()
 	}
 }
 
-void Saturn::SetLiftoffLight()
-
-{
-	LiftoffLight = true;
-}
-
-void Saturn::ClearLiftoffLight()
-
-{
-	LiftoffLight = false;
-}
-
-void Saturn::SetNoAutoAbortLight()
-{
-	NoAutoAbortLight = true;
-}
-
-void Saturn::ClearNoAutoAbortLight()
-{
-	NoAutoAbortLight = false;
-}
-
 void Saturn::SetLVGuidLight()
 
 {
@@ -2449,6 +2432,7 @@ void Saturn::ClearPanelSDKPointers()
 	pSuitTestFlow = 0;
 	pCabinRepressFlow = 0;
 	pEmergencyCabinRegulatorFlow = 0;
+	pO2FlowXducer = 0;
 	pO2Tank1Press = 0;
 	pO2Tank2Press = 0;
 	pH2Tank1Press = 0;
@@ -2627,6 +2611,15 @@ void Saturn::GetAtmosStatus(AtmosStatus &atm)
 		atm.EmergencyCabinRegulatorFlowLBH = (*pEmergencyCabinRegulatorFlow) * LBH;
 	}
 
+	if (!pO2FlowXducer)
+	{
+		pO2FlowXducer = (double*)Panelsdk.GetPointerByString("HYDRAULIC:O2MAINREGULATOROUTLET:FLOW");
+	}
+	if (pO2FlowXducer) 
+	{
+		atm.O2FlowXducerLBH = (*pO2FlowXducer) * LBH;
+	}
+
 	if (!pCSMTunnelPressure)
 	{
 		pCSMTunnelPressure = (double*)Panelsdk.GetPointerByString("HYDRAULIC:CSMTUNNEL:PRESS");
@@ -2636,7 +2629,8 @@ void Saturn::GetAtmosStatus(AtmosStatus &atm)
 		atm.TunnelPressurePSI = (*pCSMTunnelPressure)*PSI;
 	}
 
-	//sprintf(oapiDebugString(), "CabinReg %lf O2Demand %lf Direct %lf SuitTest %lf CabRepress %lf Emerg %lf", atm.CabinRegulatorFlowLBH, atm.O2DemandFlowLBH, atm.DirectO2FlowLBH, atm.SuitTestFlowLBH, atm.CabinRepressFlowLBH, atm.EmergencyCabinRegulatorFlowLBH);
+	//double *o2supplypress = (double*)Panelsdk.GetPointerByString("HYDRAULIC:O2SUPPLYMANIFOLD:PRESS");
+	//sprintf(oapiDebugString(), "CabinReg %lf O2Demand %lf Direct %lf SuitTest %lf CabRepress %lf Emerg %lf FlowXDR %lf SupplyPress %lf", atm.CabinRegulatorFlowLBH, atm.O2DemandFlowLBH, atm.DirectO2FlowLBH, atm.SuitTestFlowLBH, atm.CabinRepressFlowLBH, atm.EmergencyCabinRegulatorFlowLBH, atm.O2FlowXducerLBH, *o2supplypress*PSI);
 }
 
 

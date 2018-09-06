@@ -51,6 +51,7 @@ ApolloGuidance::ApolloGuidance(SoundLib &s, DSKY &display, IMU &im, CDU &sc, CDU
 	CurrentTimestep = 0;
 	LastTimestep = 0;
 	LastCycled = 0;
+	AGCHeat = NULL;
 
 	//
 	// Flight number.
@@ -222,10 +223,20 @@ void ApolloGuidance::SystemTimestep(double simdt)
 	if (!IsPowered()) return;
 
 	if (OnStandby()) {
-		DCPower.DrawPower(22.9);
+		//DCPower.DrawPower(22.9);
+		DCPower.DrawPower(15.0);  //From 1970 AGC Improvement Study
+		if (AGCHeat)
+		{
+			AGCHeat->GenerateHeat(20.0);  //A guess based on heat load vs power in LM 8 systems handbook
+		}
 	}
 	else {
-		DCPower.DrawPower(106.0);
+		//DCPower.DrawPower(106.0);
+		DCPower.DrawPower(70.0); //From 1970 AGC Improvement Study
+		if (AGCHeat)
+		{
+			AGCHeat->GenerateHeat(110.0);  //From LM 8 systems handbook, for LGC/DSKY cb
+		}
 	}
 }
 
@@ -814,6 +825,9 @@ void ApolloGuidance::SetOutputChannel(int channel, ChannelValue val)
 			val33.Value = val;
 		} */
 		break;
+	case 034:
+		ProcessChannel34(val);
+		break;
 	}
 }
 
@@ -829,6 +843,9 @@ void ApolloGuidance::ProcessChannel6(ChannelValue val){
 
 // DS20060226 Stubs for optics controls and TVC
 void ApolloGuidance::ProcessChannel14(ChannelValue val){
+}
+
+void ApolloGuidance::ProcessChannel34(ChannelValue val) {
 }
 
 void ApolloGuidance::ProcessChannel140(ChannelValue val){

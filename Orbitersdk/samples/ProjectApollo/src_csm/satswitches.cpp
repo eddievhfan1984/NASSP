@@ -678,9 +678,11 @@ double SaturnLeftO2FlowMeter::QueryValue()
 
 	// O2 main regulator output flow 
 	/// \todo Is this the correct flow for that meter? No documentation found yet...
-	
+	return atm.O2FlowXducerLBH;
+	/*
 	return atm.CabinRegulatorFlowLBH + atm.O2DemandFlowLBH + atm.DirectO2FlowLBH + 
 		   atm.SuitTestFlowLBH + atm.CabinRepressFlowLBH + atm.EmergencyCabinRegulatorFlowLBH;
+	*/
 }
 
 void SaturnLeftO2FlowMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -717,8 +719,11 @@ double SaturnRightO2FlowMeter::QueryValue()
 	Sat->GetAtmosStatus(atm);
 
 	// O2 main regulator output flow 	
-	return atm.CabinRegulatorFlowLBH + atm.O2DemandFlowLBH + atm.DirectO2FlowLBH + 
-		   atm.SuitTestFlowLBH + atm.CabinRepressFlowLBH + atm.EmergencyCabinRegulatorFlowLBH;
+	return atm.O2FlowXducerLBH;
+	/*
+	return atm.CabinRegulatorFlowLBH + atm.O2DemandFlowLBH + atm.DirectO2FlowLBH +
+	atm.SuitTestFlowLBH + atm.CabinRepressFlowLBH + atm.EmergencyCabinRegulatorFlowLBH;
+	*/
 }
 
 void SaturnRightO2FlowMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -980,7 +985,7 @@ bool DirectO2RotationalSwitch::SwitchTo(int newValue)
 	}
 	return false;
 }
-
+/*
 void DirectO2RotationalSwitch::CheckValve()
 
 {
@@ -1009,6 +1014,46 @@ void DirectO2RotationalSwitch::CheckValve()
 		Pipe->flowMax = 31.8 / LBH;		//0.53 lb/min
 
 	} else if (GetState() == 0) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 40.2 / LBH;		//0.67 lb/min
+	}
+}
+*/
+
+void DirectO2RotationalSwitch::CheckValve()
+
+{
+	if (GetState() == 6) {
+		Pipe->in->h_open = SP_VALVE_CLOSE;
+		Pipe->flowMax = 0;
+
+	}
+	else if (GetState() == 5) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 0.42 / LBH;  //0.007 lb/min
+
+	}
+	else if (GetState() == 4) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 0.78 / LBH;  //0.013 lb/min
+
+	}
+	else if (GetState() == 3) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 1.56 / LBH;  //0.026 lb/min
+
+	}
+	else if (GetState() == 2) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 24.6 / LBH;		//0.41 lb/min
+
+	}
+	else if (GetState() == 1) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 31.8 / LBH;		//0.53 lb/min
+
+	}
+	else if (GetState() == 0) {
 		Pipe->in->h_open = SP_VALVE_OPEN;
 		Pipe->flowMax = 40.2 / LBH;		//0.67 lb/min
 	}
@@ -1884,7 +1929,10 @@ void SaturnEMSDvDisplay::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 			Curdigit = buffer[i] - '0';
 			oapiBlt(drawSurface, Digits, (i == 6 ? 0 : 10) + 16 * i, 0, 16 * Curdigit, 0, 16, 19);
 		} else if (buffer[i] == '.') {
-			oapiBlt(drawSurface, Digits, 10 + 16 * i, 0, 200, 0, 4, 19);
+			if (!Sat->ems.IsDecimalPointBlanked())
+			{
+				oapiBlt(drawSurface, Digits, 10 + 16 * i, 0, 200, 0, 4, 19);
+			}
 		}
 	}
 }
@@ -2274,52 +2322,42 @@ void CSMLMPowerSwitch::LoadState(char *line)
 
 }
 
-bool CSMLMPowerSwitch::CheckMouseClick(int event, int mx, int my)
-
+bool CSMLMPowerSwitch::SwitchTo(int newState, bool dontspring)
 {
-	if (SaturnThreePosSwitch::CheckMouseClick(event, mx, my)) {
+	if (SaturnThreePosSwitch::SwitchTo(newState, dontspring)) {
 		// First -- Are we docked?
-		if(sat->dockingprobe.IsHardDocked() == false){ return true; }
-		// Umbilical connected? (Supposed to be by docking!)
-		if(sat->CSMToLEMConnector.connectedTo == NULL){ return true; }
+		if (sat->dockingprobe.IsHardDocked() == false) { return true; }
+		// Umbilical connected? (Supposed to be after LM Pressurization and hatch removal)
+		if (sat->CSMToLEMConnector.connectedTo == NULL) { return true; }
 		ConnectorMessage msg;
 		ConnectorMessageValue mval;
-		msg.destination = LEM_CSM_POWER;		
+		msg.destination = LEM_CSM_POWER;
 		msg.messageType = 42;
-		switch(state){
-			case THREEPOSSWITCH_UP:
-				// Connect the bus
-				sat->CSMToLEMPowerDrain.Enable();
-				sat->CSMToLEMPowerDrain.WireTo(&sat->LMUmbilicalFeeder);				
-				// Turn on LEM				
-				mval.iValue = 1; // Relay State 1 = Deny Descent ECA operation
-				msg.val1 = mval;
-				sat->CSMToLEMConnector.SendMessage(msg);
-				break;
-			case THREEPOSSWITCH_CENTER:
-				// Turn off LEM (but don't disconnect it)
-				sat->CSMToLEMPowerDrain.Disable();
-				sat->CSMToLEMPowerDrain.WireTo(NULL);
-				break;
-			case THREEPOSSWITCH_DOWN:
-				// Reset LEM				
-				mval.iValue = 0; // Relay State 0 = Permit Descent ECA operation
-				msg.val1 = mval;
-				sat->CSMToLEMConnector.SendMessage(msg);
-				// Ensure disconnected
-				sat->CSMToLEMPowerDrain.Disable();
-				sat->CSMToLEMPowerDrain.WireTo(NULL);
-				break;
+		switch (state) {
+		case THREEPOSSWITCH_UP:
+			// Connect the bus
+			sat->CSMToLEMPowerDrain.Enable();
+			sat->CSMToLEMPowerDrain.WireTo(&sat->LMUmbilicalFeeder);
+			// Turn on LEM
+			mval.iValue = 1; // Relay State 1 = Deny Descent ECA operation
+			msg.val1 = mval;
+			sat->CSMToLEMConnector.SendMessage(msg);
+			break;
+		case THREEPOSSWITCH_CENTER:
+			// Turn off LEM (but don't disconnect it)
+			sat->CSMToLEMPowerDrain.Disable();
+			sat->CSMToLEMPowerDrain.WireTo(NULL);
+			break;
+		case THREEPOSSWITCH_DOWN:
+			// Reset LEM
+			mval.iValue = 0; // Relay State 0 = Permit Descent ECA operation
+			msg.val1 = mval;
+			sat->CSMToLEMConnector.SendMessage(msg);
+			// Ensure disconnected
+			sat->CSMToLEMPowerDrain.Disable();
+			sat->CSMToLEMPowerDrain.WireTo(NULL);
+			break;
 		}
-
-		return true;
-	}
-	return false;
-}
-
-bool CSMLMPowerSwitch::SwitchTo(int newState)
-{
-	if (SaturnThreePosSwitch::SwitchTo(newState)) {
 		return true;
 	}
 	return false;
@@ -2410,3 +2448,30 @@ bool DockingTargetSwitch::SwitchTo(int newState, bool dontspring)
 	return false;
 }
 
+SaturnLiftoffNoAutoAbortSwitch::SaturnLiftoffNoAutoAbortSwitch()
+{
+	secs = NULL;
+}
+
+void SaturnLiftoffNoAutoAbortSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, SECS *s,
+	int xoffset, int yoffset, int lxoffset, int lyoffset)
+{
+	GuardedPushSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset, lxoffset, lyoffset);
+
+	secs = s;
+}
+
+void SaturnLiftoffNoAutoAbortSwitch::DoDrawSwitch(SURFHANDLE drawSurface)
+{
+	if (secs->LiftoffLightPower()) {
+		if (!secs->NoAutoAbortLightPower())
+			SetOffset(78, 81);
+		else
+			SetOffset(234, 81);
+	}
+	else {
+		SetOffset(0, 81);
+	}
+
+	GuardedPushSwitch::DoDrawSwitch(drawSurface);
+}

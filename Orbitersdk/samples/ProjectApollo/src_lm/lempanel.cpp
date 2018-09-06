@@ -119,12 +119,12 @@ void DrawReticle (HDC hDC, double angle, int dimmer)
 	MoveToEx (hDC, RETICLE_X_CENTER, RETICLE_Y_CENTER, 0); LineTo(hDC, xend, yend);
 	int i;
 	double theta,b, r;
-	b = - RETICLE_RADIUS / (2*PI);
+	b = -RETICLE_RADIUS / tan(PI2*30.0 / 360.0);
 	POINT ScrewPt[RETICLE_SCREW_NPTS];
 	// Draw Archemedes screw #1
 	for (i = 0; i < RETICLE_SCREW_NPTS; i++){
 		theta = 2*PI / RETICLE_SCREW_NPTS * i;
-		r = b*theta;
+		r = b * tan(theta*30.0 / 360.0);
 		ScrewPt[i].x = RETICLE_X_CENTER - (int)(r*sin(theta+angle+RETICLE_SPLIT_ANGLE+PI));
 		ScrewPt[i].y = RETICLE_Y_CENTER - (int)(r*cos(theta+angle+RETICLE_SPLIT_ANGLE+PI));
 	}
@@ -132,7 +132,7 @@ void DrawReticle (HDC hDC, double angle, int dimmer)
 	// Draw Archemedes screw #2
 	for (i = 0; i < RETICLE_SCREW_NPTS; i++){
 		theta = 2*PI / RETICLE_SCREW_NPTS * i;
-		r = b*theta;
+		r = b * tan(theta*30.0 / 360.0);
 		ScrewPt[i].x = RETICLE_X_CENTER - (int)(r*sin(theta+angle-RETICLE_SPLIT_ANGLE+PI));
 		ScrewPt[i].y = RETICLE_Y_CENTER - (int)(r*cos(theta+angle-RETICLE_SPLIT_ANGLE+PI));
 	}
@@ -284,7 +284,7 @@ void LEM::InitSwitches() {
 	RCSSysQuad3Switch.Register(PSH, "RCSSysQuad3Switch",  THREEPOSSWITCH_CENTER);
 	RCSSysQuad4Switch.Register(PSH, "RCSSysQuad4Switch",  THREEPOSSWITCH_CENTER);
 	SidePanelsSwitch.Register(PSH, "SidePanelsSwitch", false);
-	FloodSwitch.Register(PSH, "FloodSwitch",  THREEPOSSWITCH_DOWN);
+	FloodSwitch.Register(PSH, "FloodSwitch", THREEPOSSWITCH_CENTER);
 	RightXPointerSwitch.Register(PSH, "RightXPointerSwitch", true);
 	ExteriorLTGSwitch.Register(PSH, "ExteriorLTGSwitch", THREEPOSSWITCH_UP);
 	LeftACA4JetSwitch.Register(PSH, "LeftACA4JetSwitch", TOGGLESWITCH_UP);
@@ -359,7 +359,7 @@ void LEM::InitSwitches() {
 	FloodRotary.AddPosition(6,  60);
 	FloodRotary.AddPosition(7,  90);
 	FloodRotary.AddPosition(8, 120);
-	FloodRotary.Register(PSH, "FloodRotary", 1);
+	FloodRotary.Register(PSH, "FloodRotary", 8);
 
 	LampToneTestRotary.AddPosition(0, 250);
 	LampToneTestRotary.AddPosition(1, 290);
@@ -435,7 +435,7 @@ void LEM::InitSwitches() {
 	LtgFloodOhdFwdKnob.AddPosition(6,  60);
 	LtgFloodOhdFwdKnob.AddPosition(7,  90);
 	LtgFloodOhdFwdKnob.AddPosition(8, 120);
-	LtgFloodOhdFwdKnob.Register(PSH, "LtgFloodOhdFwdKnob", 0);
+	LtgFloodOhdFwdKnob.Register(PSH, "LtgFloodOhdFwdKnob", 8);
 
 	LtgAnunNumKnob.AddPosition(0, 240);
 	LtgAnunNumKnob.AddPosition(1, 270);
@@ -903,13 +903,13 @@ void LEM::InitSwitches() {
 
 	IntlkOvrd.Register(PSH, "InterlockOvrd", 0);
 
-    CDRActuatorOvrd.Register(PSH, "CDRActuatorOvrd", 0);
+    CDRActuatorOvrd.Register(PSH, "CDRActuatorOvrd", TOGGLESWITCH_DOWN, SPRINGLOADEDSWITCH_DOWN);
 
 	LMPSuitIsolValve.AddPosition(0, 0);
 	LMPSuitIsolValve.AddPosition(1, 90);
 	LMPSuitIsolValve.Register(PSH, "LMPSuitIsolValve", 1);
 
-    LMPActuatorOvrd.Register(PSH, "LMPActuatorOvrd", 0);
+    LMPActuatorOvrd.Register(PSH, "LMPActuatorOvrd", TOGGLESWITCH_DOWN, SPRINGLOADEDSWITCH_DOWN);
 
 	SecEvapFlowValve.AddPosition(0, 0);
 	SecEvapFlowValve.AddPosition(1, 270);
@@ -981,6 +981,9 @@ void LEM::InitSwitches() {
 	UpperHatchReliefValve.Register(PSH, "UpperReliefValve", 0);
 	UpperHatchHandle.Register(PSH, "UpperHandle", TOGGLESWITCH_DOWN);
 	UpperHatchHandle.SetSideways(true);
+
+	UtilityLightSwitchCDR.Register(PSH, "UtilityLightSwitchCDR", THREEPOSSWITCH_UP);
+	UtilityLightSwitchLMP.Register(PSH, "UtilityLightSwitchLMP", THREEPOSSWITCH_UP);
 
 	// Forward Hatch
 	ForwardHatchHandle.Register(PSH, "ForwardHandle", TOGGLESWITCH_DOWN);
@@ -1865,7 +1868,7 @@ bool LEM::clbkLoadPanel (int id) {
 
 		oapiRegisterPanelArea(IDB_LEM_SGD_LEVER,         _R( 204,  129,  204+126,  129+131), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,                 PANEL_MAP_BACKGROUND);
         oapiRegisterPanelArea(AID_LEM_ECS_OCM,           _R( 640,  160,     1290,      520), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN|PANEL_MOUSE_UP,  PANEL_MAP_BACKGROUND);
-        oapiRegisterPanelArea(IDB_LEM_ISOL_ROTARY,       _R( 820,  630,     1372,      870), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,                 PANEL_MAP_BACKGROUND);
+        oapiRegisterPanelArea(AID_LEM_ISOL_ROTARY,       _R( 820,  630,     1372,      870), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN|PANEL_MOUSE_UP,  PANEL_MAP_BACKGROUND);
         oapiRegisterPanelArea(AID_LEM_ECS_WCM,           _R(  40,  410,      440,     1296), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,                 PANEL_MAP_BACKGROUND);
         oapiRegisterPanelArea(AID_LEM_ASC_H2O,           _R( 597,  634,      712,      750), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,                 PANEL_MAP_BACKGROUND);
         oapiRegisterPanelArea(AID_LEM_GARMENT_COOL,      _R( 604, 1078,  604+115, 1078+115), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN,                 PANEL_MAP_BACKGROUND);
@@ -1908,6 +1911,8 @@ bool LEM::clbkLoadPanel (int id) {
 			oapiRegisterPanelArea(AID_LEM_UPPER_HATCH_HANDLE, _R(784, 52, 1070, 249), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN, PANEL_MAP_BACKGROUND);
 			oapiRegisterPanelArea(AID_LEM_UPPER_HATCH_VALVE, _R(654, 300, 758, 406), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN, PANEL_MAP_BACKGROUND);
 		}
+
+		oapiRegisterPanelArea(AID_LEM_UTILITY_LT, _R(151, 112, 335, 141), PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN, PANEL_MAP_BACKGROUND);
 
 		SetCameraDefaultDirection(_V(0.0, 1.0, 0.0));
 		oapiCameraSetCockpitDir(0, 0);
@@ -2673,11 +2678,13 @@ void LEM::SetSwitches(int panel) {
     ASCO2Valve2.Init(342, 162, 115, 115, srf[SRF_LEM_ECS_ROTARY], srf[SRF_BORDER_115x115], OxygenControlSwitchRow, &IntlkOvrd, &DESO2Valve);
     IntlkOvrd.Init(234, 73, 68, 68, srf[SRF_LEM_INTLK_OVRD], srf[SRF_BORDER_68x68], OxygenControlSwitchRow);
 
-    SuitIsolSwitchRow.Init(IDB_LEM_ISOL_ROTARY, MainPanel);
+    SuitIsolSwitchRow.Init(AID_LEM_ISOL_ROTARY, MainPanel);
     CDRSuitIsolValve.Init(22, 59, 169, 168, srf[SRF_LEM_ISOL_ROTARY], srf[SRF_BORDER_169x168], SuitIsolSwitchRow);
     CDRActuatorOvrd.Init(204, 60, 67, 64, srf[SRF_LEM_ACT_OVRD], srf[SRF_BORDER_67x64], SuitIsolSwitchRow);
+	CDRActuatorOvrd.SetDelayTime(1);
     LMPSuitIsolValve.Init(22+281 , 59, 169, 168, srf[SRF_LEM_ISOL_ROTARY], srf[SRF_BORDER_169x168], SuitIsolSwitchRow);
     LMPActuatorOvrd.Init(485, 60, 67, 64, srf[SRF_LEM_ACT_OVRD], srf[SRF_BORDER_67x64], SuitIsolSwitchRow);
+	LMPActuatorOvrd.SetDelayTime(1);
 
     WaterControlSwitchRow.Init(AID_LEM_ECS_WCM, MainPanel);
     SecEvapFlowValve.Init(74, 30, 115, 115, srf[SRF_LEM_ECS_ROTARY], srf[SRF_BORDER_115x115], WaterControlSwitchRow);
@@ -2709,6 +2716,10 @@ void LEM::SetSwitches(int panel) {
 	
 	UpperHatchValveSwitchRow.Init(AID_LEM_UPPER_HATCH_VALVE, MainPanel);
 	UpperHatchReliefValve.Init(0, 0, 104, 106, srf[SRF_LEM_U_HATCH_REL_VLV], NULL, UpperHatchValveSwitchRow);
+
+	UilityLightSwitchRow.Init(AID_LEM_UTILITY_LT, MainPanel);
+	UtilityLightSwitchCDR.Init(0, 0, 34, 29, srf[SRF_LMTHREEPOSSWITCH], srf[SRF_BORDER_34x29], UilityLightSwitchRow);
+	UtilityLightSwitchLMP.Init(150, 0, 34, 29, srf[SRF_LMTHREEPOSSWITCH], srf[SRF_BORDER_34x29], UilityLightSwitchRow);
 
     // Forward Hatch
 	ForwardHatchHandleSwitchRow.Init(AID_LEM_FWD_HATCH_HANDLE, MainPanel);

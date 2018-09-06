@@ -171,6 +171,8 @@
 #define LTLM_DS		3
 #define LTLM_E		4
 
+class Saturn;
+
 // VHF system (and shared stuff)
 class LM_VHF {
 public:
@@ -178,11 +180,22 @@ public:
 	void Init(LEM *vessel, h_HeatLoad *vhfh, h_HeatLoad *secvhfh, h_HeatLoad *pcmh, h_HeatLoad *secpcmh);	       // Initialization
 	void Timestep(double simt);        // TimeStep
 	void SystemTimestep(double simdt); // System Timestep
+	void LoadState(char *line);
+	void SaveState(FILEHANDLE scn);
+	void RangingSignal(Saturn *sat, bool isAcquiring);
+
 	LEM *lem;					   // Ship we're installed in
 	h_HeatLoad *VHFHeat;			//VHF Heat Load
 	h_HeatLoad *VHFSECHeat;			//VHF Heat Load
 	h_HeatLoad *PCMHeat;			//PCM Heat Load
 	h_HeatLoad *PCMSECHeat;			//PCM Heat Load
+
+	bool receiveA;
+	bool receiveB;
+	bool transmitA;
+	bool transmitB;
+	bool isRanging;
+
 	// Winsock2
 	WSADATA wsaData;				// Winsock subsystem data
 	SOCKET m_socket;				// TCP socket
@@ -295,4 +308,65 @@ protected:
 	double hpbw_factor;			//Beamwidth factor
 	OBJHANDLE hMoon;
 	OBJHANDLE hEarth;
+};
+
+///
+/// LM DSE holds 5,400 inches of tape (4 tracks, 2.5 hours each at 0.6 inches/second, making 21,600 inches of recordable tape)
+///
+class LM_DSEA : public e_object
+{
+	enum LM_DSEAState
+	{
+		STOPPED,			/// Tape is stopped
+		STARTING_RECORD,	/// Tape is accelerating to play speed
+		SLOWING_RECORD,		/// Tape is slowing to record speed
+		RECORDING,			/// Tape is recording
+		STOPPING,			/// Tape is stopping
+	};
+
+public:
+	LM_DSEA();
+	virtual ~LM_DSEA();
+
+	void Init(LEM *l, h_HeatLoad *dseht);	       // Initialization
+
+									   ///
+									   /// \brief Tape motion indicator.
+									   ///
+	bool TapeMotion();
+
+	///
+	/// \brief Stop tape playing.
+	///
+	void Stop();
+
+	///
+	/// \brief Start tape recording.
+	///
+	void Record();
+
+	bool RecordLogic();
+	bool IsSWPowered();
+	bool IsACPowered();
+	bool IsPCMPowered();
+	bool LMPVoiceXmit();
+	bool CDRVoiceXmit();
+	bool VoiceXmit();
+	bool ICSPTT();
+	bool VOXPTT();
+	void SystemTimestep(double simdt);
+	void Timestep(double simt, double simdt);
+
+	void LoadState(char *line);
+	void SaveState(FILEHANDLE scn);
+
+protected:
+	LEM *lem;						    /// Ship we're installed in
+	h_HeatLoad *DSEHeat;				/// Heatload
+	double tapeSpeedInchesPerSecond;	/// Tape speed in inches per second.
+	double desiredTapeSpeed;			/// Desired tape speed in inches per second.
+	double tapeMotion;					/// Tape motion from 0.0 to 1.0.
+	LM_DSEAState state;					/// Tape state.
+
+	double lastEventTime;				/// Last event time.
 };

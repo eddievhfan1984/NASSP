@@ -59,6 +59,7 @@
 #include "payload.h"
 #include "csmcomputer.h"
 #include "qball.h"
+#include "canard.h"
 #include "siisystems.h"
 #include "sivbsystems.h"
 
@@ -146,6 +147,7 @@ typedef struct {
 	double SuitTestFlowLBH;
 	double CabinRepressFlowLBH;
 	double EmergencyCabinRegulatorFlowLBH;
+	double O2FlowXducerLBH;
 	double O2RepressPressurePSI;
 	double TunnelPressurePSI;
 } AtmosStatus;
@@ -684,7 +686,7 @@ public:
 			unsigned unused:1;						///< Unused bit for backwards compatibility. Can be used for other things.
 			unsigned TLISoundsLoaded:1;				///< Have we loaded the TLI sounds?
 			unsigned CMdocktgt:1;                   ///< CM docking target on
-			unsigned unused4:1;						///< Spare
+			unsigned NoVHFRanging:1;				///< Do we have a VHF Ranging System?
 			unsigned unused5:1;						///< Spare
 			unsigned unused6:2;						///< Spare
 			unsigned SkylabSM:1;					///< Is this a Skylab Service Module?
@@ -764,6 +766,9 @@ public:
 	/// \param AbortJettison If we're jettisoning during an abort, the BPC will take the docking probe with it.
 	///
 	void JettisonLET(bool AbortJettison = false);
+	void DeployCanard();
+	void CMLETAirfoilConfig();
+	void CMLETCanardAirfoilConfig();
 
 	///
 	/// This function can be used during the countdown to update the MissionTime. Since we launch when
@@ -833,6 +838,9 @@ public:
 	int rhc_thctoggle_id;				  ///< RHC button id for RHC/THC toggle
 	bool rhc_thctoggle_pressed;			  ///< Button pressed flag				  
 	int js_current;
+
+	// Variables for checklists
+	char Checklist_Variable[16][32];
 
 	//
 	// General functions that handle calls from Orbiter.
@@ -949,10 +957,12 @@ public:
 	void SIVBEDSCutoff(bool cut);
 	void SetQBallPowerOff();
 	virtual void SetSIEngineStart(int n) = 0;
+	virtual double GetSIThrustLevel() = 0;
 
 	virtual void ActivateStagingVent() {}
 
 	virtual void SetIUUmbilicalState(bool connect);
+	virtual void VHFRangingReturnSignal();
 
 	//CSM to IU interface functions
 	bool GetCMCSIVBTakeover();
@@ -1081,30 +1091,6 @@ public:
 
 	void SetStage(int s);
 	virtual void SeparateStage(int stage) = 0;
-
-	///
-	/// Turn on the liftoff light on the control panel.
-	/// \brief Set the liftoff light.
-	///
-	void SetLiftoffLight();
-
-	///
-	/// Turn off the liftoff light on the control panel.
-	/// \brief Clear the liftoff light.
-	///
-	void ClearLiftoffLight();
-
-	///
-	/// Turn on the no auto abort light on the control panel.
-	/// \brief Set the no auto abort light.
-	///
-	void SetNoAutoAbortLight();
-
-	///
-	/// Turn off the no auto abort light on the control panel.
-	/// \brief Clear the no auto abort light.
-	///
-	void ClearNoAutoAbortLight();
 
 	///
 	/// Turn on the LV Guidance warning light on the control panel to indicate an autopilot
@@ -1270,7 +1256,6 @@ public:
 	int Lua_GetAGCChannel(int ch);
 	void Lua_SetAGCErasable(int page, int addr, int value);
 	int Lua_GetAGCUplinkStatus();
-
 
 protected:
 
@@ -1595,7 +1580,7 @@ protected:
 	SwitchRow THCRotaryRow;
 	THCRotarySwitch THCRotary;
 
-	GuardedPushSwitch LiftoffNoAutoAbortSwitch;
+	SaturnLiftoffNoAutoAbortSwitch LiftoffNoAutoAbortSwitch;
 	GuardedPushSwitch LesMotorFireSwitch;
 	GuardedPushSwitch CanardDeploySwitch;
 	GuardedPushSwitch CsmLvSepSwitch;
@@ -3394,8 +3379,6 @@ protected:
 	/// \brief Engine indicator lights.
 	///
 	bool ENGIND[9];
-	bool LiftoffLight;
-	bool NoAutoAbortLight;
 	bool LVGuidLight;
 	bool LVRateLight;
 
@@ -3499,6 +3482,8 @@ protected:
 	OMNI omnid;
 	VHFAntenna vhfa;
 	VHFAntenna vhfb;
+	VHFRangingSystem vhfranging;
+	VHFAMTransceiver vhftransceiver;
 	EMS  ems;
 
 	// CM Optics
@@ -3643,6 +3628,7 @@ protected:
 	ELS els;
 
 	QBall qball;
+	LETCanard canard;
 
 	Pyro CMSMPyros;
 	Pyro CMDockingRingPyros;
@@ -3699,6 +3685,7 @@ protected:
 	bool TLISoundsLoaded;
 	bool SkylabSM;
 	bool NoHGA;
+	bool NoVHFRanging;
 	bool CMdocktgt;
 	bool SkylabCM;
 	bool S1bPanel;
@@ -3775,6 +3762,7 @@ protected:
 #define SATPANEL_LOWER_LEFT			14
 #define SATPANEL_LOWER_MAIN			15
 #define SATPANEL_RIGHT_CB			16
+#define SATPANEL_LEFT_317_WINDOW    17
 
 	int  PanelId;
 	int MainPanelSplit;
@@ -4263,6 +4251,9 @@ protected:
 	PowerDrainConnector CSMToLEMPowerConnector;
 	CSMToLEMECSConnector lemECSConnector;
 
+	// Checklist Controller to CSM connector
+	ChecklistDataInterface cdi;
+
 	//
 	// PanelSDK pointers.
 	//
@@ -4281,6 +4272,7 @@ protected:
 	double *pSuitTestFlow;
 	double *pCabinRepressFlow;
 	double *pEmergencyCabinRegulatorFlow;
+	double *pO2FlowXducer;
 	double *pO2Tank1Press;
 	double *pO2Tank2Press;
 	double *pH2Tank1Press;
@@ -4383,6 +4375,7 @@ protected:
 	friend class SaturnSystemTestAttenuator;
 	friend class SaturnLVSPSPcMeter;
 	friend class SaturnLMDPGauge;
+	friend class VHFRangingSystem;
 	// Friend class the MFD too so it can steal our data
 	friend class ProjectApolloMFD;
 	friend class ApolloRTCCMFD;

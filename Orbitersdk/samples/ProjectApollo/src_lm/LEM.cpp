@@ -225,6 +225,7 @@ LEM::LEM(OBJHANDLE hObj, int fmodel) : Payload (hObj, fmodel),
 	CabinFan(CabinFans),
 	ecs(Panelsdk),
 	CSMToLEMECSConnector(this),
+	cdi(this),
 	AOTLampFeeder("AOT-Lamp-Feeder", Panelsdk)
 {
 	dllhandle = g_Param.hDLL; // DS20060413 Save for later
@@ -312,6 +313,12 @@ void LEM::Init()
 		th_hover[i] = 0;
 	}
 
+	// Clobber checklist variables
+	for (int i = 0; i < 16; i++)
+	{
+		Checklist_Variable[i][0] = 0;
+	}
+
 	DPSPropellant.SetVessel(this);
 	APSPropellant.SetVessel(this);
 	RCSA.SetVessel(this);
@@ -381,6 +388,7 @@ void LEM::Init()
 	// Register visible connectors.
 	//
 	RegisterConnector(VIRTUAL_CONNECTOR_PORT, &MFDToPanelConnector);
+	RegisterConnector(VIRTUAL_CONNECTOR_PORT, &cdi);
 	RegisterConnector(0, &LEMToCSMConnector);
 	RegisterConnector(0, &CSMToLEMECSConnector);
 
@@ -471,10 +479,13 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 		// Do DSKY stuff
 		if(down){
 			switch(key){
+				case OAPI_KEY_DECIMAL:
+					dsky.ClearPressed();
+					break;
 				case OAPI_KEY_PRIOR:
 					dsky.ResetPressed();
 					break;
-				case OAPI_KEY_NEXT:
+				case OAPI_KEY_HOME:
 					dsky.KeyRel();
 					break;
 				case OAPI_KEY_NUMPADENTER:
@@ -492,7 +503,7 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 				case OAPI_KEY_SUBTRACT:
 					dsky.MinusPressed();
 					break;
-				case OAPI_KEY_DECIMAL:
+				case OAPI_KEY_END:
 					dsky.ProgPressed();
 					break;
 				case OAPI_KEY_NUMPAD1:
@@ -530,7 +541,7 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 		}else{
 			// KEY UP
 			switch(key){
-				case OAPI_KEY_DECIMAL:
+				case OAPI_KEY_END:
 					dsky.ProgReleased();
 					break;
 
@@ -824,9 +835,6 @@ void LEM::clbkPostStep(double simt, double simdt, double mjd)
 			}
 		}
 	}
-	
-	//Set visbility flag for LPD view meshes
-	SetLPDMesh();
 	
 	//
 	// If we switch focus to the astronaut immediately after creation, Orbitersound doesn't
@@ -1197,6 +1205,9 @@ void LEM::GetScenarioState(FILEHANDLE scn, void *vs)
 		else if (!strnicmp(line, "STEERABLEANTENNA", 16)) {
 			SBandSteerable.LoadState(line);
 		}
+		else if (!strnicmp(line, "VHFTRANSCEIVER", 14)) {
+			VHF.LoadState(line);
+		}
 		else if (!strnicmp(line, "LCA_START", sizeof("LCA_START"))) {
 			lca.LoadState(scn,"LCA_END");
 		}
@@ -1229,6 +1240,9 @@ void LEM::GetScenarioState(FILEHANDLE scn, void *vs)
 		}
 		else if (!strnicmp(line, "LEM_LR_START", sizeof("LEM_LR_START"))) {
 			LR.LoadState(scn, "LEM_LR_END");
+		}
+		else if (!strnicmp(line, LMOPTICS_START_STRING, sizeof(LMOPTICS_START_STRING))) {
+			optics.LoadState(scn);
 		}
 		else if (!strnicmp(line, FDAI_START_STRING, sizeof(FDAI_START_STRING))) {
 			fdaiLeft.LoadState(scn, FDAI_END_STRING);
@@ -1439,6 +1453,16 @@ bool LEM::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 		sscanf(line + 24, "%d", &i);
 		VAGCChecklistAutoEnabled = (i != 0);
 	}
+	else if (!strnicmp(line, "CHKVAR_", 7)) {
+		for (int i = 0; i < 16; i++) {
+			char name[16];
+			sprintf(name, "CHKVAR_%d", i);
+			if (!strnicmp(line, name, strlen(name))) {
+				strncpy(Checklist_Variable[i], line + (strlen(name) + 1), 32);
+				break;
+			}
+		}
+	}
 	return true;
 }
 
@@ -1492,6 +1516,14 @@ void LEM::clbkSaveState (FILEHANDLE scn)
 		oapiWriteScenario_int (scn, "UNMANNED", 1);
 	}
 
+	for (int i = 0; i < 16; i++) {
+		if (Checklist_Variable[i][0] != 0) {
+			char name[16];
+			sprintf(name, "CHKVAR_%d", i);
+			oapiWriteScenario_string(scn, name, Checklist_Variable[i]);
+		}
+	}
+
 	dsky.SaveState(scn, DSKY_START_STRING, DSKY_END_STRING);
 	agc.SaveState(scn);
 	imu.SaveState(scn);
@@ -1530,6 +1562,7 @@ void LEM::clbkSaveState (FILEHANDLE scn)
 	// Save COMM
 	SBand.SaveState(scn);
 	SBandSteerable.SaveState(scn);
+	VHF.SaveState(scn);
 
 	// Save Lighting
 	lca.SaveState(scn, "LCA_START", "LCA_END");
@@ -1547,6 +1580,9 @@ void LEM::clbkSaveState (FILEHANDLE scn)
 	eds.SaveState(scn,"LEM_EDS_START","LEM_EDS_END");
 	RR.SaveState(scn,"LEM_RR_START","LEM_RR_END");
 	LR.SaveState(scn, "LEM_LR_START", "LEM_LR_END");
+
+	//Save Optics
+	optics.SaveState(scn);
 
 	// Save FDAIs
 	fdaiLeft.SaveState(scn, FDAI_START_STRING, FDAI_END_STRING);
@@ -1631,6 +1667,7 @@ bool LEM::SetupPayload(PayloadSettings &ls)
 
 	// Sounds are initialized during the first timestep
 	// or here
+	SetLmVesselDockStage();
 	PostLoadSetup();
 
 	return true;
@@ -1743,4 +1780,19 @@ void LEM::RCSSoundTimestep() {
 	else {
 		RCSSustainSound.stop();
 	}
+}
+
+double LEM::GetAscentStageMass()
+{
+	if (stage < 2)
+	{
+		return GetMass() - GetPropellantMass(ph_Dsc) - DescentEmptyMassKg;
+	}
+
+	return GetMass();
+}
+
+void LEM::SendVHFRangingSignal(Saturn *sat, bool isAcquiring)
+{
+	VHF.RangingSignal(sat, isAcquiring);
 }

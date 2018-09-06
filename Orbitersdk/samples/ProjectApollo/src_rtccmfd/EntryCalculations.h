@@ -6,12 +6,18 @@
 
 namespace EntryCalculations
 {
+	double MSFNTargetLine(double vel);
+	double ContingencyTargetLine(double vel);
+	double ReentryTargetLine(double vel);
+	double ReentryTargetLineTan(double vel);
 	void augekugel(double ve, double gammae, double &phie, double &Te);
 	void landingsite(VECTOR3 REI, VECTOR3 VEI, double MJD_EI, double &lambda, double &phi);
 	void Reentry(VECTOR3 REI, VECTOR3 VEI, double mjd0, bool highspeed, double &EntryLatPred, double &EntryLngPred, double &EntryRTGO, double &EntryVIO, double &EntryRET);
-	VECTOR3 ThreeBodyAbort(double t_I, double t_EI, VECTOR3 R_I, VECTOR3 V_I, double mu_E, double mu_M, bool INRFVsign, VECTOR3 &R_EI, VECTOR3 &V_EI);
+	VECTOR3 ThreeBodyAbort(double t_I, double t_EI, VECTOR3 R_I, VECTOR3 V_I, double mu_E, double mu_M, bool INRFVsign, VECTOR3 &R_EI, VECTOR3 &V_EI, double Incl = 0, bool asc = true);
 	void Abort(VECTOR3 R0, VECTOR3 V0, double RCON, double dt, double mu, VECTOR3 &DV, VECTOR3 &R_EI, VECTOR3 &V_EI);
+	void Abort_plane(VECTOR3 R0, VECTOR3 V0, double MJD0, double RCON, double dt, double mu, double Incl, bool asc, VECTOR3 &DV, VECTOR3 &R_EI, VECTOR3 &V_EI);
 	void time_reentry(VECTOR3 R0, VECTOR3 V0, double r1, double x2, double dt, double mu, VECTOR3 &V, VECTOR3 &R_EI, VECTOR3 &V_EI);
+	void time_reentry_plane(VECTOR3 R0, VECTOR3 eta, double r1, double x2, double dt, double mu, VECTOR3 &V, VECTOR3 &R_EI, VECTOR3 &V_EI);
 	double landingzonelong(int zone, double lat);
 
 	double MPL(double lat);
@@ -71,7 +77,6 @@ private:
 	int f2;
 	double dlngapo, dt0, x2, x2_apo;
 	double EMSAlt;
-	double D1, D2, D3, D4;
 	double k1, k2, k3, k4;
 	double phi2;
 	double earthorbitangle; //31.7° nominal angled reentry DV vector
@@ -137,7 +142,6 @@ private:
 	int f2;
 	double dlngapo,dt0, x2, x2_apo;
 	double EMSAlt;
-	double D1, D2, D3, D4;
 	double k1, k2, k3, k4;
 	int revcor;
 	double phi2;
@@ -154,7 +158,7 @@ private:
 class Flyby
 {
 public:
-	Flyby(VECTOR3 R0M, VECTOR3 V0M, double mjd0, OBJHANDLE gravref, double MJDguess, double EntryLng, bool entrylongmanual, int returnspeed, int FlybyType);
+	Flyby(VECTOR3 R0M, VECTOR3 V0M, double mjd0, OBJHANDLE gravref, double MJDguess, double EntryLng, bool entrylongmanual, int returnspeed, int FlybyType, double Inclination = 0.0, bool Ascending = true);
 	bool Flybyiter();
 
 	int precision;
@@ -165,6 +169,8 @@ public:
 	double EntryAng;
 	VECTOR3 Rig, Vig, Vig_apo;
 	double TIG;
+	double ReturnInclination;
+	double FlybyPeriAlt;
 private:
 	OBJHANDLE hMoon, hEarth;
 	VECTOR3 DV;
@@ -181,12 +187,14 @@ private:
 	bool INRFVsign;
 	double mjd0;
 	double dv[3], TIGvar[3];
+	double IncDes;
+	bool Asc;
 };
 
 class TEI
 {
 public:
-	TEI(VECTOR3 R0M, VECTOR3 V0M, double mjd0, OBJHANDLE gravref, double MJDguess, double EntryLng, bool entrylongmanual, int returnspeed, int RevsTillTEI);
+	TEI(VECTOR3 R0M, VECTOR3 V0M, double mjd0, OBJHANDLE gravref, double MJDguess, double EntryLng, bool entrylongmanual, int returnspeed, int RevsTillTEI, double Inclination = 0.0, bool Ascending = true);
 	bool TEIiter();
 
 	int precision;
@@ -197,10 +205,11 @@ public:
 	double EntryAng;
 	VECTOR3 Rig, Vig, Vig_apo;
 	double TIG;
+	double ReturnInclination;
 private:
 	OBJHANDLE hMoon, hEarth;
 	VECTOR3 DV;
-	double DT_TEI_EI;	//Tiem between TEI and EI
+	double DT_TEI_EI;	//Time between TEI and EI
 	double EntryLng;
 	double mu_E, mu_M;
 	//double r_s; //Pseudostate sphere
@@ -212,6 +221,8 @@ private:
 	bool INRFVsign;
 	double dTIG, mjd0;
 	double dv[3], TIGvar[3];
+	double IncDes;
+	bool Asc;
 };
 
 #endif

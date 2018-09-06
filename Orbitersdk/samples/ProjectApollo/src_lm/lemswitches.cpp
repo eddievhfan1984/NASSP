@@ -427,6 +427,9 @@ double LMOxygenQtyMeter::QueryValue()
 			return 0;
 		case 1: // DES
 			return (lem->ecs.DescentOxyTankQuantityLBS()/(48.0))*100; 
+		//For J-Mission Conversion
+		//case 1: // DES
+		//	return (lem->ecs.DescentOxyTankQuantityLBS() / (96.0)) * 100;
 		case 2: // ASC 1
 			return (lem->ecs.AscentOxyTank1QuantityLBS()/(2.43))*100;	
 		case 3: // ASC 2
@@ -1583,7 +1586,7 @@ double RadarSignalStrengthAttenuator::GetValue()
 		val = lem->RR.GetSignalStrength();
 		break;
 	case 3:	//XMTR PWR
-		val = 0.0;
+		val = lem->RR.GetTransmitterPower();
 		break;
 	case 4:	//SHAFT ERR
 		val = lem->RR.GetShaftErrorSignal();
@@ -1736,14 +1739,14 @@ LEMRCSQuadTalkback::LEMRCSQuadTalkback()
 void LEMRCSQuadTalkback::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SwitchRow &row, SCEA_SolidStateSwitch *s, TCA_FlipFlop *tcaf)
 
 {
-	IndicatorSwitch::Init(xp, yp, w, h, surf, row, false);
+	IndicatorSwitch::Init(xp, yp, w, h, surf, row, true);
 	ssswitch = s;
 	tcaFailure = tcaf;
 }
 
 int LEMRCSQuadTalkback::GetState()
 {
-	if (ssswitch && tcaFailure && SRC && (SRC->Voltage() > SP_MIN_DCVOLTAGE))
+	if (ssswitch && tcaFailure)
 	{
 		if (tcaFailure->IsSet())
 			state = 2;

@@ -263,7 +263,8 @@ void LEM::SetLmVesselDockStage()
 	//Set part of ascent stage mesh to be visible from LPD window
 	VECTOR3 lpd_dir = _V(-0.191, 1.827, 0.383);
 	lpdgret = AddMesh(hLPDgret, &lpd_dir);
-	SetLPDMesh();
+	lpdgext = -1;
+	SetLPDMeshRet();
 
 	// Exterior lights
 	SetTrackLight();
@@ -291,42 +292,52 @@ void LEM::SetLmVesselHoverStage()
 	ClearAttExhaustRefs();
 
 	double Mass = 7137.75;
-	double ro = 4;
-	TOUCHDOWNVTX td[7];
+	double ro = 4.25;
+	TOUCHDOWNVTX td[8];
 	double x_target = -0.25;
 	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
 	double damping = 0.9*(2 * sqrt(Mass*stiffness));
-	for (int i = 0; i<7; i++) {
-		td[i].damping = damping;
+	for (int i = 0; i<8; i++) {
+		if (i < 5) {
+			td[i].damping = damping;
+			td[i].stiffness = stiffness;
+		}
+		else {
+			td[i].damping = damping / 100;
+			td[i].stiffness = stiffness / 100;
+		}
 		td[i].mu = 3;
 		td[i].mu_lng = 3;
-		td[i].stiffness = stiffness;
 	}
+
 	td[0].pos.x = 0;
 	td[0].pos.y = -3.86;
-	td[0].pos.z = 1 * ro;
-	td[1].pos.x = -cos(30 * RAD)*ro;
+	td[0].pos.z = ro;
+	td[1].pos.x = -ro;
 	td[1].pos.y = -3.86;
-	td[1].pos.z = -sin(30 * RAD)*ro;
-	td[2].pos.x = cos(30 * RAD)*ro;
+	td[1].pos.z = 0;
+	td[2].pos.x = 0;
 	td[2].pos.y = -3.86;
-	td[2].pos.z = -sin(30 * RAD)*ro;
-	td[3].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.z = -ro;
+	td[3].pos.x = ro;
 	td[3].pos.y = -3.86;
-	td[3].pos.z = sin(30 * RAD)*ro;
-	td[4].pos.x = -cos(30 * RAD)*ro;
-	td[4].pos.y = -3.86;
-	td[4].pos.z = sin(30 * RAD)*ro;
-	td[5].pos.x = 0;
-	td[5].pos.y = -3.86;
-	td[5].pos.z = -1 * ro;
+	td[3].pos.z = 0;
+	td[4].pos.x = 0;
+	td[4].pos.y = 3.86;
+	td[4].pos.z = 0;
+	td[5].pos.x = -ro;
+	td[5].pos.y = -5.57;
+	td[5].pos.z = 0;
 	td[6].pos.x = 0;
-	td[6].pos.y = 3.86;
-	td[6].pos.z = 0;
+	td[6].pos.y = -5.57;
+	td[6].pos.z = -ro;
+	td[7].pos.x = ro;
+	td[7].pos.y = -5.57;
+	td[7].pos.z = 0;
 
-	SetTouchdownPoints(td, 7);
-	
-	VSSetTouchdownPoints(GetHandle(), _V(0, -3.86, 5), _V(-5, -3.86, -5), _V(5, -3.86, -5));
+	SetTouchdownPoints(td, 8);
+
+	//VSSetTouchdownPoints(GetHandle(), _V(0, -3.86, 5), _V(-5, -3.86, -5), _V(5, -3.86, -5));
 
 	VECTOR3 mesh_dir=_V(-0.003,-0.03,0.004);	
 	UINT meshidx;
@@ -431,9 +442,20 @@ void LEM::SetLmVesselHoverStage()
 	}
 
 	//Set fwd footpad mesh to be visible from LPD window
-	VECTOR3 lpd_dir = _V(-0.003, -0.03, 0.004);
-	lpdgext = AddMesh(hLPDgext, &lpd_dir);
-	SetLPDMesh();
+	if (NoLegs)
+	{
+		VECTOR3 lpd_dir = _V(-0.191, 1.827, 0.383);
+		lpdgret = AddMesh(hLPDgret, &lpd_dir);
+		lpdgext = -1;
+		SetLPDMeshRet();
+	}
+	else
+	{
+		VECTOR3 lpd_dir = _V(-0.003, -0.03, 0.004);
+		lpdgext = AddMesh(hLPDgext, &lpd_dir);
+		lpdgret = -1;
+		SetLPDMeshExt();
+	}
 
 	// Exterior lights
 	SetTrackLight();
@@ -488,7 +510,7 @@ void LEM::SetLmAscentHoverStage()
 
 	SetTouchdownPoints(td, 4);
 
-	VSSetTouchdownPoints(GetHandle(), _V(0, tdph, 5), _V(-5, tdph, -5), _V(5, tdph, -5));
+	//VSSetTouchdownPoints(GetHandle(), _V(0, tdph, 5), _V(-5, tdph, -5), _V(5, tdph, -5));
 
 	VECTOR3 mesh_dir=_V(-0.191,-0.02,0.383);	
 	UINT meshidx = AddMesh (hLMAscent, &mesh_dir);
@@ -567,7 +589,8 @@ void LEM::SetLmAscentHoverStage()
 	//Set part of ascent stage mesh to be visible from LPD window
 	VECTOR3 lpd_dir = _V(-0.191, -0.02, 0.383);
 	lpdgret = AddMesh(hLPDgret, &lpd_dir);
-	SetLPDMesh();
+	lpdgext = -1;
+	SetLPDMeshRet();
 
 	// Exterior lights
 	SetTrackLight();
@@ -589,12 +612,19 @@ void LEM::SeparateStage (UINT stage)
 		char VName[256];
 		strcpy(VName, GetName()); strcat(VName, "-DESCENTSTG");
 		hdsc = oapiCreateVesselEx(VName, "ProjectApollo/Sat5LMDSC", &vs2);
-		
+
 		Sat5LMDSC *dscstage = static_cast<Sat5LMDSC *> (oapiGetVesselInterface(hdsc));
-		dscstage->SetState(0);
-		
-		SetLmAscentHoverStage();
+		if (NoLegs)
+		{
+			dscstage->SetState(10);
 		}
+		else
+		{
+			dscstage->SetState(0);
+		}
+
+		SetLmAscentHoverStage();
+	}
 	
 	if (stage == 1)	{
 		ShiftCentreOfMass(_V(0.0, -1.155, 0.0));
@@ -607,10 +637,16 @@ void LEM::SeparateStage (UINT stage)
 			hdsc = oapiCreateVesselEx(VName, "ProjectApollo/Sat5LMDSC", &vs2);
 			
 			Sat5LMDSC *dscstage = static_cast<Sat5LMDSC *> (oapiGetVesselInterface(hdsc));
-			if (Landed) {
+			if (Landed) 
+			{
 				dscstage->SetState(1);
 			}
-			else {
+			else if (NoLegs)
+			{
+				dscstage->SetState(10);
+			}
+			else
+			{
 				dscstage->SetState(11);
 			}
 			
@@ -625,10 +661,16 @@ void LEM::SeparateStage (UINT stage)
 			hdsc = oapiCreateVesselEx(VName, "ProjectApollo/Sat5LMDSC", &vs2);
 			
 			Sat5LMDSC *dscstage = static_cast<Sat5LMDSC *> (oapiGetVesselInterface(hdsc));
-			if (Landed) {
+			if (Landed)
+			{
 				dscstage->SetState(1);
 			}
-			else {
+			else if (NoLegs)
+			{
+				dscstage->SetState(10);
+			}
+			else
+			{
 				dscstage->SetState(11);
 			}
 			
@@ -648,7 +690,8 @@ void LEM::SetLmLandedMesh() {
 
 	//Set fwd footpad mesh to be visible from LPD window
 	lpdgext = AddMesh(hLPDgext, &mesh_dir);
-	SetLPDMesh();
+	lpdgret = -1;
+	SetLPDMeshExt();
 
 	// Forward Hatch
 	VECTOR3 hatch_dir = _V(-0.003, -0.03, 0.004);
@@ -663,6 +706,12 @@ void LEM::SetLmLandedMesh() {
 }
 
 void LEM::SetLPDMesh() {
+
+	SetLPDMeshRet();
+	SetLPDMeshExt();
+}
+
+void LEM::SetLPDMeshRet() {
 	
 	if (lpdgret == -1)
 		return;
@@ -677,10 +726,27 @@ void LEM::SetLPDMesh() {
 	}
 
 	if (stage == 1) {
+		if ((InPanel && PanelId == LMPANEL_LPDWINDOW) && NoLegs) {
+			SetMeshVisibilityMode(lpdgret, MESHVIS_COCKPIT);
+		}
+		else
+		{
+			SetMeshVisibilityMode(lpdgret, MESHVIS_NEVER);
+		}
+	}
+}
+
+void LEM::SetLPDMeshExt() {
+
+	if (lpdgext == -1)
+		return;
+
+	if (stage == 1) {
 		if (InPanel && PanelId == LMPANEL_LPDWINDOW) {
 			SetMeshVisibilityMode(lpdgext, MESHVIS_COCKPIT);
 		}
-		else {
+		else
+		{
 			SetMeshVisibilityMode(lpdgext, MESHVIS_NEVER);
 		}
 	}
@@ -742,7 +808,7 @@ void LEM::SetDockingLights() {
 	static VECTOR3 beaconPosAsc[5] = { { 0.32 + xoffset, 1.52 + yoffset, 2.55 + zoffset },{ 0.05 + xoffset, 1.95 + yoffset, -1.75 + zoffset },{ -0.22 + xoffset, 1.52 + yoffset, 2.55 + zoffset },{ -2.805 + xoffset, -0.1 + yoffset, -0.3 + zoffset },{ 2.1 + xoffset, 0.28 + yoffset, -0.3 + zoffset } };
 	static VECTOR3 beaconCol[4] = { { 1, 1, 1 },{ 1, 1, 0 },{ 1, 0, 0 },{ 0, 1, 0 } };
 	for (i = 0; i < 5; i++) {
-		dockingLights[i].shape = BEACONSHAPE_DIFFUSE;
+		dockingLights[i].shape = BEACONSHAPE_STAR;
 		if (stage == 2) {
 			dockingLights[i].pos = beaconPosAsc+i;
 		}
@@ -750,8 +816,8 @@ void LEM::SetDockingLights() {
 			dockingLights[i].pos = beaconPos+i;
 		}
 		dockingLights[i].col = (i < 2 ? beaconCol : i < 3 ? beaconCol+1 : i < 4 ? beaconCol+2 : beaconCol+3);
-		dockingLights[i].size = 0.15;
-		dockingLights[i].falloff = 0.5;
+		dockingLights[i].size = 0.12;
+		dockingLights[i].falloff = 0.8;
 		dockingLights[i].period = 0.0;
 		dockingLights[i].duration = 1.0;
 		dockingLights[i].tofs = 0;

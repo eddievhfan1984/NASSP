@@ -665,6 +665,7 @@ void LEM_TLE::SystemTimestep(double simdt)
 {
 	if (IsPowered()) {
 		TrackCB->DrawPower(120.0);
+		//TLEHeat->GenerateHeat(120.0);
 		TLEHeat->GenerateHeat(60.0);
 		SecTLEHeat->GenerateHeat(60.0);
 	}
@@ -821,6 +822,15 @@ double LEM_LCA::GetAnnunVoltage()
 	return 0.0;
 }
 
+double LEM_LCA::GetAnnunDimPct()
+{
+	if (GetAnnunVoltage() > 2.0)
+	{
+		return GetAnnunVoltage() / 5.0;
+	}
+	return 0.0;
+}
+
 double LEM_LCA::GetNumericVoltage()
 {
 	if (lem->NUM_LTG_AC_CB.Voltage() > SP_MIN_ACVOLTAGE)
@@ -878,8 +888,8 @@ void LEM_LCA::LoadState(FILEHANDLE scn, char *end_str)
 	}
 }
 
-//Utility Lights (Uncomment when panel is created)
-/*
+//Utility Lights
+
 LEM_UtilLights::LEM_UtilLights()
 {
 lem = NULL;
@@ -913,29 +923,29 @@ void LEM_UtilLights::Timestep(double simdt)
 
 void LEM_UtilLights::SystemTimestep(double simdt)
 {
-//CDR Utility Lights Dim
-if (IsPowered() && CDRSwitch->GetState() == THREEPOSSWITCH_CENTER) {
-UtlCB->DrawPower(2.2);
-UtlLtgHeat->GenerateHeat(2.178);
-}
-//CDR Utility Lights Bright
-else if (IsPowered() && CDRSwitch->GetState() == THREEPOSSWITCH_DOWN) {
-UtlCB->DrawPower(6.15);
-UtlLtgHeat->GenerateHeat(6.1);
+	//CDR Utility Lights Dim
+	if (IsPowered() && CDRSwitch->GetState() == THREEPOSSWITCH_CENTER) {
+		UtlCB->DrawPower(2.2);
+		UtlLtgHeat->GenerateHeat(2.178);
+	}
+	//CDR Utility Lights Bright
+	else if (IsPowered() && CDRSwitch->GetState() == THREEPOSSWITCH_DOWN) {
+		UtlCB->DrawPower(6.15);
+		UtlLtgHeat->GenerateHeat(6.1);
+	}
+
+	//LMP Utility Lights Dim
+	if (IsPowered() && LMPSwitch->GetState() == THREEPOSSWITCH_CENTER) {
+		UtlCB->DrawPower(1.76);
+		UtlLtgHeat->GenerateHeat(1.74);
+	}
+	//LMP Utility Lights Bright
+	else if (IsPowered() && LMPSwitch->GetState() == THREEPOSSWITCH_DOWN) {
+		UtlCB->DrawPower(3.3);
+		UtlLtgHeat->GenerateHeat(3.267);
+	}
 }
 
-//LMP Utility Lights Dim
-if (IsPowered() && LMPSwitch->GetState() == THREEPOSSWITCH_CENTER) {
-UtlCB->DrawPower(1.76);
-UtlLtgHeat->GenerateHeat(1.74);
-}
-//LMP Utility Lights Bright
-else if (IsPowered() && LMPSwitch->GetState() == THREEPOSSWITCH_DOWN) {
-UtlCB->DrawPower(3.3);
-UtlLtgHeat->GenerateHeat(3.267);
-}
-}
-*/
 //COAS Lights
 LEM_COASLights::LEM_COASLights()
 {
@@ -1056,5 +1066,5 @@ void LEM_FloodLights::Timestep(double simdt)
 void LEM_FloodLights::SystemTimestep(double simdt)
 {
 	FloodCB->DrawPower(GetPowerDraw());
-	FloodHeat->GenerateHeat(GetPowerDraw()*0.356);	//Assumes linear relationship between heat and power draw based on maximum at 28V
+	FloodHeat->GenerateHeat((GetPowerDraw()*0.356)*0.65);	//Assumes linear relationship between heat and power draw based on maximum at 28V, 65% of power load to heat (just a guess to keep cabin temps stable)
 }

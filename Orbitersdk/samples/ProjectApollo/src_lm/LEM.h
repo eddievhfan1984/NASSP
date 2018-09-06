@@ -51,6 +51,7 @@
 #include "lm_cwea.h"
 #include "lm_eps.h"
 #include "LEMcomputer.h"
+#include "lm_rr.h"
 
 // Cosmic background temperature in degrees F
 #define CMBG_TEMP -459.584392
@@ -131,68 +132,6 @@ public:
 	int rangeGood;				// RDG flag
 	int velocityGood;			// VDG flag
 };
-
-// Rendezvous Radar
-class LEM_RR : public e_object {
-public:
-	LEM_RR();
-	void Init(LEM *s, e_object *dc_src, e_object *ac_src, h_Radiator *ant, Boiler *anheat, Boiler *stbyanheat, h_HeatLoad *rreh, h_HeatLoad *secrreh);
-	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
-	void LoadState(FILEHANDLE scn, char *end_str);
-	void Timestep(double simdt);
-	void SystemTimestep(double simdt);
-	double GetAntennaTempF();
-	double GetRadarTrunnionVel() { return -trunnionVel ; } ;
-	double GetRadarShaftVel() { return shaftVel ; } ;
-	double GetRadarTrunnionPos() { return -asin(sin(trunnionAngle)); }
-	double GetRadarShaftPos() { return -asin(sin(shaftAngle)) ; }
-	double GetRadarRange() { return range; } ;
-	double GetRadarRate() { return rate ; };
-	double GetSignalStrength() { return SignalStrength*4.0; }
-	double GetShaftErrorSignal();
-	double GetTrunnionErrorSignal();
-	
-	bool IsPowered(); 
-	bool IsDCPowered(); 
-	bool IsACPowered();
-	bool IsRadarDataGood() { return radarDataGood;};
-	bool GetNoTrackSignal() { return NoTrackSignal; }
-
-private:
-
-	LEM *lem;					// Pointer at LEM
-	h_Radiator *antenna;		// Antenna (loses heat into space)
-	Boiler *antheater;			// Antenna Heater (puts heat back into antenna)
-	Boiler *stbyantheater;		// Antenna Standby Heater (puts heat back into antenna)
-	h_HeatLoad *RREHeat;		// RRE Heat Load
-	h_HeatLoad *RRESECHeat;		// RRE Heat Load Sec Loop
-    e_object *dc_source;
-	e_object *ac_source;
-	double tstime;
-	int	   tstate[2];
-	double tsangle[2];
-	int    isTracking;
-	bool   radarDataGood;
-	bool NoTrackSignal;
-	double trunnionAngle;
-	double shaftAngle;
-	double trunnionVel;
-	double shaftVel;
-	double range;
-	double rate;
-	int ruptSent;				// Rupt sent
-	int scratch[2];             // Scratch data
-	int mode;					//Mode I = false, Mode II = true
-	double hpbw_factor;			//Beamwidth factor
-	double SignalStrength;
-	double SignalStrengthQuadrant[4];
-	VECTOR3 U_RRL[4];
-	bool AutoTrackEnabled;
-	double ShaftErrorSignal;
-	double TrunnionErrorSignal;
-	VECTOR3 GyroRates;
-};
-
 
 class LEM_RadarTape : public e_object {
 public:
@@ -437,11 +376,16 @@ public:
 	void SetLmAscentHoverStage();
 	void SetLmLandedMesh();
 	void SetLPDMesh();
+	void SetLPDMeshRet();
+	void SetLPDMeshExt();
 	void SetFwdHatchMesh();
 	void SetOvhdHatchMesh();
 	void SetTrackLight();
 	void SetDockingLights();
 	double GetMissionTime() { return MissionTime; }; // This must be here for the MFD can't use it.
+	UINT GetStage() { return stage; }
+	virtual double GetAscentStageMass();
+	virtual void SendVHFRangingSignal(Saturn *sat, bool isAcquiring);
 
 	virtual void PlayCountSound(bool StartStop) {};
 	virtual void PlaySepsSound(bool StartStop) {};
@@ -594,6 +538,8 @@ public:
 	int ttca_throttle_vel;
 	int js_current;
 
+	// Variables for checklists
+	char Checklist_Variable[16][32];
 
 protected:
 
@@ -1415,6 +1361,9 @@ protected:
 	LMOverheadHatchHandle UpperHatchHandle;
 	SwitchRow UpperHatchValveSwitchRow;
 	ThreePosSwitch UpperHatchReliefValve;
+	SwitchRow UilityLightSwitchRow;
+	ThreePosSwitch UtilityLightSwitchCDR;
+	ThreePosSwitch UtilityLightSwitchLMP;
 	
 	///////////////////////
 	// LEM Forward Hatch //
@@ -1641,6 +1590,9 @@ protected:
 	PowerSourceConnectorObject CSMToLEMPowerSource; // This looks like an e-object
 	LEMECSConnector CSMToLEMECSConnector;
 
+	// Checklist Controller to LEM connector
+	ChecklistDataInterface cdi;
+
 	char AudioLanguage[64];
 
 	// POWER AND SUCH
@@ -1742,12 +1694,13 @@ protected:
 	LM_OMNI omni_aft;
 	LM_VHF VHF;
 	LM_SBAND SBand;
+	LM_DSEA DSEA;
 
 	//Lighting
 	LEM_TLE tle;
 	LEM_DockLights DockLights;
 	LEM_LCA lca;
-	//LEM_UtilLights UtilLights;
+	LEM_UtilLights UtilLights;
 	LEM_COASLights COASLights;
 	LEM_FloodLights FloodLights;
 
@@ -1755,6 +1708,8 @@ protected:
 	LEM_ECS ecs;
 	LEMPressureSwitch CabinPressureSwitch;
 	LEMPressureSwitch SuitPressureSwitch;
+	LEMSuitIsolValve CDRIsolValve;
+	LEMSuitIsolValve LMPIsolValve;
 	LEMSuitCircuitPressureRegulator SuitCircuitPressureRegulatorA;
 	LEMSuitCircuitPressureRegulator SuitCircuitPressureRegulatorB;
 	LEMCabinRepressValve CabinRepressValve;
@@ -1832,6 +1787,7 @@ protected:
 	friend class LEM_SteerableAnt;
 	friend class LM_VHF;
 	friend class LM_SBAND;
+	friend class LM_DSEA;
 	friend class LEMMissionTimerSwitch;
 	friend class LEM_CWEA;
 	friend class LMWaterQtyMeter;
@@ -1880,6 +1836,7 @@ protected:
 	friend class RCS_TCA;
 	friend class LEM_ECS;
 	friend class LEMCabinRepressValve;
+	friend class LEMSuitIsolValve;
 	friend class LEMDigitalHeliumPressureMeter;
 	friend class EngineStopButton;
 	friend class EngineStartButton;

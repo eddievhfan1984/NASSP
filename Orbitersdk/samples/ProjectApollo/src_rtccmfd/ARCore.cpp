@@ -5,6 +5,7 @@
 #include "csmcomputer.h"
 #include "IMU.h"
 #include "saturn.h"
+#include "LEM.h"
 #include "mcc.h"
 #include "rtcc.h"
 
@@ -25,16 +26,30 @@ ARCore::ARCore(VESSEL* v)
 {
 	T1 = 0;
 	T2 = 0;
-	CDHtime = 0;
-	CDHtime_cor = 0;
-	CDHtimemode = 1;
+	SPQMode = 0;
+	CSItime = 0.0;
+	CDHtime = 0.0;
+	SPQTIG = 0.0;
+	CDHtimemode = 0;
 	DH = 0;
 	N = 0;
 	this->vessel = v;
-	lambertelev = 0.0;
+	t_TPI = 0.0;
+
+	spqresults.DH = 0.0;
+	spqresults.dV_CDH = _V(0.0, 0.0, 0.0);
+	spqresults.dV_CSI = _V(0.0, 0.0, 0.0);
+	spqresults.t_CDH = 0.0;
+	spqresults.t_TPI = 0.0;
+
+	lambertelev = 26.6*RAD;
 	LambertdeltaV = _V(0, 0, 0);
 	lambertopt = 0;
-	CDHdeltaV = _V(0, 0, 0);
+	twoimpulsemode = 0;
+	TwoImpulse_TPI = 0.0;
+	TwoImpulse_PhaseAngle = 0.0;
+
+	SPQDeltaV = _V(0, 0, 0);
 	target = NULL;
 	offvec = _V(0, 0, 0);
 	//screen = 0;
@@ -43,6 +58,7 @@ ARCore::ARCore(VESSEL* v)
 	mission = 0;
 	GETbase = LaunchMJD[0];
 	AGCEpoch = 40221.525;
+	AGCEphemTEphemZero = 40038.0;
 	REFSMMAT = _M(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
 	REFSMMATTime = 0.0;
 	REFSMMATopt = 4;
@@ -53,6 +69,7 @@ ARCore::ARCore(VESSEL* v)
 	LSAlt = 0.0;
 	manpadopt = 0;
 	vesseltype = 0;
+	lemdescentstage = true;
 
 	for (int i = 0; i < 20; i++)
 	{
@@ -94,84 +111,98 @@ ARCore::ARCore(VESSEL* v)
 		mission = 11;
 		REFSMMAT = OrbMech::LaunchREFSMMAT(28.608202*RAD, -80.604064*RAD, LaunchMJD[mission - 7], 72.0*RAD);
 		AGCEpoch = 40586.767239;
+		AGCEphemTEphemZero = 40403.0;
 	}
 	else if (strcmp(v->GetName(), "Eagle") == 0)
 	{
 		mission = 11;
 		vesseltype = 2;
 		AGCEpoch = 40586.767239;
+		AGCEphemTEphemZero = 40403.0;
 	}
 	else if (strcmp(v->GetName(), "Yankee Clipper") == 0)
 	{
 		mission = 12;
 		REFSMMAT = OrbMech::LaunchREFSMMAT(28.608202*RAD, -80.604064*RAD, LaunchMJD[mission - 7], 72.0*RAD);
 		AGCEpoch = 40586.767239;
+		AGCEphemTEphemZero = 40403.0;
 	}
 	else if (strcmp(v->GetName(), "Intrepid") == 0)
 	{
 		mission = 12;
 		vesseltype = 2;
 		AGCEpoch = 40586.767239;
+		AGCEphemTEphemZero = 40403.0;
 	}
 	else if (strcmp(v->GetName(), "Odyssey") == 0)
 	{
 		mission = 13;
 		REFSMMAT = OrbMech::LaunchREFSMMAT(28.608202*RAD, -80.604064*RAD, LaunchMJD[mission - 7], 72.0*RAD);
 		AGCEpoch = 40586.767239;
+		AGCEphemTEphemZero = 40403.0;
 	}
 	else if (strcmp(v->GetName(), "Aquarius") == 0)
 	{
 		mission = 13;
 		vesseltype = 2;
 		AGCEpoch = 40586.767239;
+		AGCEphemTEphemZero = 40403.0;
 	}
 	else if (strcmp(v->GetName(), "Kitty Hawk") == 0)
 	{
 		mission = 14;
 		REFSMMAT = OrbMech::LaunchREFSMMAT(28.608202*RAD, -80.604064*RAD, LaunchMJD[mission - 7], 72.067*RAD);
 		AGCEpoch = 40952.009432;
+		AGCEphemTEphemZero = 40768.0;
 	}
 	else if (strcmp(v->GetName(), "Antares") == 0)
 	{
 		mission = 14;
 		vesseltype = 2;
 		AGCEpoch = 40952.009432;
+		AGCEphemTEphemZero = 40768.0;
 	}
 	else if (strcmp(v->GetName(), "Endeavour") == 0)
 	{
 		mission = 15;
 		REFSMMAT = OrbMech::LaunchREFSMMAT(28.608202*RAD, -80.604064*RAD, LaunchMJD[mission - 7], 80.088*RAD);
 		AGCEpoch = 41317.251625;
+		AGCEphemTEphemZero = 41133.0;
 	}
 	else if (strcmp(v->GetName(), "Falcon") == 0)
 	{
 		mission = 15;
 		vesseltype = 2;
 		AGCEpoch = 41317.251625;
+		AGCEphemTEphemZero = 41133.0;
 	}
 	else if (strcmp(v->GetName(), "Casper") == 0)
 	{
 		mission = 16;
 		REFSMMAT = OrbMech::LaunchREFSMMAT(28.608202*RAD, -80.604064*RAD, LaunchMJD[mission - 7], 72.0*RAD);
 		AGCEpoch = 41317.251625;
+		AGCEphemTEphemZero = 41133.0;
 	}
 	else if (strcmp(v->GetName(), "Orion") == 0)
 	{
 		mission = 16;
 		vesseltype = 2;
 		AGCEpoch = 41317.251625;
+		AGCEphemTEphemZero = 41133.0;
 	}
 	else if (strcmp(v->GetName(), "America") == 0)
 	{
 		mission = 17;
 		REFSMMAT = OrbMech::LaunchREFSMMAT(28.608202*RAD, -80.604064*RAD, LaunchMJD[mission - 7], 72.0*RAD);
 		AGCEpoch = 41317.251625;
+		AGCEphemTEphemZero = 41133.0;
 	}
 	else if (strcmp(v->GetName(), "Challenger") == 0)
 	{
 		mission = 17;
 		vesseltype = 2;
 		AGCEpoch = 41317.251625;
+		AGCEphemTEphemZero = 41133.0;
 	}
 	GETbase = LaunchMJD[mission - 7];
 
@@ -181,7 +212,7 @@ ARCore::ARCore(VESSEL* v)
 	}
 
 	MATRIX3 a;
-	a = mul(REFSMMAT, OrbMech::transpose_matrix(OrbMech::J2000EclToBRCS(AGCEpoch)));
+	a = mul(REFSMMAT, OrbMech::tmat(OrbMech::J2000EclToBRCS(AGCEpoch)));
 
 	REFSMMAToct[0] = 24;
 	REFSMMAToct[1] = 306;
@@ -207,17 +238,42 @@ ARCore::ARCore(VESSEL* v)
 	REFSMMATdirect = true;
 	REFSMMATHeadsUp = true;
 
-	GMPType = 0;
+	GMPManeuverCode = 0;
+	GMPManeuverPoint = 0;
+	GMPManeuverType = 0;
 	OrbAdjAltRef = true;
 	OrbAdjDVX = _V(0, 0, 0);
 	SPSGET = 0.0;
-	apo_desnm = 0;
-	peri_desnm = 0;
-	incdeg = 0;
-	GMPRotationAngle = 0.0;
-	GMPLongitude = 0.0;
-	GMPTOA = 0.0;
+	GMPApogeeHeight = 0;
+	GMPPerigeeHeight = 0;
+	GMPWedgeAngle = 0.0;
+	GMPManeuverLongitude = 0.0;
+	GMPManeuverHeight = 0.0;
+	GMPHeightChange = 0.0;
+	GMPNodeShiftAngle = 0.0;
+	GMPDeltaVInput = 0.0;
+	GMPPitch = 0.0;
+	GMPYaw = 0.0;
 	GMPRevs = 0;
+	GMPApseLineRotAngle = 0.0;
+	GMPResults.A = 0.0;
+	GMPResults.Del_G = 0.0;
+	GMPResults.E = 0.0;
+	GMPResults.GET_A = 0.0;
+	GMPResults.GET_P = 0.0;
+	GMPResults.HA = 0.0;
+	GMPResults.HP = 0.0;
+	GMPResults.H_Man = 0.0;
+	GMPResults.I = 0.0;
+	GMPResults.lat_A = 0.0;
+	GMPResults.lat_Man = 0.0;
+	GMPResults.lat_P = 0.0;
+	GMPResults.long_A = 0.0;
+	GMPResults.long_Man = 0.0;
+	GMPResults.long_P = 0.0;
+	GMPResults.Node_Ang = 0.0;
+	GMPResults.Pitch_Man = 0.0;
+	GMPResults.Yaw_Man = 0.0;
 
 	g_Data.uplinkBufferSimt = 0;
 	g_Data.connStatus = 0;
@@ -229,6 +285,21 @@ ARCore::ARCore(VESSEL* v)
 	else
 	{
 		g_Data.uplinkLEM = 1;
+
+		if (!stricmp(vessel->GetClassName(), "ProjectApollo\\LEM") ||
+			!stricmp(vessel->GetClassName(), "ProjectApollo/LEM") ||
+			!stricmp(vessel->GetClassName(), "ProjectApollo\\LEMSaturn") ||
+			!stricmp(vessel->GetClassName(), "ProjectApollo/LEMSaturn")) {
+			LEM *lem = (LEM *)vessel;
+			if (lem->GetStage() < 2)
+			{
+				lemdescentstage = true;
+			}
+			else
+			{
+				lemdescentstage = false;
+			}
+		}
 	}
 	for (int i = 0; i < 24; i++)
 	{
@@ -262,6 +333,7 @@ ARCore::ARCore(VESSEL* v)
 	entrynominal = 1;
 	entryrange = 0.0;
 	EntryRTGO = 0.0;
+	FlybyPeriAlt = 0.0;
 
 	SVSlot = true; //true = CSM; false = Other
 	J2000Pos = _V(0.0, 0.0, 0.0);
@@ -304,8 +376,7 @@ ARCore::ARCore(VESSEL* v)
 	sprintf(lmmanpad.remarks, "");
 	entrypadopt = 0;
 	EntryPADdirect = false; //false = Entry PAD with MCC/Deorbit burn, true = Direct Entry
-	csmenginetype = 0;
-	lmenginetype = 0;
+	enginetype = 1;
 	directiontype = 0;
 	TPIPAD_AZ = 0.0;
 	TPIPAD_dH = 0.0;
@@ -348,6 +419,7 @@ ARCore::ARCore(VESSEL* v)
 	LOI_dV_LVLH = _V(0.0, 0.0, 0.0);
 	LOI_TIG = 0.0;
 	LOI2Alt = 60.0*1852.0;
+	LOIEllipseRotation = 0;
 
 	TLCCmaneuver = 2;
 	TLCC_GET = 0.0;
@@ -372,6 +444,9 @@ ARCore::ARCore(VESSEL* v)
 	TLCCAscendingNode = true;
 	TLCCFRDesiredInclination = 0.0;
 	TLCCIterationStep = 0;
+	TLCCRev2MeridianGET = 0.0;
+	TLCCPostDOIApoAlt = 0.0;
+	TLCCPostDOIPeriAlt = 0.0;
 	
 	tlipad.TB6P = 0.0;
 	tlipad.BurnTime = 0.0;
@@ -402,6 +477,7 @@ ARCore::ARCore(VESSEL* v)
 	landmarkpad.Lat[0] = 0;
 	landmarkpad.Lng05[0] = 0;
 
+	VECoption = 0;
 	VECdirection = 0;
 	VECbody = NULL;
 	VECangles = _V(0, 0, 0);
@@ -415,8 +491,28 @@ ARCore::ARCore(VESSEL* v)
 	DOIGET = 0.0;
 	DOI_PeriAng = 15.0*RAD;
 	DOI_option = 0;
+	DOI_alt = 50000.0*0.3048;
 
 	AGSKFactor = 90.0*3600.0;
+
+	DKI_Profile = 0;
+	DKI_TPI_Mode = 0;
+	DKI_Radial_DV = false;
+	DKI_TIG = 0.0;
+	DKI_Maneuver_Line = true;
+	DKI_dt_TPI_sunrise = 16.0*60.0;
+	DKI_N_HC = 1;
+	DKI_N_PB = 1;
+	DKI_dt_PBH = DKI_dt_BHAM = DKI_dt_HAMH = 3600.0;
+	dkiresult.DV_Phasing = _V(0, 0, 0);
+	dkiresult.t_CDH = 0.0;
+	dkiresult.dv_CSI = 0.0;
+	dkiresult.t_CSI = 0.0;
+	dkiresult.t_TPI = 0.0;
+	dkiresult.DV_CDH = _V(0, 0, 0);
+	dkiresult.t_Boost = 0.0;
+	dkiresult.dv_Boost = 0.0;
+	dkiresult.t_HAM = 0.0;
 
 	if (mission == 8)
 	{
@@ -462,12 +558,13 @@ ARCore::ARCore(VESSEL* v)
 		LOIazi = -75.0*RAD;
 		LOIapo = 168.9*1852.0;
 		LOIperi = 58.7*1852.0;
+		LOIEllipseRotation = 1;
 		TLCCFreeReturnEMPLat = -1.962929*RAD;
-		TLCCNonFreeReturnEMPLat = 3.800381*RAD;
-		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(83.0, 32.0, 15.0);
+		TLCCNonFreeReturnEMPLat = 3.35412*RAD;
+		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(83.0, 28.0, 45.0);
 		TLCCFlybyPeriAlt = 1851.7*1852.0;
-		TLCCNodeLat = 1.23*RAD;
-		TLCCNodeLng = 165.23*RAD;
+		TLCCNodeLat = 0.49*RAD;
+		TLCCNodeLng = 162.54*RAD;
 		TLCCNodeAlt = 59.9*1852.0;
 		TLCCLAHPeriAlt = TLCCNodeAlt;
 		t_Land = OrbMech::HHMMSSToSS(110.0, 31.0, 19.0);
@@ -480,16 +577,19 @@ ARCore::ARCore(VESSEL* v)
 		LSAlt = -0.76*1852.0;
 		LOIazi = -93.9*RAD;
 		LOIapo = 168.3*1852.0;
-		LOIperi = 57.0*1852.0;		
+		LOIperi = 57.0*1852.0;
+		LOIEllipseRotation = 1;
 		TLCCFreeReturnEMPLat = 0.108105*RAD;
-		TLCCNonFreeReturnEMPLat = -0.203331*RAD;
-		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(77.0, 29.0, 30.0);
+		TLCCNonFreeReturnEMPLat = -0.20553*RAD;
+		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(77.0, 28.0, 50.0);
 		TLCCFlybyPeriAlt = 210*1852.0;
 		TLCCNodeLat = 3.69*RAD;
-		TLCCNodeLng = 176.76*RAD;
-		TLCCNodeAlt = 58.0*1852.0;
+		TLCCNodeLng = 176.67*RAD;
+		TLCCNodeAlt = 57.24*1852.0;
 		TLCCLAHPeriAlt = TLCCNodeAlt;
 		t_Land = OrbMech::HHMMSSToSS(103.0, 42.0, 02.0);
+		DOI_option = 1;
+		DOI_N = 11;
 	}
 	else if (mission == 14)
 	{
@@ -499,16 +599,19 @@ ARCore::ARCore(VESSEL* v)
 		LOIazi = -76.31*RAD;
 		LOIapo = 170.0*1852.0;
 		LOIperi = 57.1*1852.0;
+		LOIEllipseRotation = 1;
 		TLCCFreeReturnEMPLat = -0.048722*RAD;
-		TLCCNonFreeReturnEMPLat = -3.672093*RAD;
-		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(82.0, 41.0, 14.0);
+		TLCCNonFreeReturnEMPLat = -4.66089*RAD;
+		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(82.0, 41.0, 01.0);
 		TLCCFlybyPeriAlt = 2030.9*1852.0;
-		TLCCNodeLat = 3.15*RAD;
-		TLCCNodeLng = 174.82*RAD;
-		TLCCNodeAlt = 57.1*1852.0;
+		TLCCNodeLat = 2.15*RAD;
+		TLCCNodeLng = 170.81*RAD;
+		TLCCNodeAlt = 56.34*1852.0;
 		TLCCLAHPeriAlt = TLCCNodeAlt;
 		t_Land = OrbMech::HHMMSSToSS(108.0, 53.0, 32.6);
 		AGSKFactor = 100.0*3600.0;
+		DOI_option = 1;
+		DOI_N = 11;
 	}
 	else if (mission == 15)
 	{
@@ -518,15 +621,18 @@ ARCore::ARCore(VESSEL* v)
 		LOIazi = -91.0*RAD;
 		LOIapo = 170.0*1852.0;
 		LOIperi = 58.3*1852.0;
-		TLCCFreeReturnEMPLat = TLCCNonFreeReturnEMPLat = -16.904842*RAD;
-		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(78.0, 35.0, 00.5);
-		TLCCFlybyPeriAlt = TLCCNodeAlt = 68.1*1852.0;
-		TLCCNodeLat = -23.3*RAD;
-		TLCCNodeLng = 171.7*RAD;
+		LOIEllipseRotation = 1;
+		TLCCFreeReturnEMPLat = TLCCNonFreeReturnEMPLat = -16.89137*RAD;
+		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(78.0, 35.0, 10.0);
+		TLCCFlybyPeriAlt = TLCCNodeAlt = 66.18*1852.0;
+		TLCCNodeLat = -23.28*RAD;
+		TLCCNodeLng = 171.57*RAD;
 		TLCCLAHPeriAlt = TLCCNodeAlt;
 		t_Land = OrbMech::HHMMSSToSS(104.0, 40.0, 57.0);
 		AGSKFactor = 100.0*3600.0;
 		DOI_PeriAng = 16.0*RAD;
+		DOI_option = 1;
+		DOI_N = 11;
 	}
 	else if (mission == 16)
 	{
@@ -536,14 +642,17 @@ ARCore::ARCore(VESSEL* v)
 		LOIazi = -91.0*RAD;
 		LOIapo = 170.6*1852.0;
 		LOIperi = 58.5*1852.0;
-		TLCCFreeReturnEMPLat = TLCCNonFreeReturnEMPLat = 5.529042*RAD;
-		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(74.0, 32.0, 13.4);
-		TLCCFlybyPeriAlt = TLCCNodeAlt = 71.4*1852.0;
-		TLCCNodeLat = 7.8*RAD;
-		TLCCNodeLng = 176.8*RAD;
+		LOIEllipseRotation = 1;
+		TLCCFreeReturnEMPLat = TLCCNonFreeReturnEMPLat = 5.28257*RAD;
+		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(74.0, 32.0, 32.0);
+		TLCCFlybyPeriAlt = TLCCNodeAlt = 71.26*1852.0;
+		TLCCNodeLat = 7.95*RAD;
+		TLCCNodeLng = 173.04*RAD;
 		TLCCLAHPeriAlt = TLCCNodeAlt;
 		t_Land = OrbMech::HHMMSSToSS(98.0, 46.0, 42.4);
 		DOI_PeriAng = 16.0*RAD;
+		DOI_option = 1;
+		DOI_N = 10;
 	}
 	else if (mission == 17)
 	{
@@ -552,16 +661,20 @@ ARCore::ARCore(VESSEL* v)
 		LSAlt = -1.95*1852.0;
 		LOIazi = -90.0*RAD;
 		LOIapo = 170.8*1852.0;
-		LOIperi = 51.4*1852.0;
-		TLCCFreeReturnEMPLat = TLCCNonFreeReturnEMPLat = -12.695335*RAD;
-		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(88.0, 59.0, 25.0);
-		TLCCFlybyPeriAlt = TLCCNodeAlt = 51.3*1852.0;
-		TLCCNodeLat = -10.68*RAD;
-		TLCCNodeLng = 165.01*RAD;
+		LOIperi = 52.6*1852.0;
+		LOIEllipseRotation = 1;
+		TLCCFreeReturnEMPLat = TLCCNonFreeReturnEMPLat = -11.11101*RAD;
+		TLCCPeriGET = TLCCNodeGET = OrbMech::HHMMSSToSS(88.0, 58.0, 54.0);
+		TLCCFlybyPeriAlt = TLCCNodeAlt = 49.35*1852.0;
+		TLCCNodeLat = -9.52*RAD;
+		TLCCNodeLng = 161.21*RAD;
 		TLCCLAHPeriAlt = TLCCNodeAlt;
 		t_Land = OrbMech::HHMMSSToSS(113.0, 01.0, 38.4);
 		AGSKFactor = 110.0*3600.0;
 		DOI_PeriAng = -10.0*RAD;
+		DOI_option = 1;
+		DOI_N = 10;
+		DOI_alt = 84000.0*0.3048;
 	}
 
 	Skylabmaneuver = 0;
@@ -572,7 +685,7 @@ ARCore::ARCore(VESSEL* v)
 	Skylab_E_L = 0.0;
 	SkylabSolGood = true;
 	Skylab_dV_NSR = Skylab_dV_NCC = _V(0, 0, 0);
-	Skylab_dH_NC2 = Skylab_dv_NC2 = Skylab_t_NC1 = Skylab_t_NC2 = Skylab_dv_NCC = Skylab_t_NCC = Skylab_t_NSR = Skylab_t_TPI = Skylab_dt_TPM = 0.0;
+	Skylab_dH_NC2 = Skylab_dv_NC2 = Skylab_t_NC1 = Skylab_t_NC2 = Skylab_dv_NCC = Skylab_t_NCC = Skylab_t_NSR = Skylab_dt_TPM = 0.0;
 	Skylab_NPCOption = Skylab_PCManeuver = false;
 
 	PCAlignGET = 0.0;
@@ -590,17 +703,32 @@ ARCore::ARCore(VESSEL* v)
 
 	LunarLiftoffTimeOption = 0;
 	t_TPIguess = 0.0;
-	LunarLiftoffTimes.t_CDH = 0.0;
-	LunarLiftoffTimes.t_CSI = 0.0;
-	LunarLiftoffTimes.t_Ins = 0.0;
-	LunarLiftoffTimes.t_L = 0.0;
-	LunarLiftoffTimes.t_TPI = 0.0;
-	LunarLiftoffTimes.t_TPF = 0.0;
-	LunarLiftoffTimes.v_LH = 0.0;
-	LunarLiftoffTimes.v_LV = 0.0;
+	DT_Ins_TPI = 40.0*60.0;
+	t_Liftoff_guess = 0.0;
+	LunarLiftoffRes.t_CDH = 0.0;
+	LunarLiftoffRes.t_CSI = 0.0;
+	LunarLiftoffRes.t_Ins = 0.0;
+	LunarLiftoffRes.t_L = 0.0;
+	LunarLiftoffRes.t_TPI = 0.0;
+	LunarLiftoffRes.t_TPF = 0.0;
+	LunarLiftoffRes.v_LH = 0.0;
+	LunarLiftoffRes.v_LV = 0.0;
+	LunarLiftoffRes.DV_CDH = 0.0;
+	LunarLiftoffRes.DV_CSI = 0.0;
+	LunarLiftoffRes.DV_T = 0.0;
+	LunarLiftoffRes.DV_TPF = 0.0;
+	LunarLiftoffRes.DV_TPI = 0.0;
+
+	LAP_Theta = 10.0*RAD;
+	LAP_DT = 7.0*60.0 + 15.0;
 
 	EMPUplinkType = 0;
 	EMPUplinkNumber = 0;
+
+	LVDCLaunchAzimuth = 0.0;
+
+	AGCEphemBRCSEpoch = AGCEpoch;
+	AGCEphemTIMEM0 = floor(GETbase) + 6.75;
 
 	earthentrypad.Att400K[0] = _V(0, 0, 0);
 	earthentrypad.BankAN[0] = 0;
@@ -668,6 +796,70 @@ ARCore::ARCore(VESSEL* v)
 	agssvpad.DEDA265 = 0.0;
 	agssvpad.DEDA266 = 0.0;
 	agssvpad.DEDA272 = 0.0;
+
+	DAP_PAD.OtherVehicleWeight = 0.0;
+	DAP_PAD.PitchTrim = 0.0;
+	DAP_PAD.ThisVehicleWeight = 0.0;
+	DAP_PAD.YawTrim = 0.0;
+
+	lmascentpad.CR = 0.0;
+	lmascentpad.DEDA047 = 0;
+	lmascentpad.DEDA053 = 0;
+	lmascentpad.DEDA225_226 = 0.0;
+	lmascentpad.DEDA231 = 0.0;
+	sprintf(lmascentpad.remarks, "");
+	lmascentpad.TIG = 0.0;
+	lmascentpad.V_hor = 0.0;
+	lmascentpad.V_vert = 0.0;
+
+	PDAPEngine = 0;
+	PDAPTwoSegment = false;
+	PDAPABTCOF[0] = 0.0;
+	PDAPABTCOF[1] = 0.0;
+	PDAPABTCOF[2] = 0.0;
+	PDAPABTCOF[3] = 0.0;
+	PDAPABTCOF[4] = 0.0;
+	PDAPABTCOF[5] = 0.0;
+	PDAPABTCOF[6] = 0.0;
+	PDAPABTCOF[7] = 0.0;
+	DEDA224 = 0.0;
+	DEDA225 = 0.0;
+	DEDA226 = 0.0;
+	DEDA227 = 0;
+
+	fidoorbit.A = 0.0;
+	fidoorbit.E = 0.0;
+	fidoorbit.GAM = 0.0;
+	fidoorbit.GET = 0.0;
+	fidoorbit.GETA = 0.0;
+	fidoorbit.GETCC = 0.0;
+	fidoorbit.GETID = 0.0;
+	fidoorbit.GETL = 0.0;
+	fidoorbit.GETP = 0.0;
+	fidoorbit.H = 0.0;
+	fidoorbit.HA = 0.0;
+	fidoorbit.HP = 0.0;
+	fidoorbit.I = 0.0;
+	fidoorbit.K = 0.0;
+	fidoorbit.L = 0.0;
+	fidoorbit.LA = 0.0;
+	fidoorbit.LNPP = 0.0;
+	fidoorbit.LP = 0.0;
+	fidoorbit.LPP = 0.0;
+	fidoorbit.ORBWT = 0.0;
+	fidoorbit.PA = 0.0;
+	fidoorbit.PP = 0.0;
+	fidoorbit.PPP = 0.0;
+	sprintf(fidoorbit.REF, "");
+	fidoorbit.TAPP = 0.0;
+	fidoorbit.TO = 0.0;
+	fidoorbit.V = 0.0;
+	sprintf(fidoorbit.VEHID, "");
+}
+
+ARCore::~ARCore()
+{
+	delete rtcc;
 }
 
 void ARCore::MinorCycle(double SimT, double SimDT, double mjd)
@@ -806,7 +998,7 @@ void ARCore::lambertcalc()
 	startSubthread(1);
 }
 
-void ARCore::OrbitAdjustCalc()	//Calculates the optimal velocity change to reach an orbit specified by apoapsis, periapsis and inclination
+void ARCore::GPMPCalc()
 {
 	startSubthread(3);
 }
@@ -829,6 +1021,80 @@ void ARCore::TLCCCalc()
 void ARCore::PDI_PAD()
 {
 	startSubthread(16);
+}
+
+void ARCore::DKICalc()
+{
+	startSubthread(19);
+}
+
+void ARCore::LAPCalc()
+{
+	startSubthread(20);
+}
+
+void ARCore::AscentPADCalc()
+{
+	startSubthread(21);
+}
+
+void ARCore::PDAPCalc()
+{
+	startSubthread(22);
+}
+
+void ARCore::UpdateFIDOOrbitDigitals()
+{
+	startSubthread(23);
+}
+
+void ARCore::CycleFIDOOrbitDigitals()
+{
+	if (subThreadStatus == 0 && fidoorbitsv.gravref != NULL)
+	{
+		double GET = OrbMech::GETfromMJD(oapiGetSimMJD(), GETbase);
+		if (GET > fidoorbit.GET + 12.0)
+		{
+			startSubthread(24);
+		}
+		else if ((GET > fidoorbit.GETA && fidoorbit.E < 1.0) || GET > fidoorbit.GETP)
+		{
+			startSubthread(25);
+		}
+	}
+}
+
+void ARCore::FIDOOrbitDigitalsCalculateLongitude()
+{
+	if (subThreadStatus == 0 && fidoorbitsv.gravref != NULL)
+	{
+		startSubthread(26);
+	}
+}
+
+void ARCore::FIDOOrbitDigitalsCalculateGETL()
+{
+	if (subThreadStatus == 0 && fidoorbitsv.gravref != NULL)
+	{
+		startSubthread(27);
+	}
+}
+
+void ARCore::DAPPADCalc()
+{
+	if (vesseltype < 2)
+	{
+		rtcc->CSMDAPUpdate(vessel, DAP_PAD);
+	}
+	else
+	{
+		rtcc->LMDAPUpdate(vessel, DAP_PAD, lemdescentstage == false);
+	}
+}
+
+void ARCore::GenerateAGCEphemeris()
+{
+	AGCEphemeris(AGCEphemTIMEM0, AGCEphemBRCSEpoch, AGCEphemTEphemZero);
 }
 
 void ARCore::EntryPAD()
@@ -1427,6 +1693,30 @@ void ARCore::EMPP99Uplink(int i)
 	}
 }
 
+void ARCore::AP11AbortCoefUplink()
+{
+	g_Data.emem[0] = 22;
+	g_Data.emem[1] = 2550;
+	g_Data.emem[2] = OrbMech::DoubleToBuffer(PDAPABTCOF[0] * pow(100.0, -4)*pow(2, 44), 0, 1);
+	g_Data.emem[3] = OrbMech::DoubleToBuffer(PDAPABTCOF[0] * pow(100.0, -4)*pow(2, 44), 0, 0);
+	g_Data.emem[4] = OrbMech::DoubleToBuffer(PDAPABTCOF[1] * pow(100.0, -3)*pow(2, 27), 0, 1);
+	g_Data.emem[5] = OrbMech::DoubleToBuffer(PDAPABTCOF[1] * pow(100.0, -3)*pow(2, 27), 0, 0);
+	g_Data.emem[6] = OrbMech::DoubleToBuffer(PDAPABTCOF[2] * pow(100.0, -2)*pow(2, 10), 0, 1);
+	g_Data.emem[7] = OrbMech::DoubleToBuffer(PDAPABTCOF[2] * pow(100.0, -2)*pow(2, 10), 0, 0);
+	g_Data.emem[8] = OrbMech::DoubleToBuffer(PDAPABTCOF[3] * pow(100.0, -1), 7, 1);
+	g_Data.emem[9] = OrbMech::DoubleToBuffer(PDAPABTCOF[3] * pow(100.0, -1), 7, 0);
+	g_Data.emem[10] = OrbMech::DoubleToBuffer(PDAPABTCOF[4] * pow(100.0, -4)*pow(2, 44), 0, 1);
+	g_Data.emem[11] = OrbMech::DoubleToBuffer(PDAPABTCOF[4] * pow(100.0, -4)*pow(2, 44), 0, 0);
+	g_Data.emem[12] = OrbMech::DoubleToBuffer(PDAPABTCOF[5] * pow(100.0, -3)*pow(2, 27), 0, 1);
+	g_Data.emem[13] = OrbMech::DoubleToBuffer(PDAPABTCOF[5] * pow(100.0, -3)*pow(2, 27), 0, 0);
+	g_Data.emem[14] = OrbMech::DoubleToBuffer(PDAPABTCOF[6] * pow(100.0, -2)*pow(2, 10), 0, 1);
+	g_Data.emem[15] = OrbMech::DoubleToBuffer(PDAPABTCOF[6] * pow(100.0, -2)*pow(2, 10), 0, 0);
+	g_Data.emem[16] = OrbMech::DoubleToBuffer(PDAPABTCOF[7] * pow(100.0, -1), 7, 1);
+	g_Data.emem[17] = OrbMech::DoubleToBuffer(PDAPABTCOF[7] * pow(100.0, -1), 7, 0);
+
+	UplinkData(); // Go for uplink
+}
+
 void ARCore::UplinkData()
 {
 	if (g_Data.connStatus == 0) {
@@ -1551,56 +1841,71 @@ bool ARCore::vesselinLOS()
 
 void ARCore::VecPointCalc()
 {
-	VECTOR3 vPos, pPos, relvec, UX, UY, UZ, loc;
-	MATRIX3 M, M_R;
-	double p_T, y_T;
-	OBJHANDLE gravref = rtcc->AGCGravityRef(vessel);
+	if (VECoption == 0)
+	{
+		if (VECbody == NULL) return;
 
-	p_T = 0;
-	y_T = 0;
-	
-	if (VECdirection == 1)
-	{
-		p_T = PI;
-		y_T = 0;
-	}
-	else if (VECdirection == 2)
-	{
+		VECTOR3 vPos, pPos, relvec, UX, UY, UZ, loc;
+		MATRIX3 M, M_R;
+		double p_T, y_T;
+		OBJHANDLE gravref = rtcc->AGCGravityRef(vessel);
+
 		p_T = 0;
-		y_T = PI05;
-	}
-	else if (VECdirection == 3)
-	{
-		p_T = 0;
-		y_T = -PI05;
-	}
-	else if (VECdirection == 4)
-	{
-		p_T = -PI05;
 		y_T = 0;
+
+		if (VECdirection == 1)
+		{
+			p_T = PI;
+			y_T = 0;
+		}
+		else if (VECdirection == 2)
+		{
+			p_T = 0;
+			y_T = PI05;
+		}
+		else if (VECdirection == 3)
+		{
+			p_T = 0;
+			y_T = -PI05;
+		}
+		else if (VECdirection == 4)
+		{
+			p_T = -PI05;
+			y_T = 0;
+		}
+		else if (VECdirection == 5)
+		{
+			p_T = PI05;
+			y_T = 0;
+		}
+
+		vessel->GetGlobalPos(vPos);
+		oapiGetGlobalPos(VECbody, &pPos);
+		vessel->GetRelativePos(gravref, loc);
+
+		relvec = unit(pPos - vPos);
+		relvec = _V(relvec.x, relvec.z, relvec.y);
+		loc = _V(loc.x, loc.z, loc.y);
+
+		UX = relvec;
+		UY = unit(crossp(UX, -loc));
+		UZ = unit(crossp(UX, crossp(UX, -loc)));
+
+		M_R = _M(UX.x, UX.y, UX.z, UY.x, UY.y, UY.z, UZ.x, UZ.y, UZ.z);
+		M = _M(cos(y_T)*cos(p_T), sin(y_T), -cos(y_T)*sin(p_T), -sin(y_T)*cos(p_T), cos(y_T), sin(y_T)*sin(p_T), sin(p_T), 0.0, cos(p_T));
+
+		VECangles = OrbMech::CALCGAR(REFSMMAT, mul(OrbMech::tmat(M), M_R));
 	}
-	else if (VECdirection == 5)
+	else if (VECoption == 1)
 	{
-		p_T = PI05;
-		y_T = 0;
+		VECangles = rtcc->HatchOpenThermalControl(vessel, REFSMMAT);
 	}
+	else
+	{
+		SV sv;
 
-	vessel->GetGlobalPos(vPos);
-	oapiGetGlobalPos(VECbody, &pPos);
-	vessel->GetRelativePos(gravref, loc);
-
-	relvec = unit(pPos - vPos);
-	relvec = _V(relvec.x, relvec.z, relvec.y);
-	loc = _V(loc.x, loc.z, loc.y);
-	
-	UX = relvec;
-	UY = unit(crossp(UX, -loc));
-	UZ = unit(crossp(UX, crossp(UX, -loc)));
-
-	M_R = _M(UX.x, UX.y, UX.z, UY.x, UY.y, UY.z, UZ.x, UZ.y, UZ.z);
-	M = _M(cos(y_T)*cos(p_T), sin(y_T), -cos(y_T)*sin(p_T), -sin(y_T)*cos(p_T), cos(y_T), sin(y_T)*sin(p_T), sin(p_T), 0.0, cos(p_T));
-
-	VECangles = OrbMech::CALCGAR(REFSMMAT, mul(OrbMech::transpose_matrix(M), M_R));
+		rtcc->PointAOTWithCSM(REFSMMAT, sv, 2, 1, 0.0);
+	}
 }
 
 void ARCore::TerrainModelCalc()
@@ -1627,7 +1932,7 @@ void ARCore::TerrainModelCalc()
 	Rot3 = _M(UX10.x, UX10.y, UX10.z, UY10.x, UY10.y, UY10.z, UZ10.x, UZ10.y, UZ10.z);
 	Rot4 = _M(1.0, 0.0, 0.0, 0.0, cos(TMAzi), -sin(TMAzi), 0.0, sin(TMAzi), cos(TMAzi));
 
-	axis = mul(OrbMech::transpose_matrix(Rot3), mul(Rot4, _V(0.0, 1.0, 0.0)));
+	axis = mul(OrbMech::tmat(Rot3), mul(Rot4, _V(0.0, 1.0, 0.0)));
 
 
 	FILE *file = fopen("TerrainModel.txt", "w");
@@ -1677,6 +1982,28 @@ int ARCore::startSubthread(int fcn) {
 int ARCore::subThread()
 {
 	int Result = 0;
+
+	int poweredvesseltype, poweredenginetype;
+
+	if (vesseltype < 2)
+	{
+		poweredvesseltype = RTCC_VESSELTYPE_CSM;
+	}
+	else
+	{
+		poweredvesseltype = RTCC_VESSELTYPE_LM;
+	}
+
+	if (vesseltype >= 2 && !lemdescentstage)
+	{
+		poweredenginetype = RTCC_ENGINETYPE_APS;
+	}
+	else
+	{
+		poweredenginetype = RTCC_ENGINETYPE_SPSDPS;
+	}
+
+
 	subThreadStatus = 2; // Running
 	switch (subThreadMode) {
 	case 0: // Test
@@ -1686,33 +2013,27 @@ int ARCore::subThread()
 	case 1: //Lambert Targeting
 	{
 		LambertMan opt;
+		TwoImpulseResuls res;
 		SV sv_A, sv_P;
-		VECTOR3 dV;
-		int poweredvesseltype;
 		double attachedMass;
 
 		sv_A = rtcc->StateVectorCalc(vessel);
 		sv_P = rtcc->StateVectorCalc(target);
 
 		opt.axis = !lambertmultiaxis;
+		opt.Elevation = lambertelev;
 		opt.GETbase = GETbase;
 		opt.N = N;
+		opt.NCC_NSR_Flag = (twoimpulsemode == 1);
+		opt.use_XYZ_Offset = (twoimpulsemode != 1);
 		opt.Offset = offvec;
+		opt.DH = DH;
 		opt.Perturbation = lambertopt;
-		opt.PhaseAngle = 0.0;
+		opt.PhaseAngle = TwoImpulse_PhaseAngle;
 		opt.sv_A = sv_A;
 		opt.sv_P = sv_P;
 		opt.T1 = T1;
-		opt.T2 = T2;
-
-		if (vesseltype < 2)
-		{
-			poweredvesseltype = RTCC_VESSELTYPE_CSM;
-		}
-		else
-		{
-			poweredvesseltype = RTCC_VESSELTYPE_LM;
-		}
+		opt.T2 = T2;		
 
 		if (vesseltype == 0 || vesseltype == 2)
 		{
@@ -1720,52 +2041,68 @@ int ARCore::subThread()
 		}
 		else
 		{
-			attachedMass = rtcc->GetDockedVesselMass(target);
+			attachedMass = rtcc->GetDockedVesselMass(vessel);
 		}
-		rtcc->LambertTargeting(&opt, dV);
-		rtcc->PoweredFlightProcessor(sv_A, GETbase, opt.T1, poweredvesseltype, RTCC_ENGINETYPE_SPSDPS, attachedMass, dV, P30TIG, dV_LVLH);
+		rtcc->LambertTargeting(&opt, res);
+		rtcc->PoweredFlightProcessor(sv_A, GETbase, opt.T1, poweredvesseltype, poweredenginetype, attachedMass, res.dV, false, P30TIG, dV_LVLH);
 		LambertdeltaV = dV_LVLH;
+
+		if (twoimpulsemode == 1)
+		{
+			TwoImpulse_TPI = res.t_TPI;
+		}
 
 		Result = 0;
 	}
 	break;
-	case 2:	//CDH Targeting
+	case 2:	//Concentric Rendezvous Processor
 	{
-		double dH_CDH;
-		CDHOpt opt;
+		SPQOpt opt;
+		SPQResults res;
+		SV sv_A, sv_P;
 
-		if (vesseltype < 2)
-		{
-			opt.vesseltype = 0;
-		}
-		else
-		{
-			opt.vesseltype = 1;
-		}
+		sv_A = rtcc->StateVectorCalc(vessel);
+		sv_P = rtcc->StateVectorCalc(target);
 
-		if (vesseltype == 0 || vesseltype == 2)
-		{
-			opt.csmlmdocked = false;
-		}
-		else
-		{
-			opt.csmlmdocked = true;
-		}
-
-		opt.CDHtimemode = CDHtimemode;
-		opt.DH = DH*1852.0;
+		opt.DH = DH;
+		opt.E = lambertelev;
 		opt.GETbase = GETbase;
-		opt.impulsive = RTCC_NONIMPULSIVE;
-		opt.target = target;
-		opt.vessel = vessel;
-		opt.TIG = CDHtime;
+		opt.maneuver = SPQMode;
+		opt.sv_A = sv_A;
+		opt.sv_P = sv_P;
+		if (SPQMode == 0)
+		{
+			opt.t_TIG = CSItime;
+			opt.type = CDHtimemode;
+		}
+		else
+		{
+			if (CDHtimemode == 0)
+			{
+				opt.t_TIG = CDHtime;
+			}
+			else
+			{
+				opt.t_TIG = rtcc->FindDH(sv_A, sv_P, GETbase, CDHtime, DH);
+			}
+		}
+		opt.t_TPI = t_TPI;
 
-		dH_CDH = rtcc->CDHcalc(&opt, CDHdeltaV, CDHtime_cor);
+		rtcc->ConcentricRendezvousProcessor(&opt, res);
+		spqresults = res;
 
-		DH = dH_CDH / 1852.0;
+		if (SPQMode == 0)
+		{
+			CDHtime = res.t_CDH;
+			rtcc->PoweredFlightProcessor(sv_A, GETbase, opt.t_TIG, poweredvesseltype, poweredenginetype, 0.0, res.dV_CSI, true, SPQTIG, SPQDeltaV);
+		}
+		else
+		{
+			rtcc->PoweredFlightProcessor(sv_A, GETbase, opt.t_TIG, poweredvesseltype, poweredenginetype, 0.0, res.dV_CDH, true, SPQTIG, SPQDeltaV);
+		}
 
-		P30TIG = CDHtime_cor;
-		dV_LVLH = CDHdeltaV;
+		P30TIG = SPQTIG;
+		dV_LVLH = SPQDeltaV;		
 
 		Result = 0;
 	}
@@ -1773,42 +2110,42 @@ int ARCore::subThread()
 	case 3:	//Orbital Adjustment Targeting
 	{
 		GMPOpt opt;
-		OBJHANDLE gravref = rtcc->AGCGravityRef(vessel);
+		SV sv0;
+		double TIG_imp, attachedMass;
+		VECTOR3 dV_imp;
 
-		opt.type = GMPType;
+		sv0 = rtcc->StateVectorCalc(vessel);
+
+		opt.ManeuverCode = GMPManeuverCode;
 		opt.GETbase = GETbase;
-		opt.h_apo = apo_desnm * 1852.0;
-		opt.h_peri = peri_desnm * 1852.0;
-		opt.impulsive = RTCC_NONIMPULSIVE;
-		opt.inc = incdeg*RAD;
+		opt.H_A = GMPApogeeHeight;
+		opt.H_P = GMPPerigeeHeight;
+		opt.dH_D = GMPHeightChange;
 		opt.TIG_GET = SPSGET;
-		opt.vessel = vessel;
-		opt.useSV = false;
 		opt.AltRef = OrbAdjAltRef;
+		opt.dLAN = GMPNodeShiftAngle;
 		opt.LSAlt = LSAlt;
-		opt.rot_ang = GMPRotationAngle;
-		opt.lng = GMPLongitude;
+		opt.dW = GMPWedgeAngle;
+		opt.long_D = GMPManeuverLongitude;
+		opt.H_D = GMPManeuverHeight;
+		opt.dV = GMPDeltaVInput;
+		opt.Pitch = GMPPitch;
+		opt.Yaw = GMPYaw;
+		opt.dLOA = GMPApseLineRotAngle;
 		opt.N = GMPRevs;
-
-		if (vesseltype < 2)
-		{
-			opt.vesseltype = 0;
-		}
-		else
-		{
-			opt.vesseltype = 1;
-		}
+		opt.RV_MCC = sv0;
 
 		if (vesseltype == 0 || vesseltype == 2)
 		{
-			opt.csmlmdocked = false;
+			attachedMass = 0.0;
 		}
 		else
 		{
-			opt.csmlmdocked = true;
+			attachedMass = rtcc->GetDockedVesselMass(vessel);
 		}
 
-		rtcc->GeneralManeuverProcessor(&opt, OrbAdjDVX, P30TIG, GMPTOA);
+		rtcc->GeneralManeuverProcessor(&opt, dV_imp, TIG_imp, GMPResults);
+		rtcc->PoweredFlightProcessor(sv0, GETbase, TIG_imp, poweredvesseltype, poweredenginetype, attachedMass, dV_imp, false, P30TIG, OrbAdjDVX);
 
 		dV_LVLH = OrbAdjDVX;
 
@@ -1844,6 +2181,8 @@ int ARCore::subThread()
 		opt.vessel = vessel;
 		opt.vesseltype = vesseltype;
 		opt.HeadsUp = REFSMMATHeadsUp;
+		opt.PresentREFSMMAT = REFSMMAT;
+		opt.IMUAngles = VECangles;
 
 		if (vesseltype == 0 || vesseltype == 2)
 		{
@@ -1857,41 +2196,11 @@ int ARCore::subThread()
 		REFSMMAT = rtcc->REFSMMATCalc(&opt);
 
 		//sprintf(oapiDebugString(), "%f, %f, %f, %f, %f, %f, %f, %f, %f", REFSMMAT.m11, REFSMMAT.m12, REFSMMAT.m13, REFSMMAT.m21, REFSMMAT.m22, REFSMMAT.m23, REFSMMAT.m31, REFSMMAT.m32, REFSMMAT.m33);
-		a = mul(REFSMMAT, OrbMech::transpose_matrix(OrbMech::J2000EclToBRCS(AGCEpoch)));
+		a = mul(REFSMMAT, OrbMech::tmat(OrbMech::J2000EclToBRCS(AGCEpoch)));
 		//sprintf(oapiDebugString(), "%f, %f, %f, %f, %f, %f, %f, %f, %f", a.m11, a.m12, a.m13, a.m21, a.m22, a.m23, a.m31, a.m32, a.m33);
 
-
-		if (REFSMMATupl == 0)
-		{
-			if (vesseltype < 2)
-			{
-				REFSMMAToct[1] = 306;
-			}
-			else
-			{
-				REFSMMAToct[1] = 3606;
-			}
-		}
-		else
-		{
-			REFSMMAToct[1] = REFSMMAT_Address();
-
-			if (vesseltype < 2)
-			{
-				REFSMMAToct[1] = 1735;
-			}
-			else
-			{
-				REFSMMAToct[1] = 1733;
-			}
-
-			if (mission >= 14)	//Luminary 210 and Artemis 072 both have the REFSMMAT two addresses earlier
-			{
-				REFSMMAToct[1] -= 2;
-			}
-		}
-
 		REFSMMAToct[0] = 24;
+		REFSMMAToct[1] = REFSMMATUplinkAddress();
 		REFSMMAToct[2] = OrbMech::DoubleToBuffer(a.m11, 1, 1);
 		REFSMMAToct[3] = OrbMech::DoubleToBuffer(a.m11, 1, 0);
 		REFSMMAToct[4] = OrbMech::DoubleToBuffer(a.m12, 1, 1);
@@ -1922,6 +2231,7 @@ int ARCore::subThread()
 		if (LOImaneuver == 0 || LOImaneuver == 1)
 		{
 			LOIMan loiopt;
+			SV sv_n, sv_postLOI;
 
 			loiopt.GETbase = GETbase;
 			loiopt.h_apo = LOIapo;
@@ -1933,6 +2243,7 @@ int ARCore::subThread()
 			loiopt.azi = LOIazi;
 			loiopt.vessel = vessel;
 			loiopt.type = LOIOption;
+			loiopt.EllipseRotation = LOIEllipseRotation;
 
 			if (vesseltype < 2)
 			{
@@ -1963,7 +2274,7 @@ int ARCore::subThread()
 				loiopt.RV_MCC = RV2;
 			}
 
-			rtcc->LOITargeting(&loiopt, LOI_dV_LVLH, LOI_TIG);
+			rtcc->LOITargeting(&loiopt, LOI_dV_LVLH, LOI_TIG, sv_n, sv_postLOI);
 			P30TIG = LOI_TIG;
 			dV_LVLH = LOI_dV_LVLH;
 
@@ -2108,7 +2419,7 @@ int ARCore::subThread()
 
 			opt.dV_LVLH = dV_LVLH;
 			opt.directiontype = directiontype;
-			opt.enginetype = csmenginetype;
+			opt.enginetype = enginetype;
 			opt.GETbase = GETbase;
 			opt.HeadsUp = HeadsUp;
 			opt.REFSMMAT = REFSMMAT;
@@ -2126,7 +2437,7 @@ int ARCore::subThread()
 
 			opt.dV_LVLH = dV_LVLH;
 			opt.directiontype = directiontype;
-			opt.enginetype = lmenginetype;
+			opt.enginetype = GetPowEngType();
 			opt.GETbase = GETbase;
 			opt.HeadsUp = HeadsUp;
 			opt.REFSMMAT = REFSMMAT;
@@ -2151,38 +2462,35 @@ int ARCore::subThread()
 	break;
 	case 10:	//DOI Targeting
 	{
+		SV sv;
 		DOIMan opt;
 		VECTOR3 DOI_DV_imp;
-		double DOI_TIG_imp;
+		double DOI_TIG_imp, attachedMass;
 
-		if (vesseltype < 2)
-		{
-			opt.vesseltype = 0;
-		}
-		else
-		{
-			opt.vesseltype = 1;
-		}
+		sv = rtcc->StateVectorCalc(vessel);
 
-		if (vesseltype == 0 || vesseltype == 2)
-		{
-			opt.csmlmdocked = false;
-		}
-		else
-		{
-			opt.csmlmdocked = true;
-		}
 		opt.EarliestGET = DOIGET;
 		opt.GETbase = GETbase;
 		opt.lat = LSLat;
 		opt.lng = LSLng;
 		opt.alt = LSAlt;
-		opt.vessel = vessel;
 		opt.N = DOI_N;
 		opt.PeriAng = DOI_PeriAng;
 		opt.opt = DOI_option;
+		opt.sv0 = sv;
+		opt.PeriAlt = DOI_alt;
 
-		rtcc->DOITargeting(&opt, DOI_DV_imp, DOI_TIG_imp, DOI_dV_LVLH, DOI_TIG, DOI_t_PDI, t_Land, DOI_CR);
+		if (vesseltype == 0 || vesseltype == 2)
+		{
+			attachedMass = 0.0;
+		}
+		else
+		{
+			attachedMass = rtcc->GetDockedVesselMass(vessel);
+		}
+
+		rtcc->DOITargeting(&opt, DOI_DV_imp, DOI_TIG_imp, DOI_t_PDI, t_Land, DOI_CR);
+		rtcc->PoweredFlightProcessor(sv, GETbase, DOI_TIG_imp, poweredvesseltype, poweredenginetype, attachedMass, DOI_DV_imp, false, DOI_TIG, DOI_dV_LVLH);
 
 		P30TIG = DOI_TIG;
 		dV_LVLH = DOI_dV_LVLH;
@@ -2229,6 +2537,8 @@ int ARCore::subThread()
 		opt.vessel = vessel;
 		opt.entrylongmanual = entrylongmanual;
 		opt.TIGguess = EntryTIG;
+		opt.Inclination = TLCCFRDesiredInclination;
+		opt.Ascending = TLCCAscendingNode;
 
 		rtcc->TEITargeting(&opt, &res);//Entry_DV, EntryTIGcor, EntryLatcor, EntryLngcor, P37GET400K, EntryRTGO, EntryVIO, EntryAngcor);
 
@@ -2242,6 +2552,7 @@ int ARCore::subThread()
 		P30TIG = EntryTIGcor;
 		dV_LVLH = Entry_DV;
 		entryprecision = res.precision;
+		TLCCFRIncl = res.Incl;
 		
 		Result = 0;
 	}
@@ -2258,7 +2569,7 @@ int ARCore::subThread()
 		opt.DH2 = SkylabDH2;
 		opt.n_C = Skylab_n_C;
 		opt.target = target;
-		opt.t_TPI = Skylab_t_TPI;
+		opt.t_TPI = t_TPI;
 		opt.PCManeuver = Skylab_PCManeuver;
 		opt.NPCOption = Skylab_NPCOption;
 		opt.vessel = vessel;
@@ -2285,11 +2596,11 @@ int ARCore::subThread()
 		}
 		else if (Skylabmaneuver == 5)
 		{
-			opt.t_C = Skylab_t_TPI;
+			opt.t_C = t_TPI;
 		}
 		else if (Skylabmaneuver == 6)
 		{
-			opt.t_C = Skylab_t_TPI + Skylab_dt_TPM;
+			opt.t_C = t_TPI + Skylab_dt_TPM;
 		}
 		else if (Skylabmaneuver == 7)
 		{
@@ -2309,7 +2620,7 @@ int ARCore::subThread()
 		{
 			if (Skylabmaneuver == 0)
 			{
-				Skylab_t_TPI = res.t_TPI;
+				t_TPI = res.t_TPI;
 			}
 			else
 			{
@@ -2577,6 +2888,11 @@ int ARCore::subThread()
 			opt.t_land = t_Land;
 			opt.azi = LOIazi;
 			opt.h_peri = TLCCLAHPeriAlt;
+			opt.N = DOI_N;
+			opt.DOIType = DOI_option;
+			opt.DOIPeriAng = DOI_PeriAng;
+			opt.LOIEllipseRotation = LOIEllipseRotation;
+			opt.DOIPeriAlt = DOI_alt;
 
 			TLCCSolGood = rtcc->TranslunarMidcourseCorrectionTargetingNonFreeReturn(&opt, &res);
 
@@ -2589,6 +2905,15 @@ int ARCore::subThread()
 				TLCCNodeAlt = res.NodeAlt;
 				TLCCNodeGET = res.NodeGET;
 				TLCCEMPLatcor = res.EMPLatitude;
+				TLCCRev2MeridianGET = res.t_Rev2Meridian;
+				LOI_dV_LVLH = res.dV_LVLH_LOI;
+
+				if (DOI_option == 1)
+				{
+					DOI_dV_LVLH = res.dV_LVLH_DOI;
+					TLCCPostDOIApoAlt = res.h_apo_postDOI;
+					TLCCPostDOIPeriAlt = res.h_peri_postDOI;
+				}
 
 				P30TIG = TLCC_TIG;
 				dV_LVLH = TLCC_dV_LVLH;
@@ -2695,14 +3020,37 @@ int ARCore::subThread()
 	case 15:	//Lunar Liftoff Time Prediction
 	{
 		LunarLiftoffTimeOpt opt;
+		SV sv_CSM;
+
+		sv_CSM = rtcc->StateVectorCalc(target);
 
 		opt.GETbase = GETbase;
 		opt.opt = LunarLiftoffTimeOption;
-		opt.target = target;
-		opt.t_TPIguess = t_TPIguess;
-		opt.vessel = vessel;
+		opt.t_hole = t_Liftoff_guess;
+		opt.dt_2 = DT_Ins_TPI;
+		opt.sv_CSM = sv_CSM;
+		opt.dt_1 = LAP_DT;
+		opt.theta_1 = LAP_Theta;
 
-		rtcc->LaunchTimePredictionProcessor(&opt, &LunarLiftoffTimes);
+		if (vessel->GroundContact())
+		{
+			double lng, lat, rad;
+			vessel->GetEquPos(lng, lat, rad);
+
+			opt.alt = rad - oapiGetSize(oapiGetObjectByName("Moon"));
+			opt.lat = lat;
+			opt.lng = lng;
+
+		}
+		else
+		{
+			opt.alt = LSAlt;
+			opt.lat = LSLat;
+			opt.lng = LSLng;
+		}
+
+		rtcc->LaunchTimePredictionProcessor(&opt, &LunarLiftoffRes);
+		t_TPI = LunarLiftoffRes.t_TPI;
 
 		Result = 0;
 	}
@@ -2750,7 +3098,7 @@ int ARCore::subThread()
 		
 		opt.GETbase = GETbase;
 
-		if (csmenginetype == RTCC_ENGINETYPE_SPSDPS)
+		if (enginetype == RTCC_ENGINETYPE_SPSDPS)
 		{
 			opt.impulsive = RTCC_NONIMPULSIVE;
 		}
@@ -2823,6 +3171,8 @@ int ARCore::subThread()
 		opt.vessel = vessel;
 		opt.entrylongmanual = entrylongmanual;
 		opt.TIGguess = EntryTIG;
+		opt.Inclination = TLCCFRDesiredInclination;
+		opt.Ascending = TLCCAscendingNode;
 
 		rtcc->RTEFlybyTargeting(&opt, &res);//Entry_DV, EntryTIGcor, EntryLatcor, EntryLngcor, P37GET400K, EntryRTGO, EntryVIO, EntryAngcor);
 
@@ -2836,6 +3186,225 @@ int ARCore::subThread()
 		P30TIG = EntryTIGcor;
 		dV_LVLH = Entry_DV;
 		entryprecision = res.precision;
+		TLCCFRIncl = res.Incl;
+		FlybyPeriAlt = res.FlybyAlt;
+
+		Result = 0;
+	}
+	break;
+	case 19: //Docking Initiation Processor
+	{
+		DKIOpt opt;
+		SV sv_A, sv_P;
+		OBJHANDLE hSun = oapiGetObjectByName("Sun");
+
+		sv_A = rtcc->StateVectorCalc(vessel);
+		sv_P = rtcc->StateVectorCalc(target);
+
+		opt.DH = DH;
+		opt.E = lambertelev;
+		opt.GETbase = GETbase;
+		opt.maneuverline = DKI_Maneuver_Line;
+		opt.N_HC = DKI_N_HC;
+		opt.N_PB = DKI_N_PB;
+		opt.plan = DKI_Profile;
+		opt.radial_dv = DKI_Radial_DV;
+		opt.tpimode = DKI_TPI_Mode;
+		opt.dt_TPI_sunrise = DKI_dt_TPI_sunrise;
+		opt.sv_A = sv_A;
+		opt.sv_P = sv_P;
+		opt.t_TIG = DKI_TIG;
+		opt.t_TPI_guess = t_TPIguess;
+		opt.DeltaT_BHAM = DKI_dt_BHAM;
+		opt.DeltaT_PBH = DKI_dt_PBH;
+		opt.Delta_HAMH = DKI_dt_HAMH;
+
+		rtcc->DockingInitiationProcessor(opt, dkiresult);
+		if (DKI_Profile != 3)
+		{
+			rtcc->PoweredFlightProcessor(sv_A, GETbase, DKI_TIG, poweredvesseltype, poweredenginetype, 0.0, dkiresult.DV_Phasing, false, P30TIG, dV_LVLH);
+		}
+		t_TPI = dkiresult.t_TPI;
+
+		Result = 0;
+	}
+	break;
+	case 20: //Lunar Ascent Processor
+	{
+		SV sv_CSM, sv_Ins;
+		VECTOR3 R_LS;
+		double theta, dt, m0;
+		double rad = oapiGetSize(oapiGetObjectByName("Moon"));
+
+		sv_CSM = rtcc->StateVectorCalc(target);
+		LEM *l = (LEM *)vessel;
+		m0 = l->GetAscentStageMass();
+		R_LS = OrbMech::r_from_latlong(LSLat, LSLng, LSAlt + rad);
+
+		rtcc->LunarAscentProcessor(R_LS, m0, sv_CSM, GETbase, LunarLiftoffRes.t_L, LunarLiftoffRes.v_LH, LunarLiftoffRes.v_LV, theta, dt, sv_Ins);
+
+		LAP_Theta = theta;
+		LAP_DT = dt;
+		LAP_SV_Insertion = sv_Ins;
+
+		Result = 0;
+	}
+	break;
+	case 21: //LM Ascent PAD
+	{
+		ASCPADOpt opt;
+		SV sv_CSM;
+		MATRIX3 Rot, Rot2;
+
+		sv_CSM = rtcc->StateVectorCalc(target);
+		vessel->GetRotationMatrix(Rot);
+		oapiGetRotationMatrix(sv_CSM.gravref, &Rot2);
+
+		opt.GETbase = GETbase;
+		opt.Rot_VL = OrbMech::GetVesselToLocalRotMatrix(Rot, Rot2);
+		opt.R_LS = rtcc->RLS_from_latlng(LSLat, LSLng, LSAlt);
+		opt.sv_CSM = sv_CSM;
+		opt.TIG = LunarLiftoffRes.t_L;
+		opt.v_LH = LunarLiftoffRes.v_LH;
+		opt.v_LV = LunarLiftoffRes.v_LV;
+
+		rtcc->LunarAscentPAD(opt, lmascentpad);
+
+		Result = 0;
+	}
+	break;
+	case 22: //Powered Descent Abort Program
+	{
+		PDAPOpt opt;
+		PDAPResults res;
+		SV sv_LM;
+		double m0;
+
+		LEM *l = (LEM *)vessel;
+		m0 = l->GetAscentStageMass();
+
+		sv_LM = rtcc->StateVectorCalc(vessel);
+
+		if (PDAPEngine == 0)
+		{
+			opt.dt_stage = 999999.9;
+		}
+		else
+		{
+			opt.dt_stage = 0.0;
+
+		}
+
+		if (PDIPADdirect)
+		{
+			opt.sv_A = sv_LM;
+		}
+		else
+		{
+			opt.sv_A = rtcc->ExecuteManeuver(vessel, GETbase, P30TIG, dV_LVLH, sv_LM, 0.0);
+		}
+
+		opt.dt_step = 120.0;
+		opt.GETbase = GETbase;
+		opt.REFSMMAT = REFSMMAT;
+		opt.R_LS = rtcc->RLS_from_latlng(LSLat, LSLng, LSAlt);
+		opt.sv_P = rtcc->StateVectorCalc(target);
+		opt.TLAND = t_Land;
+		opt.t_TPI = t_TPI;
+		opt.W_TAPS = m0;
+		opt.W_TDRY = opt.sv_A.mass - vessel->GetPropellantMass(vessel->GetPropellantHandleByIndex(0));
+
+		rtcc->PoweredDescentAbortProgram(opt, res);
+
+		if (PDAPEngine == 0)
+		{
+			PDAPABTCOF[0] = res.ABTCOF1;
+			PDAPABTCOF[1] = res.ABTCOF2;
+			PDAPABTCOF[2] = res.ABTCOF3;
+			PDAPABTCOF[3] = res.ABTCOF4;
+		}
+		else
+		{
+			PDAPABTCOF[4] = res.ABTCOF1;
+			PDAPABTCOF[5] = res.ABTCOF2;
+			PDAPABTCOF[6] = res.ABTCOF3;
+			PDAPABTCOF[7] = res.ABTCOF4;
+		}
+		DEDA224 = res.DEDA224;
+		DEDA225 = res.DEDA225;
+		DEDA226 = res.DEDA226;
+		DEDA227 = OrbMech::DoubleToDEDA(res.DEDA227 / 0.3048*pow(2, -20), 14);
+
+		Result = 0;
+	}
+	break;
+	case 23: //FIDO Orbit Digitals Update
+	{
+		fidoorbitsv = rtcc->StateVectorCalc(vessel);
+
+		FIDOOrbitDigitalsOpt opt;
+
+		opt.GETbase = GETbase;
+		opt.sv_A = fidoorbitsv;
+
+		rtcc->FIDOOrbitDigitalsUpdate(opt, fidoorbit);
+
+		Result = 0;
+	}
+	break;
+	case 24: //FIDO Orbit Digitals Cycle
+	{
+		double MJD = oapiGetSimMJD();
+
+		FIDOOrbitDigitalsOpt opt;
+
+		opt.GETbase = GETbase;
+		opt.MJD = MJD;
+		opt.sv_A = fidoorbitsv;
+
+		rtcc->FIDOOrbitDigitalsCycle(opt, fidoorbit);
+
+		Result = 0;
+	}
+	break;
+	case 25: //FIDO Orbit Digitals Apsides Update
+	{
+		double MJD = oapiGetSimMJD();
+
+		FIDOOrbitDigitalsOpt opt;
+
+		opt.GETbase = GETbase;
+		opt.MJD = MJD;
+		opt.sv_A = fidoorbitsv;
+
+		rtcc->FIDOOrbitDigitalsApsidesCycle(opt, fidoorbit);
+
+		Result = 0;
+	}
+	break;
+	case 26: //FIDO Orbit Digitals Longitude Calculation
+	{
+		FIDOOrbitDigitalsOpt opt;
+
+		opt.GETbase = GETbase;
+		opt.sv_A = fidoorbitsv;
+
+		rtcc->FIDOOrbitDigitalsCalculateLongitude(opt, fidoorbit);
+
+		Result = 0;
+	}
+	break;
+	case 27: //FIDO Orbit Digitals GETL Calculation
+	{
+		double MJD = oapiGetSimMJD();
+
+		FIDOOrbitDigitalsOpt opt;
+
+		opt.GETbase = GETbase;
+		opt.MJD = MJD;
+		opt.sv_A = fidoorbitsv;
+
+		rtcc->FIDOOrbitDigitalsCalculateGETL(opt, fidoorbit);
 
 		Result = 0;
 	}
@@ -2861,7 +3430,7 @@ void ARCore::StopIMFDRequest() {
 		g_Data.progVessel->GetIMFDClient()->StopBurnDataRequests();
 }
 
-int ARCore::REFSMMAT_Address()
+int ARCore::REFSMMATOctalAddress()
 {
 	int addr;
 
@@ -2879,4 +3448,369 @@ int ARCore::REFSMMAT_Address()
 		addr -= 02;
 	}
 	return addr;
+}
+
+int ARCore::REFSMMATUplinkAddress()
+{
+	int addr;
+
+	if (REFSMMATupl == 0)
+	{
+		if (vesseltype < 2)
+		{
+			addr = 306;
+		}
+		else
+		{
+			addr = 3606;
+		}
+	}
+	else
+	{
+		if (vesseltype < 2)
+		{
+			addr = 1735;
+		}
+		else
+		{
+			addr = 1733;
+		}
+
+		if (mission >= 14)	//Luminary 210 and Artemis 072 both have the REFSMMAT two addresses earlier
+		{
+			addr -= 2;
+		}
+	}
+
+	return addr;
+}
+
+int ARCore::GetPowEngType()
+{
+	int poweredenginetype;
+
+	if (enginetype == 0)
+	{
+		poweredenginetype = RTCC_ENGINETYPE_RCS;
+	}
+	else if (enginetype == 1 && vesseltype >= 2 && !lemdescentstage)
+	{
+		poweredenginetype = RTCC_ENGINETYPE_APS;
+	}
+	else
+	{
+		poweredenginetype = RTCC_ENGINETYPE_SPSDPS;
+	}
+
+	return poweredenginetype;
+}
+
+void ARCore::DetermineGMPCode()
+{
+	int code = 0;
+
+	if (GMPManeuverType == 0)
+	{
+		if (GMPManeuverPoint == 1)
+		{
+			//PCE: Plane Change at equatorial crossing
+			code = 1;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//PCL: Plane change at a specified longitude
+			code = 2;
+		}
+		else if (GMPManeuverPoint == 4)
+		{
+			//PCH: Plane change at a height
+			code = 49;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//PCT: Plane change at a specified time
+			code = 3;
+		}
+	}
+	else if (GMPManeuverType == 1)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			//CRA: Circularization maneuver at apogee
+			code = 41;
+		}
+		else if (GMPManeuverPoint == 2)
+		{
+			//CRA: Circularization maneuver at perigee
+			code = 42;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//CRL: Circularization maneuver at a specified longitude
+			code = 4;
+		}
+		else if (GMPManeuverPoint == 4)
+		{
+			//CRH: Circularization maneuver at a specified height
+			code = 5;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//CRT: Circularization maneuver at a specified time
+			code = 40;
+		}
+	}
+	else if (GMPManeuverType == 2)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			//HAO: Height maneuver at apogee
+			code = 8;
+		}
+		else if (GMPManeuverPoint == 2)
+		{
+			//HPO: Height maneuver at perigee
+			code = 9;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//HOL: Height maneuver at a specified longitude
+			code = 6;
+		}
+		else if (GMPManeuverPoint == 4)
+		{
+			//HOH: Height maneuver at a height
+			code = 52;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//HOL: Height maneuver at a specified time
+			code = 7;
+		}
+	}
+	else if (GMPManeuverType == 3)
+	{
+		if (GMPManeuverPoint == 4)
+		{
+			//NSH: Node shift maneuver at a height
+			code = 50;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//NSL: Node shift maneuver at a longitude
+			code = 51;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//NST: Node shift maneuver at a specified time
+			code = 10;
+		}
+		else if (GMPManeuverPoint == 6)
+		{
+			//NSO: Optimum node shift maneuver
+			code = 11;
+		}
+	}
+	else if (GMPManeuverType == 4)
+	{
+		if (GMPManeuverPoint == 3)
+		{
+			//HBL: Maneuver to change both apogee and perigee at a specified longitude
+			code = 33;
+		}
+		else if (GMPManeuverPoint == 4)
+		{
+			//HBH: Maneuver to change both apogee and perigee at a specified height
+			code = 13;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//HBT: Maneuver to change both apogee and perigee at a specified time
+			code = 12;
+		}
+		else if (GMPManeuverPoint == 6)
+		{
+			//HBO: Optimum maneuver to change both apogee and perigee
+			code = 14;
+		}
+	}
+	else if (GMPManeuverType == 5)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			//FCA: Input maneuver at an apogee
+			code = 18;
+		}
+		else if (GMPManeuverPoint == 1)
+		{
+			//FCE: Input maneuver at an equatorial crossing
+			code = 20;
+		}
+		else if (GMPManeuverPoint == 2)
+		{
+			//FCP: Input maneuver at an perigee
+			code = 19;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//FCL: Input maneuver at a specified longitude
+			code = 16;
+		}
+		else if (GMPManeuverPoint == 4)
+		{
+			//FCH: Input maneuver at a specified height
+			code = 17;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//FCT: Input maneuver at a specified time
+			code = 15;
+		}
+	}
+	else if (GMPManeuverType == 6)
+	{
+		if (GMPManeuverPoint == 3)
+		{
+			//NHL: Combination maneuver to change both apogee and perigee and shift the node at a specified longitude
+			code = 22;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//NHT: Combination maneuver to change both apogee and perigee and shift the node at a specified time
+			code = 21;
+		}
+	}
+	else if (GMPManeuverType == 7)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			code = RTCC_GMP_SAA;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			code = RTCC_GMP_SAL;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//SAT: Maneuver to shift line-of-apsides some angle at a specified time
+			code = 31;
+		}
+		else if (GMPManeuverPoint == 6)
+		{
+			//SAO: Maneuver to shift line-of-apsides some angle and keep the same apogee and perigee altitudes
+			code = 32;
+		}
+	}
+	else if (GMPManeuverType == 8)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			//PHA: Combination height maneuver and a plane change at an apogee
+			code = 27;
+		}
+		else if (GMPManeuverPoint == 2)
+		{
+			//PHP: Combination height maneuver and a plane change at an perigee
+			code = 28;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//PHL: Combination height maneuver and a plane change at a specified longitude
+			code = 25;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//PHT: Combination height maneuver and a plane change at a specified time
+			code = 26;
+		}
+	}
+	else if (GMPManeuverType == 9)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			//CPA: Combination circularization maneuver and a plane change at apogee
+			code = 44;
+		}
+		else if (GMPManeuverPoint == 2)
+		{
+			//CPP: Combination circularization maneuver and a plane change at perigee
+			code = 45;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//CPL: Combination circularization maneuver and a plane change at a specified longitude
+			code = 29;
+		}
+		else if (GMPManeuverPoint == 4)
+		{
+			//CPH: Combination circularization maneuver and a plane change at a specified altitude
+			code = 30;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//CPT: Combination circularization maneuver and a plane change at a specified time
+			code = 43;
+		}
+	}
+	else if (GMPManeuverType == 10)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			//CNA: Circularization and node shift at apogee
+			code = 47;
+		}
+		else if (GMPManeuverPoint == 2)
+		{
+			//CNP: Circularization and node shift at perigee
+			code = 48;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//CNL: Circularization and node shift at a specified longitude
+			code = 34;
+		}
+		else if (GMPManeuverPoint == 4)
+		{
+			//CNH: Circularization and node shift at a specified height
+			code = 35;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//CNT: Circularization and node shift maneuver at a specified time
+			code = 46;
+		}
+	}
+	else if (GMPManeuverType == 11)
+	{
+		if (GMPManeuverPoint == 0)
+		{
+			//HNA: Height maneuver and node shift at apogee
+			code = 38;
+		}
+		else if (GMPManeuverPoint == 2)
+		{
+			//HNP: Height maneuver and node shift at perigee
+			code = 39;
+		}
+		else if (GMPManeuverPoint == 3)
+		{
+			//HNL: Height maneuver and node shift at a specified longitude
+			code = 36;
+		}
+		else if (GMPManeuverPoint == 5)
+		{
+			//HNT: Height maneuver and node shift at a specified time
+			code = 37;
+		}
+	}
+	else if (GMPManeuverType == 12)
+	{
+		if (GMPManeuverPoint == 6)
+		{
+			//HAS
+			code = RTCC_GMP_HAS;
+		}
+	}
+
+	GMPManeuverCode = code;
 }

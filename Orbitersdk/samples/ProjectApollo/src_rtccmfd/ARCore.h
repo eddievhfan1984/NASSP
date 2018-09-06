@@ -30,9 +30,10 @@ struct ApolloRTCCMFDData {  // global data storage
 class ARCore {
 public:
 	ARCore(VESSEL* v);
+	~ARCore();
 	void lambertcalc();
 	void CDHcalc();
-	void OrbitAdjustCalc();
+	void GPMPCalc();
 	void REFSMMATCalc();
 	void SkylabCalc();
 	void DOICalc();
@@ -52,6 +53,15 @@ public:
 	void LandingSiteUplink();
 	void VecPointCalc();
 	void TerrainModelCalc();
+	void DKICalc();
+	void LAPCalc();
+	void DAPPADCalc();
+	void AscentPADCalc();
+	void PDAPCalc();
+	void UpdateFIDOOrbitDigitals();
+	void CycleFIDOOrbitDigitals();
+	void FIDOOrbitDigitalsCalculateLongitude();
+	void FIDOOrbitDigitalsCalculateGETL();
 	bool vesselinLOS();
 	void MinorCycle(double SimT, double SimDT, double mjd);
 
@@ -73,12 +83,21 @@ public:
 	void PDI_PAD();
 	void MapUpdate();
 	void NavCheckPAD();
-	int REFSMMAT_Address();
+	void AP11AbortCoefUplink();
+	int REFSMMATOctalAddress();
+	int REFSMMATUplinkAddress();
+	void DetermineGMPCode();
 
 	int startSubthread(int fcn);
 	int subThread();
 	void StartIMFDRequest();
 	void StopIMFDRequest();
+
+	//EPHEM PROGRAM
+	void GenerateAGCEphemeris();
+	int agcCelBody_RH(CELBODY *Cel, double mjd, int Flags, VECTOR3 *Pos = NULL, VECTOR3 *Vel = NULL);
+	int agcCelBody_LH(CELBODY *Cel, double mjd, int Flags, VECTOR3 *Pos = NULL, VECTOR3 *Vel = NULL);
+	void AGCEphemeris(double T0, double Epoch, double TEphem0);
 
 	// SUBTHREAD MANAGEMENT
 	HANDLE hThread;
@@ -100,13 +119,14 @@ public:
 	double P30TIG;				//Maneuver GET
 	VECTOR3 dV_LVLH;			//LVLH maneuver vector
 	int vesseltype;				//0=CSM, 1=CSM/LM docked, 2 = LM, 3 = LM/CSM docked
+	bool lemdescentstage;		//0 = ascent stage, 1 = descent stage
 	double LSLat, LSLng, LSAlt;	//Landing Site coordinates
 	double t_Land;				//Time of landing
 	bool inhibUplLOS;
 	bool PADSolGood;
-	int csmenginetype;				// 0 = RCS, 1 = SPS
-	int lmenginetype;				// 0 = RCS, 1 = DPS, 2 = APS
+	int enginetype;				// 0 = RCS, 1 = SPS or DPS or APS
 	int directiontype;			// 0 = +X, 1 = -X (RCS only)
+	double t_TPI;				// Generally used TPI time
 
 	//LAMBERT PAGE
 	double T1;				//Time of the Lambert targeted maneuver
@@ -118,33 +138,75 @@ public:
 	VECTOR3 offvec;			//Lambert offset vector
 	double angdeg;			//Phase angle for target offset
 	bool lambertmultiaxis; //0 = x-axis only, 1 = multi-axis maneuver
+	int twoimpulsemode;		//0 = General, 1 = NCC/NSR, 2 = TPI/TPF
+	double TwoImpulse_TPI;	//TPI time calculated by the NCC/NSR option
+	double TwoImpulse_PhaseAngle;	//Phase angle of chaser relative to target at T2 time
 
-	//CDH PAGE
+	//DOCKING INITIATION
+	double DKI_TIG;		//Impulsive time of ignition
+	int DKI_Profile;	//0 = Four-impulse: Phasing/CSI/CDH/TPI, 1 = Six-Impulse: Phasing/Boost/HAM/CSI/CDH/TPI, 2 = Four-impulse rescue: Height/CSI/CDH/TPI, 3 = Calculate TPI time only
+	int DKI_TPI_Mode;	//0 = TPI on time, 1 = TPI at orbital midnight, 2 = TPI at X minutes before sunrise
+	bool DKI_Maneuver_Line;	//false = define relative times, true = 0.5 revolutions between maneuvers
+	bool DKI_Radial_DV;	//false = horizontal maneuver, true = 50 ft/s radial component
+	double DKI_dt_TPI_sunrise;
+	double DKI_dt_PBH;	//Delta time between phasing and boost/CSI
+	double DKI_dt_BHAM;	//Delta time between boost and HAM
+	double DKI_dt_HAMH;	//Delta time between HAM and CSI
+	int DKI_N_HC;		//Half revolutions between CSI and CDH
+	int DKI_N_PB;		//Number of half revs between Phasing and Boost/Height
+	double t_TPIguess;
+	DKIResults dkiresult;
+
+	//CONCENTRIC RENDEZVOUS PAGE
+	int SPQMode;	//0 = CSI, 1 = CDH
+	double CSItime;	//Time of the CSI maneuver
 	double CDHtime;	//Time of the CDH maneuver
-	double CDHtime_cor;	//Corrected time of the CDH maneuver
-	int CDHtimemode; //0=Fixed, 1 = Find GETI
+	double SPQTIG;	//Time of ignition for concentric rendezvous maneuver
+	int CDHtimemode; //CSI: 0 = fixed TIG at TPI, 1 = fixed DH at CDH. CDH: 0=Fixed, 1 = Find GETI
 	double DH;			//Delta Height for the CDH maneuver
-	VECTOR3 CDHdeltaV;
+	VECTOR3 SPQDeltaV;
+	SPQResults spqresults;
 
 	//ORBIT ADJUSTMENT PAGE
-	//0 = Fixed TIG, specify inclination, apoapsis and periapsis altitude
-	//1 = Fixed TIG, specify apoapsis altitude
-	//2 = Fixed TIG, specify periapsis altitude
-	//3 = Fixed TIG, circularize orbit
-	//4 = Circularize orbit at specified altitude
-	//5 = Rotate velocity vector, specify apoapsis altitude
-	//6 = Rotate line of apsides, perigee at specific longitude, TIG at perigee
-	int GMPType;
+	int GMPManeuverCode; //Maneuver code
 	bool OrbAdjAltRef;	//0 = use mean radius, 1 = use launchpad or landing site radius
-	double apo_desnm;	//Desired apoapsis altitude in NM
-	double peri_desnm;	//Desired periapsis altitude in NM
-	double incdeg;		//Desired inclination in degrees
-	double GMPRotationAngle;
-	double GMPLongitude;
-	double GMPTOA;		//Time of Arrival
+	double GMPApogeeHeight;		//Desired apoapsis height
+	double GMPPerigeeHeight;	//Desired periapsis height
+	double GMPWedgeAngle;
+	double GMPManeuverHeight;
+	double GMPManeuverLongitude;
+	double GMPHeightChange;
+	double GMPNodeShiftAngle;
+	double GMPDeltaVInput;
+	double GMPPitch;
+	double GMPYaw;
+	double GMPApseLineRotAngle;
 	int GMPRevs;
 	double SPSGET;		//Maneuver GET
 	VECTOR3 OrbAdjDVX;	//LVLH maneuver vector
+	//0 = Apogee
+	//1 = Equatorial crossing
+	//2 = Perigee
+	//3 = Longitude
+	//4 = Height
+	//5 = Time
+	//6 = Optimum
+	int GMPManeuverPoint;
+	//0 = Plane Change
+	//1 = Circularization
+	//2 = Height Change
+	//3 = Node Shift
+	//4 = Apogee and perigee change
+	//5 = Input maneuver
+	//6 = Combination apogee/perigee change and node shift
+	//7 = Shift line-of-apsides
+	//8 = Combination height maneuver and plane change
+	//9 = Combination circularization and plane change
+	//10 = Combination circularization and node shift
+	//11 = Combination height maneuver and node shift
+	//12 = Combination apogee/perigee change and line-of-apsides shift
+	int GMPManeuverType;
+	GPMPRESULTS GMPResults;
 
 	//REFSMMAT PAGE
 	double REFSMMATTime;
@@ -174,6 +236,7 @@ public:
 	int entryprecision; //0 = conic, 1 = precision, 2 = PeA=-30 solution
 	int returnspeed; //0 = slow return, 1 = normal return, 2 = fast return
 	int FlybyType;	//1 = Flyby, 2 = PC+2
+	double FlybyPeriAlt;
 
 	//STATE VECTOR PAGE
 	bool SVSlot;
@@ -234,6 +297,8 @@ public:
 	bool TLCCAscendingNode;
 	double TLCCFRDesiredInclination;
 	int TLCCIterationStep;
+	double TLCCRev2MeridianGET;
+	double TLCCPostDOIPeriAlt, TLCCPostDOIApoAlt;
 
 	//LOI PAGE
 	int LOImaneuver; //0 = LOI-1 (w/ MCC), 1 = LOI-1 (w/o MCC), 2 = LOI-2
@@ -241,6 +306,7 @@ public:
 	double LOIapo, LOIperi, LOIazi, LOI2Alt;
 	VECTOR3 LOI_dV_LVLH;
 	double LOI_TIG;
+	int LOIEllipseRotation;	//0 = Choose the lowest DV solution, 1 = solution 1, 2 = solution 2
 
 	//LANDMARK TRACKING PAGE
 	AP11LMARKTRKPAD landmarkpad;
@@ -248,10 +314,10 @@ public:
 	double LmkTime;
 
 	//VECPOINT PAGE
+	int VECoption;		//0 = Point SC at body, 1 = Open hatch thermal control, 2 = Point AOT with CSM
 	int VECdirection;	//0 = +X, 1 = -X, 2 = +Y,3 = -Y,4 = +Z, 5 = -Z
 	OBJHANDLE VECbody;	//handle for the desired body
 	VECTOR3 VECangles;	//IMU angles
-
 
 	//DOI Page
 	int DOI_N;							//Number of revolutions between DOI and PDI
@@ -261,6 +327,7 @@ public:
 	double DOI_t_PDI, DOI_CR;			//Time of PDI, cross range at PDI
 	double DOI_PeriAng;					//Angle from landing site to 
 	int DOI_option;						//0 = DOI from circular orbit, 1 = DOI as LOI-2
+	double DOI_alt;						//perilune altitude above landing site
 
 	//Skylab Page
 	int Skylabmaneuver;					//0 = Presettings, 1 = NC1, 2 = NC2, 3 = NCC, 4 = NSR, 5 = TPI, 6 = TPM, 7 = NPC
@@ -274,7 +341,7 @@ public:
 	bool SkylabSolGood;
 	VECTOR3 Skylab_dV_NSR, Skylab_dV_NCC;//, Skylab_dV_NPC;
 	double Skylab_dH_NC2, Skylab_dv_NC2, Skylab_dv_NCC;
-	double Skylab_t_NC1, Skylab_t_NC2, Skylab_t_NCC, Skylab_t_NSR, Skylab_t_TPI, Skylab_dt_TPM; //Skylab_t_NPC
+	double Skylab_t_NC1, Skylab_t_NC2, Skylab_t_NCC, Skylab_t_NSR, Skylab_dt_TPM; //Skylab_t_NPC
 
 	//PC Page
 	double PCAlignGET;		//time when the orbit is aligned with the landing site
@@ -288,9 +355,25 @@ public:
 	double TMLat, TMLng, TMAzi, TMDistance, TMStepSize, TMAlt;
 
 	//Lunar Liftoff Time Prediction
-	LunarLiftoffResults LunarLiftoffTimes;
-	double t_TPIguess;
-	int LunarLiftoffTimeOption;	//0 = Concentric Profile, 1 = Direct Profile
+	LunarLiftoffResults LunarLiftoffRes;
+	int LunarLiftoffTimeOption;	//0 = Concentric Profile, 1 = Direct Profile, 2 = Time Critical Direct Profile
+	double DT_Ins_TPI;			//Fixed time from insertion to TPI for direct profile
+	double t_Liftoff_guess;		//Threshold time for lunar liftoff
+
+	//Lunar Ascent Processor
+	double LAP_Theta;			//Angle travelled between liftoff and insertion
+	double LAP_DT;				//Ascent burntime (liftoff to insertion)
+	SV LAP_SV_Insertion;
+
+	//LM Ascent PAD
+	AP11LMASCPAD lmascentpad;
+
+	//Powered Descent Abort Program
+	int PDAPEngine;	//0 = DPS/APS, 1 = APS
+	bool PDAPTwoSegment;	//false = One Segment (Luminary099, FP6), true = Two Segment (Luminary116 and later, FP7 and later)
+	double PDAPABTCOF[8];	//Luminary099 abort coefficients
+	double DEDA224, DEDA225, DEDA226;
+	int DEDA227;
 
 	//Erasable Memory Programs
 	int EMPUplinkType;	// 0 = P99
@@ -298,6 +381,24 @@ public:
 
 	//NAV CHECK PAGE
 	AP7NAV navcheckpad;
+
+	//DAP PAD PAGE
+	AP10DAPDATA DAP_PAD;
+
+	//LVDC PAGE
+	double LVDCLaunchAzimuth;
+
+	//AGC EPHEMERIS
+	double AGCEphemBRCSEpoch;
+	double AGCEphemTEphemZero;
+	double AGCEphemTIMEM0;
+
+	//FIDO ORBIT DIGITALS
+	FIDOOrbitDigitals fidoorbit;
+	SV fidoorbitsv;
+
+	protected:
+		int GetPowEngType();
 
 private:
 	//VECTOR3 RA2, VA2, RP2, VP2;
