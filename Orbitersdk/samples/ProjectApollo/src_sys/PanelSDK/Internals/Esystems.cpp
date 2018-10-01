@@ -43,6 +43,7 @@ e_object::e_object()
 
 	Volts = 0.0;
 	Amperes = 0.0;
+	Hertz = 0.0;
 }
 
 void e_object::refresh(double dt)
@@ -97,6 +98,18 @@ double e_object::Current()
 		if (SRC)
 			return SRC->Current();
 		return Amperes;
+	}
+
+	return 0.0;
+}
+
+double e_object::Frequency()
+
+{
+	if (IsEnabled()) {
+		if (SRC)
+			return SRC->Frequency();
+		return Hertz;
 	}
 
 	return 0.0;
@@ -294,7 +307,7 @@ void FCell::Reaction(double dt, double thrust)
 	double O2_maxflow = O2_flow = O2_SRC->parent->space.composition[SUBSTANCE_O2].mass;
 	double H2_maxflow = H2_flow = H2_SRC->parent->space.composition[SUBSTANCE_H2].mass;
 	
-	// max. consumtion
+	// max. consumption
 	if (H2_flow > reactant * H2RATIO) H2_flow = reactant * H2RATIO;
 	if (O2_flow > reactant * O2RATIO) O2_flow = reactant * O2RATIO;
 	
@@ -377,8 +390,9 @@ void FCell::UpdateFlow(double dt)
 		return;
 	}
 
-	//In-line heater power, moreover this prevents the fuel cells from stopping
-	power_load += 160.0;
+	//Idle power load to prevent the fuel cells from stopping and cooling too much (has to be fixed at some point)
+	if (power_load < 160.0)
+		power_load = 160.0;
 
 	//first we check the start_handle;
 	double thrust = 0.0;
@@ -528,11 +542,26 @@ void Battery::PUNLOAD(double watts)
 	power_load -= watts;
 }
 
-double Battery::Current()
+double Battery::Voltage()
+{
+	if (IsEnabled())
+	{
+		return Volts;
+	}
 
+	return 0.0;
+}
+
+double Battery::Current()
 {
 //	sprintf(oapiDebugString(), "%s: Current = %gA (%g watts/%gV)", name, Amperes, power_load, Volts);
-	return Amperes;
+
+	if (IsEnabled())
+	{
+		return Amperes;
+	}
+
+	return 0.0;
 }
 
 void Battery::UpdateFlow(double dt)
@@ -1429,33 +1458,35 @@ Pump::Pump(char *i_name, int i_pump, e_object *i_SRC, double i_fan_cap, double i
 	in = in_v;
 	out = out_v;
 	loaded = 0;
+	flow = 0;
 }
 
 void Pump::refresh(double dt) 
-
 {
+	flow = 0;
+
 	if (h_pump == 0) {
 		pumping = 0;
-		return;
 	} //off
-
-	pumping = 1;
-	if (SRC) {
-		if (SRC->Voltage() < SP_MIN_DCVOLTAGE) {
+	else
+	{
+		pumping = 1;
+		if (SRC) {
+			if (SRC->Voltage() < SP_MIN_DCVOLTAGE)
+				pumping = 0;
+			else
+				SRC->DrawPower(power);
+		}
+		else
 			pumping = 0;
-			return;
-		} //no no
-		SRC->DrawPower(power);
-	} else {
-		pumping = 0;
-		return;
 	}
 
-	double delta_p = in->GetPress() - out->GetPress() + fan_cap;
+	double delta_p = in->GetPress() - out->GetPress() + (pumping > 0 ? fan_cap : 0.0);
 	if (delta_p < 0)
 		delta_p = 0;
 
 	h_volume fanned = in->GetFlow(dt * delta_p);
+	flow = fanned.GetMass() / dt;
 	out->Flow(fanned);
 }
 

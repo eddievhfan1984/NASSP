@@ -247,8 +247,7 @@ void MultiConnector::Disconnect()
 	Connector::Disconnect();
 }
 
-//SCHNECI modified Vessel2 to Vessel3 for LUA API handling
-ProjectApolloConnectorVessel::ProjectApolloConnectorVessel(OBJHANDLE hObj, int fmodel) : VESSEL3(hObj, fmodel)
+ProjectApolloConnectorVessel::ProjectApolloConnectorVessel(OBJHANDLE hObj, int fmodel) : VESSEL4(hObj, fmodel)
 
 {
 	int i;
@@ -273,10 +272,11 @@ Connector *ProjectApolloConnectorVessel::GetConnector(int port, ConnectorType t)
 	int i;
 	for (i = 0; i < PACV_N_CONNECTORS; i++)
 	{
-		if (ConnectorList[i].c && (ConnectorList[i].port == port) && (ConnectorList[i].c->GetType() == t))
+		if (ConnectorList[i].c && (ConnectorList[i].port == port) && (ConnectorList[i].c->GetType() == t)) {
 			return ConnectorList[i].c;
+		}
+			
 	}
-
 	return NULL;
 }
 
@@ -373,8 +373,9 @@ Connector *GetVesselConnector(VESSEL *v, int port, ConnectorType t)
 	//
 	// Validate it to check that this is probably the right kind of vessel.
 	//
-	if (!pacv->ValidateVessel())
+	if (!pacv->ValidateVessel()) {
 		return NULL;
+	}
 
 	//
 	// Finally, try to get the connector.

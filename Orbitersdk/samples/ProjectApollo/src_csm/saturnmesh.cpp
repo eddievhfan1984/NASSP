@@ -37,11 +37,8 @@
 
 #include "toggleswitch.h"
 #include "apolloguidance.h"
-#include "dsky.h"
 #include "csmcomputer.h"
 #include "ioChannels.h"
-#include "IMU.h"
-#include "lvimu.h"
 
 #include "saturn.h"
 #include "tracer.h"
@@ -85,8 +82,7 @@ MESHHANDLE hsat5tower;
 MESHHANDLE hFHO2;
 MESHHANDLE hCMPEVA;
 MESHHANDLE hopticscover;
-
-extern void CoeffFunc(double aoa, double M, double Re ,double *cl ,double *cm  ,double *cd);
+MESHHANDLE hcmdocktgt;
 
 #define LOAD_MESH(var, name) var = oapiLoadMeshGlobal(name);
 
@@ -105,7 +101,7 @@ PARTICLESTREAMSPEC o2_venting_spec = {
 	PARTICLESTREAMSPEC::ATM_FLAT, 1.0, 1.0
 };
 
-static PARTICLESTREAMSPEC let_exhaust = {
+static PARTICLESTREAMSPEC lem_exhaust = {
 	0,		// flag
 	0.5,	// size
 	100.0, 	// rate
@@ -161,6 +157,111 @@ PARTICLESTREAMSPEC urinedump_spec = {
 	PARTICLESTREAMSPEC::ATM_FLAT, 1.0, 1.0
 };
 
+void CMCoeffFunc(double aoa, double M, double Re, double *cl, double *cm, double *cd)
+
+{
+	const int nlift = 11;
+	double factor, dfact, lfact, frac, drag, lift;
+	static const double AOA[nlift] =
+	{ -180.*RAD,-160.*RAD,-150.*RAD,-120.*RAD,-90.*RAD,0 * RAD,90.*RAD,120.*RAD,150.*RAD,160.*RAD,180.*RAD };
+	static const double Mach[17] = { 0.0,0.7,0.9,1.1,1.2,1.35,1.65,2.0,3.0,5.0,8.0,10.5,13.5,18.2,21.5,31.0,50.0 };
+	static const double LFactor[17] = { 0.3,0.392,0.466,0.607,0.641,0.488,0.446,0.435,0.416,0.415,0.405,0.400,0.385,0.385,0.375,0.35,0.33 };
+	static const double DFactor[17] = { 0.9,0.944,0.991,1.068,1.044,1.270,1.28,1.267,1.213,1.134,1.15,1.158,1.18,1.18,1.193,1.224,1.25 };
+	static const double CL[nlift] = { 0.0,-0.9,-1.1,-0.5,0.0,0.0,0.0,0.5,1.1,0.9,0.0 };
+	static const double CM[nlift] = { 0.0,0.004,0.006,0.012,0.015,0.0,-0.015,-0.012,-0.006,-0.004,0. };
+	static const double CD[nlift] = { 1.143,1.0,1.0,0.8,0.8,0.8,0.8,0.8,1.0,1.0,1.143 };
+	int j;
+	factor = -5.0;
+	dfact = 1.05;
+	lfact = 0.94;
+	for (j = 0; (j < 16) && (Mach[j + 1] < M); j++);
+	frac = (M - Mach[j]) / (Mach[j + 1] - Mach[j]);
+	drag = dfact * (frac*DFactor[j + 1] + (1.0 - frac)*DFactor[j]);
+	lift = drag * lfact*(frac*LFactor[j + 1] + (1.0 - frac)*LFactor[j]);
+	for (j = 0; (j < nlift - 1) && (AOA[j + 1] < aoa); j++);
+	frac = (aoa - AOA[j]) / (AOA[j + 1] - AOA[j]);
+	*cd = drag * (frac*CD[j + 1] + (1.0 - frac)*CD[j]);
+	*cl = lift * (frac*CL[j + 1] + (1.0 - frac)*CL[j]);
+	*cm = factor * (frac*CM[j + 1] + (1.0 - frac)*CM[j]);
+}
+
+void CMLETVertCoeffFunc(double aoa, double M, double Re, double *cl, double *cm, double *cd)
+
+{
+	const int nlift = 19;
+	double factor, frac, drag, lift;
+	static const double AOA[nlift] =
+	{ -180.*RAD,-160.*RAD,-150.*RAD,-120.*RAD,-90.*RAD,-40.*RAD,-30.*RAD,-20.*RAD,-10.*RAD,0 * RAD,10.*RAD,20.*RAD,30.*RAD,40.*RAD,90.*RAD,120.*RAD,150.*RAD,160.*RAD,180.*RAD };
+	static const double Mach[17] = { 0.0,0.7,0.9,1.1,1.2,1.35,1.65,2.0,3.0,5.0,8.0,10.5,13.5,18.2,21.5,31.0,50.0 };
+	static const double LFactor[17] = { 0.3,0.392,0.466,0.607,0.641,0.488,0.446,0.435,0.416,0.415,0.405,0.400,0.385,0.385,0.375,0.35,0.33 };
+	static const double DFactor[17] = { 0.9,0.944,0.991,1.068,1.044,1.270,1.28,1.267,1.213,1.134,1.15,1.158,1.18,1.18,1.193,1.224,1.25 };
+	static const double CL[nlift] = { 0.0,-0.9,-1.1,-0.5,0.0,-0.316196,-0.239658,-0.193466,-0.110798,0.0,0.110798,0.193466,0.239658,0.316196,0.0,0.5,1.1,0.9,0.0 };
+	static const double CM[nlift] = { 0.0,-0.02,-0.03,-0.06,-0.075,0.08,0.1,0.11,0.09,0.0,-0.09,-0.11,-0.1,-0.08,0.075,0.06,0.03,0.02,0. };
+	static const double CD[nlift] = { 1.143,1.0,1.0,0.8,0.8,0.72946,0.65157,0.63798,0.65136,0.5778,0.65136,0.63798,0.65157,0.72946,0.8,0.8,1.0,1.0,1.143 };
+	int j;
+	factor = 2.0;
+	for (j = 0; (j < 16) && (Mach[j + 1] < M); j++);
+	frac = (M - Mach[j]) / (Mach[j + 1] - Mach[j]);
+	drag = (frac*DFactor[j + 1] + (1.0 - frac)*DFactor[j]);
+	lift = drag * (frac*LFactor[j + 1] + (1.0 - frac)*LFactor[j]);
+	for (j = 0; (j < nlift - 1) && (AOA[j + 1] < aoa); j++);
+	frac = (aoa - AOA[j]) / (AOA[j + 1] - AOA[j]);
+	*cd = drag * (frac*CD[j + 1] + (1.0 - frac)*CD[j]);
+	*cl = lift * (frac*CL[j + 1] + (1.0 - frac)*CL[j]);
+	*cm = factor * (frac*CM[j + 1] + (1.0 - frac)*CM[j]);
+}
+
+void CMLETCanardVertCoeffFunc(double aoa, double M, double Re, double *cl, double *cm, double *cd)
+
+{
+	const int nlift = 19;
+	double factor, frac, drag, lift;
+	static const double AOA[nlift] =
+	{ -180.*RAD,-160.*RAD,-150.*RAD,-120.*RAD,-90.*RAD,-40.*RAD,-30.*RAD,-20.*RAD,-10.*RAD,0 * RAD,10.*RAD,20.*RAD,30.*RAD,40.*RAD,90.*RAD,120.*RAD,150.*RAD,160.*RAD,180.*RAD };
+	static const double Mach[17] = { 0.0,0.7,0.9,1.1,1.2,1.35,1.65,2.0,3.0,5.0,8.0,10.5,13.5,18.2,21.5,31.0,50.0 };
+	static const double LFactor[17] = { 0.3,0.392,0.466,0.607,0.641,0.488,0.446,0.435,0.416,0.415,0.405,0.400,0.385,0.385,0.375,0.35,0.33 };
+	static const double DFactor[17] = { 0.9,0.944,0.991,1.068,1.044,1.270,1.28,1.267,1.213,1.134,1.15,1.158,1.18,1.18,1.193,1.224,1.25 };
+	static const double CL[nlift] = { 0.0,-0.9,-1.1,-0.5,0.0,-0.316196,-0.239658,-0.193466,-0.110798,0.0,0.110798,0.193466,0.239658,0.316196,0.0,0.5,1.1,0.9,0.0 };
+	static const double CM[nlift] = { -0.05,-0.375,-0.425,-0.35,-0.25,-0.1,0.0,0.1,0.2,0.3,0.2,0.15,0.15,0.2,0.375,0.325,0.325,0.05,-0.05 };
+	static const double CD[nlift] = { 1.143,1.0,1.0,0.8,0.8,0.72946,0.65157,0.63798,0.65136,0.5778,0.65136,0.63798,0.65157,0.72946,0.8,0.8,1.0,1.0,1.143 };
+	int j;
+	factor = 2.0;
+	for (j = 0; (j < 16) && (Mach[j + 1] < M); j++);
+	frac = (M - Mach[j]) / (Mach[j + 1] - Mach[j]);
+	drag = (frac*DFactor[j + 1] + (1.0 - frac)*DFactor[j]);
+	lift = drag * (frac*LFactor[j + 1] + (1.0 - frac)*LFactor[j]);
+	for (j = 0; (j < nlift - 1) && (AOA[j + 1] < aoa); j++);
+	frac = (aoa - AOA[j]) / (AOA[j + 1] - AOA[j]);
+	*cd = drag * (frac*CD[j + 1] + (1.0 - frac)*CD[j]);
+	*cl = lift * (frac*CL[j + 1] + (1.0 - frac)*CL[j]);
+	*cm = factor * (frac*CM[j + 1] + (1.0 - frac)*CM[j]);
+}
+
+void CMLETHoriCoeffFunc(double aoa, double M, double Re, double *cl, double *cm, double *cd)
+
+{
+	const int nlift = 19;
+	double factor, frac, drag, lift;
+	static const double AOA[nlift] =
+	{ -180.*RAD,-160.*RAD,-150.*RAD,-120.*RAD,-90.*RAD,-40.*RAD,-30.*RAD,-20.*RAD,-10.*RAD,0 * RAD,10.*RAD,20.*RAD,30.*RAD,40.*RAD,90.*RAD,120.*RAD,150.*RAD,160.*RAD,180.*RAD };
+	static const double Mach[17] = { 0.0,0.7,0.9,1.1,1.2,1.35,1.65,2.0,3.0,5.0,8.0,10.5,13.5,18.2,21.5,31.0,50.0 };
+	static const double LFactor[17] = { 0.3,0.392,0.466,0.607,0.641,0.488,0.446,0.435,0.416,0.415,0.405,0.400,0.385,0.385,0.375,0.35,0.33 };
+	static const double DFactor[17] = { 0.9,0.944,0.991,1.068,1.044,1.270,1.28,1.267,1.213,1.134,1.15,1.158,1.18,1.18,1.193,1.224,1.25 };
+	static const double CL[nlift] = { 0.0,-0.9,-1.1,-0.5,0.0,-0.316196,-0.239658,-0.193466,-0.110798,0.0,0.110798,0.193466,0.239658,0.316196,0.0,0.5,1.1,0.9,0.0 };
+	static const double CM[nlift] = { 0.0,0.02,0.03,0.06,0.075,-0.08,-0.1,-0.11,-0.09,0.0,0.09,0.11,0.1,0.08,-0.075,-0.06,-0.03,-0.02,0. };
+	static const double CD[nlift] = { 1.143,1.0,1.0,0.8,0.8,0.72946,0.65157,0.63798,0.65136,0.5778,0.65136,0.63798,0.65157,0.72946,0.8,0.8,1.0,1.0,1.143 };
+	int j;
+	factor = 2.0;
+	for (j = 0; (j < 16) && (Mach[j + 1] < M); j++);
+	frac = (M - Mach[j]) / (Mach[j + 1] - Mach[j]);
+	drag = (frac*DFactor[j + 1] + (1.0 - frac)*DFactor[j]);
+	lift = drag * (frac*LFactor[j + 1] + (1.0 - frac)*LFactor[j]);
+	for (j = 0; (j < nlift - 1) && (AOA[j + 1] < aoa); j++);
+	frac = (aoa - AOA[j]) / (AOA[j + 1] - AOA[j]);
+	*cd = drag * (frac*CD[j + 1] + (1.0 - frac)*CD[j]);
+	*cl = lift * (frac*CL[j + 1] + (1.0 - frac)*CL[j]);
+	*cm = factor * (frac*CM[j + 1] + (1.0 - frac)*CM[j]);
+}
 
 void SaturnInitMeshes()
 
@@ -200,9 +301,10 @@ void SaturnInitMeshes()
 	LOAD_MESH(hFHO2, "ProjectApollo/CMB-HatchO");
 	LOAD_MESH(hCMPEVA, "ProjectApollo/CM-CMPEVA");
 	LOAD_MESH(hopticscover, "ProjectApollo/CM-OpticsCover");
+	LOAD_MESH(hcmdocktgt, "ProjectApollo/CM-Docktgt");
 
 	SURFHANDLE contrail_tex = oapiRegisterParticleTexture("Contrail2");
-	let_exhaust.tex = contrail_tex;
+	lem_exhaust.tex = contrail_tex;
 }
 
 void Saturn::AddSM(double offset, bool showSPS)
@@ -435,6 +537,10 @@ void Saturn::SetCSMStage ()
 {
 	ClearMeshes();
     ClearThrusterDefinitions();
+	ClearEngineIndicators();
+	ClearLVGuidLight();
+	ClearLVRateLight();
+	ClearSIISep();
 
 	//
 	// Delete any dangling propellant resources.
@@ -458,6 +564,16 @@ void Saturn::SetCSMStage ()
 		ph_ullage3 = 0;
 	}
 
+	if (ph_1st) {
+		DelPropellantResource(ph_1st);
+		ph_1st = 0;
+	}
+
+	if (ph_2nd) {
+		DelPropellantResource(ph_2nd);
+		ph_2nd = 0;
+	}
+
 	if(ph_3rd) {
 		DelPropellantResource(ph_3rd);
 		ph_3rd = 0;
@@ -473,53 +589,78 @@ void Saturn::SetCSMStage ()
 		ph_sep2 = 0;
 	}
 
-	SetSize(10);
-	SetCOG_elev(3.5);
-	SetEmptyMass(CM_Mass + SM_EmptyMass);
-
-	// ************************* propellant specs **********************************
-	if (!ph_sps) {
-		ph_sps  = CreatePropellantResource(SM_FuelMass, SM_FuelMass); //SPS stage Propellant
+	if (ph_aps1) {
+		DelPropellantResource(ph_aps1);
+		ph_aps1 = 0;
 	}
 
-	if (ApolloExploded && !ph_o2_vent) {
+	if (ph_aps2) {
+		DelPropellantResource(ph_aps2);
+		ph_aps2 = 0;
+	}
 
-		double tank_mass = CSM_O2TANK_CAPACITY / 500.0;
+	SetSize(10);
+	SetCOG_elev(3.5);
+	SetEmptyMass(CM_EmptyMass + SM_EmptyMass + (LESAttached ? Abort_Mass : 0.0));
 
-		ph_o2_vent = CreatePropellantResource(tank_mass, tank_mass); //SPS stage Propellant
+	// ************************* propellant specs **********************************
 
-		TankQuantities t;
-		GetTankQuantities(t);
-
-		SetPropellantMass(ph_o2_vent, t.O2Tank1QuantityKg + t.O2Tank2QuantityKg);
+	if (!ph_sps) {
+		ph_sps = CreatePropellantResource(SM_FuelMass, SM_FuelMass); //SPS stage propellant
 	}
 
 	SetDefaultPropellantResource (ph_sps); // display SPS stage propellant level in generic HUD
 
 	// *********************** thruster definitions ********************************
 
-	// Main engine offset only in Virtual AGC mode
-	if (Realism) {
-		th_main[0] = CreateThruster(_V(-SPS_YAW_OFFSET * RAD * 5.0, -SPS_PITCH_OFFSET * RAD * 5.0, -5.0), _V(0, 0, 1), SPS_THRUST, ph_sps, SPS_ISP);
-	} else {
-		th_main[0] = CreateThruster(_V(0, 0, -5.0), _V(0, 0, 1), SPS_THRUST, ph_sps, SPS_ISP);
-	}
+	th_sps[0] = CreateThruster(_V(-SPS_YAW_OFFSET * RAD * 5.0, -SPS_PITCH_OFFSET * RAD * 5.0, -5.0), _V(0, 0, 1), SPS_THRUST, ph_sps, SPS_ISP);
 
 	DelThrusterGroup(THGROUP_MAIN, true);
-	thg_main = CreateThrusterGroup(th_main, 1, THGROUP_MAIN);
+	thg_sps = CreateThrusterGroup(th_sps, 1, THGROUP_MAIN);
 
-	AddExhaust(th_main[0], 20.0, 2.25, SMExhaustTex);
+	EXHAUSTSPEC es_sps[1] = {
+		{ th_sps[0], NULL, NULL, NULL, 20.0, 2.25, 0, 0.1, SMExhaustTex }
+	};
+
+	AddExhaust(es_sps);
 	//SetPMI(_V(12, 12, 7));
 	SetPMI(_V(4.3972, 4.6879, 1.6220));
 	SetCrossSections(_V(40,40,14));
 	SetCW(0.1, 0.3, 1.4, 1.4);
 	SetRotDrag(_V(0.7,0.7,0.3));
 	SetPitchMomentScale(0);
-	SetBankMomentScale(0);
+	SetYawMomentScale(0);
 	SetLiftCoeffFunc(0);
 
 	const double CGOffset = 12.25+21.5-1.8+0.35;
 	AddSM(30.25 - CGOffset, true);
+
+	double Mass = (CM_EmptyMass + SM_EmptyMass + (SM_FuelMass / 2));
+	double ro = 4;
+	TOUCHDOWNVTX td[4];
+	double x_target = -0.1;
+	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(Mass*stiffness));
+	for (int i = 0; i<4; i++) {
+		td[i].damping = damping;
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+		td[i].stiffness = stiffness;
+	}
+	td[0].pos.x = -cos(30 * RAD)*ro;
+	td[0].pos.y = -sin(30 * RAD)*ro;
+	td[0].pos.z = -6;
+	td[1].pos.x = 0;
+	td[1].pos.y = 1 * ro;
+	td[1].pos.z = -6;
+	td[2].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.y = -sin(30 * RAD)*ro;
+	td[2].pos.z = -6;
+	td[3].pos.x = 0;
+	td[3].pos.y = 0;
+	td[3].pos.z = 5.5;
+
+	SetTouchdownPoints(td, 4);
 
 	VECTOR3 mesh_dir;
 
@@ -537,6 +678,14 @@ void Saturn::SetCSMStage ()
 	meshidx = AddMesh (hCM, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_VCEXTERNAL);
 
+	if (LESAttached) {
+		TowerOffset = 4.95;
+		VECTOR3 mesh_dir_tower = mesh_dir + _V(0, 0, TowerOffset);
+
+		meshidx = AddMesh(hsat5tower, &mesh_dir_tower);
+		SetMeshVisibilityMode(meshidx, MESHVIS_VCEXTERNAL);
+	}
+
 	// And the Crew
 	if (Crewed) {
 		cmpidx = AddMesh (hCMP, &mesh_dir);
@@ -547,7 +696,13 @@ void Saturn::SetCSMStage ()
 		crewidx = -1;
 	}
 
-	meshidx = AddMesh (hCMInt, &mesh_dir);
+	//CM docking target
+	VECTOR3 dt_dir = _V(0.66, 1.07, 2.1);
+	cmdocktgtidx = AddMesh(hcmdocktgt, &dt_dir);
+	SetCMdocktgtMesh();
+
+	//Interior
+    meshidx = AddMesh (hCMInt, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_EXTERNAL);
 
 	//Don't Forget the Hatch
@@ -603,13 +758,29 @@ void Saturn::SetCSMStage ()
 	//
 	// Apollo 13 special handling
 	//
+
+	if (ApolloExploded && !ph_o2_vent) {
+
+		double tank_mass = CSM_O2TANK_CAPACITY / 1000.0;
+
+		ph_o2_vent = CreatePropellantResource(tank_mass, tank_mass); //"Thruster" created by O2 venting
+
+		TankQuantities t;
+
+		GetTankQuantities(t);
+
+		SetPropellantMass(ph_o2_vent, t.O2Tank1QuantityKg);
+
+	}
+	
 	if (ApolloExploded) {
 		VECTOR3 vent_pos = {0, 1.5, 30.25 - CGOffset};
 		VECTOR3 vent_dir = {0.5, 1, 0};
 
-		th_o2_vent = CreateThruster (vent_pos, vent_dir, 450.0, ph_o2_vent, 300.0);
+		th_o2_vent = CreateThruster (vent_pos, vent_dir, 30.0, ph_o2_vent, 300.0);
 		AddExhaustStream(th_o2_vent, &o2_venting_spec);
 	}
+
 
 	SetView(0.4 + 1.8 - 0.35);
 
@@ -617,8 +788,6 @@ void Saturn::SetCSMStage ()
 	InitNavRadios (4);
 	EnableTransponder (true);
 	OrbiterAttitudeToggle.SetActive(true);
-
-	ThrustAdjust = 1.0;
 }
 
 void Saturn::CreateSIVBStage(char *config, VESSELSTATUS &vs1, bool SaturnVStage)
@@ -646,24 +815,32 @@ void Saturn::CreateSIVBStage(char *config, VESSELSTATUS &vs1, bool SaturnVStage)
 	S4Config.VehicleNo = VehicleNo;
 	S4Config.EmptyMass = S4B_EmptyMass;
 	S4Config.MainFuelKg = GetPropellantMass(ph_3rd);
+	S4Config.ApsFuel1Kg = GetPropellantMass(ph_aps1);
+	S4Config.ApsFuel2Kg = GetPropellantMass(ph_aps2);
 	S4Config.PayloadMass = S4PL_Mass;
 	S4Config.SaturnVStage = SaturnVStage;
+	S4Config.IUSCContPermanentEnabled = IUSCContPermanentEnabled;
 	S4Config.MissionTime = MissionTime;
-	S4Config.Realism = Realism;
 	S4Config.LowRes = LowRes;
 	S4Config.ISP_VAC = ISP_THIRD_VAC;
 	S4Config.THRUST_VAC = THRUST_THIRD_VAC;
 	S4Config.PanelsHinged = !SLAWillSeparate;
 	S4Config.SLARotationLimit = (double) SLARotationLimit;
+	S4Config.PanelProcess = 0.0;
 
 	GetPayloadName(S4Config.PayloadName);
 
 	S4Config.LMAscentFuelMassKg = LMAscentFuelMassKg;
 	S4Config.LMDescentFuelMassKg = LMDescentFuelMassKg;
+	S4Config.LMAscentEmptyMassKg = LMAscentEmptyMassKg;
+	S4Config.LMDescentEmptyMassKg = LMDescentEmptyMassKg;
 	S4Config.LMPad = LMPad;
 	S4Config.LMPadCount = LMPadCount;
+	S4Config.AEAPad = AEAPad;
+	S4Config.AEAPadCount = AEAPadCount;
 	sprintf(S4Config.LEMCheck, LEMCheck);
-	S4Config.LEMCheckAuto = LEMCheckAuto;
+
+	S4Config.iu_pointer = iu;
 
 	SIVB *SIVBVessel = static_cast<SIVB *> (oapiGetVesselInterface(hs4bM));
 	SIVBVessel->SetState(S4Config);
@@ -729,14 +906,14 @@ void Saturn::SetCrewMesh() {
 
 	if (cmpidx != -1) {
 		if (Crewed && (Crew->number == 1 || Crew->number >= 3)) {
-			SetMeshVisibilityMode(cmpidx, MESHVIS_VCEXTERNAL);
+			SetMeshVisibilityMode(cmpidx, MESHVIS_EXTERNAL);
 		} else {
 			SetMeshVisibilityMode(cmpidx, MESHVIS_NEVER);
 		}
 	}
 	if (crewidx != -1) {
 		if (Crewed && Crew->number >= 2) {
-			SetMeshVisibilityMode(crewidx, MESHVIS_VCEXTERNAL);
+			SetMeshVisibilityMode(crewidx, MESHVIS_EXTERNAL);
 		} else {
 			SetMeshVisibilityMode(crewidx, MESHVIS_NEVER);
 		}
@@ -752,6 +929,19 @@ void Saturn::SetOpticsCoverMesh() {
 		SetMeshVisibilityMode(opticscoveridx, MESHVIS_EXTERNAL);
 	} else {
 		SetMeshVisibilityMode(opticscoveridx, MESHVIS_NEVER);
+	}
+}
+
+void Saturn::SetCMdocktgtMesh() {
+
+	if (cmdocktgtidx == -1)
+		return;
+
+	if (CMdocktgt && ApexCoverAttached) {
+		SetMeshVisibilityMode(cmdocktgtidx, MESHVIS_VCEXTERNAL);
+	}
+	else {
+		SetMeshVisibilityMode(cmdocktgtidx, MESHVIS_NEVER);
 	}
 }
 
@@ -774,33 +964,78 @@ void Saturn::SetReentryStage ()
     ClearThrusters();
 	ClearPropellants();
 	ClearAirfoilDefinitions();
-
-	//
-	// Tell AGC the CM has seperated from the SM.
-	//
-
-	agc.SetInputChannelBit(030, CMSMSeperate, true);
-
+	ClearVariableDragElements();
+	ClearEngineIndicators();
+	ClearLVGuidLight();
+	ClearLVRateLight();
+	ClearSIISep();
 	double EmptyMass = CM_EmptyMass + (LESAttached ? 2000.0 : 0.0);
-
 	SetSize(6.0);
+	SetEmptyMass(EmptyMass);
+
+	double Mass = 5430;
+	double ra;
 	if (ApexCoverAttached) {
-		SetCOG_elev(1);
-		SetTouchdownPoints(_V(0, -10, -1), _V(-10, 10, -1), _V(10, 10, -1));
-	} else {
-		SetCOG_elev(2.2);
-		SetTouchdownPoints(_V(0, -10, -2.2), _V(-10, 10, -2.2), _V(10, 10, -2.2));
+		ra = -1.0;
 	}
-	SetEmptyMass (EmptyMass);
-	SetPMI(_V(1.25411, 1.11318, 1.41524)); //Calculated from CSM-109 Mass Properties at CM/SM Separation
-	//SetPMI (_V(12, 12, 7));
-	//SetPMI (_V(1.5,1.35,1.35));
+	else {
+		ra = -2.2;
+	}
+	double ro = 2;
+	TOUCHDOWNVTX td[4];
+	double x_target = -0.5;
+	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(Mass*stiffness));
+	for (int i = 0; i<4; i++) {
+		td[i].damping = damping;
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+		td[i].stiffness = stiffness;
+	}
+	td[0].pos.x = -cos(30 * RAD)*ro;
+	td[0].pos.y = -sin(30 * RAD)*ro;
+	td[0].pos.z = ra;
+	td[1].pos.x = 0;
+	td[1].pos.y = 1 * ro;
+	td[1].pos.z = ra;
+	td[2].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.y = -sin(30 * RAD)*ro;
+	td[2].pos.z = ra;
+	td[3].pos.x = 0;
+	td[3].pos.y = 0;
+	td[3].pos.z = ra + 5.0;
+
+	SetTouchdownPoints(td, 4);
+
+	if (LESAttached)
+	{
+		SetPMI(_V(15.0, 15.0, 1.5));
+		SetRotDrag(_V(1.5, 1.5, 0.003));
+	}
+	else
+	{
+		SetPMI(_V(1.25411, 1.11318, 1.41524)); //Calculated from CSM-109 Mass Properties at CM/SM Separation
+		SetRotDrag(_V(0.07, 0.07, 0.002));
+	}
 	SetCrossSections (_V(9.17,7.13,7.0));
-	SetCW (5.5, 0.1, 3.4, 3.4);
-	SetRotDrag (_V(0.07,0.07,0.003));
+	SetCW(1.5, 1.5, 1.2, 1.2);
 	SetSurfaceFrictionCoeff(1, 1);
-	if (GetFlightModel() >= 1 && !LESAttached) {
-		CreateAirfoil(LIFT_VERTICAL, _V(0.0, 0.12, 1.12), CoeffFunc, 3.5, 11.95, 1.0);
+	if (GetFlightModel() >= 1) {
+		if (LESAttached)
+		{
+			if (canard.IsDeployed())
+			{
+				CMLETCanardAirfoilConfig();
+			}
+			else
+			{
+				CMLETAirfoilConfig();
+			}
+		}
+		else
+		{
+			CreateAirfoil(LIFT_VERTICAL, _V(0.0, 0.12, 1.12), CMCoeffFunc, 3.5, 11.95, 1.0);
+		}
     }
 
 	SetReentryMeshes();
@@ -821,10 +1056,14 @@ void Saturn::SetReentryStage ()
 	}
 
 	if (LESAttached) {
-		if (!ph_let)
-			ph_let  = CreatePropellantResource(1405.0);
+		//if (!ph_tjm)
+		//	ph_tjm  = CreatePropellantResource(93.318);
+		if (!ph_lem)
+			ph_lem = CreatePropellantResource(1425.138);
+		if (!ph_pcm)
+			ph_pcm = CreatePropellantResource(4.07247);
 
-		SetDefaultPropellantResource (ph_let); // display LET propellant level in generic HUD
+		SetDefaultPropellantResource (ph_lem); // display LEM propellant level in generic HUD
 
 		//
 		// *********************** thruster definitions ********************************
@@ -839,10 +1078,15 @@ void Saturn::SetReentryStage ()
 		// Main thrusters.
 		//
 
-		th_let[0] = CreateThruster (m_exhaust_pos1, _V(0.0, 0.4, 0.7), THRUST_VAC_LET, ph_let, ISP_LET_VAC, ISP_LET_SL);
-		th_let[1] = CreateThruster (m_exhaust_pos2, _V(0.0, -0.4, 0.7),  THRUST_VAC_LET, ph_let, ISP_LET_VAC, ISP_LET_SL);
-		th_let[2] = CreateThruster (m_exhaust_pos3, _V(0.4, 0.0, 0.7), THRUST_VAC_LET, ph_let, ISP_LET_VAC, ISP_LET_SL);
-		th_let[3] = CreateThruster (m_exhaust_pos4, _V(-0.4, 0.0, 0.7), THRUST_VAC_LET, ph_let, ISP_LET_VAC, ISP_LET_SL);
+		th_lem[0] = CreateThruster (m_exhaust_pos1, _V(0.0, sin(35.0*RAD), cos(35.0*RAD)), THRUST_VAC_LEM, ph_lem, ISP_LEM_VAC, ISP_LEM_SL);
+		th_lem[1] = CreateThruster (m_exhaust_pos2, _V(0.0, -sin(35.0*RAD), cos(35.0*RAD)), THRUST_VAC_LEM, ph_lem, ISP_LEM_VAC, ISP_LEM_SL);
+		th_lem[2] = CreateThruster (m_exhaust_pos3, _V(sin(35.0*RAD), 0.0, cos(35.0*RAD)), THRUST_VAC_LEM, ph_lem, ISP_LEM_VAC, ISP_LEM_SL);
+		th_lem[3] = CreateThruster (m_exhaust_pos4, _V(-sin(35.0*RAD), 0.0, cos(35.0*RAD)), THRUST_VAC_LEM, ph_lem, ISP_LEM_VAC, ISP_LEM_SL);
+
+		//th_tjm[0] = CreateThruster(_V(0.0, -0.5, TowerOffset), _V(0.030524, 0.49907, 0.8660254), THRUST_VAC_TJM, ph_tjm, ISP_TJM_VAC, ISP_TJM_SL);
+		//th_tjm[1] = CreateThruster(_V(0.0, 0.5, TowerOffset), _V(0.030524, -0.49907, 0.8660254), THRUST_VAC_TJM, ph_tjm, ISP_TJM_VAC, ISP_TJM_SL);
+
+		th_pcm = CreateThruster(_V(0.0, 0.0, TowerOffset + 4.5), _V(0.0, 1.0, 0.0), THRUST_VAC_PCM, ph_pcm, ISP_PCM_VAC, ISP_PCM_SL);
 
 		//
 		// Add exhausts
@@ -851,11 +1095,19 @@ void Saturn::SetReentryStage ()
 		int i;
 		for (i = 0; i < 4; i++)
 		{
-			AddExhaust (th_let[i], 8.0, 0.5, SIVBRCSTex);
-			AddExhaustStream (th_let[i], &let_exhaust);
+			AddExhaust (th_lem[i], 8.0, 0.5, SIVBRCSTex);
+			AddExhaustStream (th_lem[i], &lem_exhaust);
 		}
+		//for (i = 0; i < 2; i++)
+		//{
+		//	AddExhaust(th_tjm[i], 8.0, 0.5, SIVBRCSTex);
+		//	AddExhaustStream(th_tjm[i], &lem_exhaust);
+		//}
+		AddExhaust(th_pcm, 8.0, 0.5, SIVBRCSTex);
+		AddExhaustStream(th_pcm, &lem_exhaust);
 
-		thg_let = CreateThrusterGroup (th_let, 4, THGROUP_MAIN);
+		thg_lem = CreateThrusterGroup (th_lem, 4, THGROUP_USER);
+		//thg_tjm = CreateThrusterGroup(th_tjm, 2, THGROUP_USER);
 	}
 
 	VECTOR3 dockpos = {0, 0, 1.5};
@@ -919,7 +1171,13 @@ void Saturn::SetReentryMeshes() {
 		cmpidx = -1;
 		crewidx = -1;
 	}
-
+	
+	//CM docking target
+	VECTOR3 dt_dir = _V(0.66, 1.07, 0);
+	cmdocktgtidx = AddMesh(hcmdocktgt, &dt_dir);
+	SetCMdocktgtMesh();
+	
+	//Interior
 	meshidx = AddMesh (hCMInt, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_EXTERNAL);
 
@@ -1009,8 +1267,6 @@ void Saturn::StageEight(double simt)
 		}
 	}
 
-	SetApexCoverLight(true);
-
 	//
 	// Create the apex cover vessel
 	//
@@ -1052,7 +1308,7 @@ void Saturn::SetChuteStage1()
 	if (GetFlightModel() >= 1)
 	{
 		SetPitchMomentScale(-5e-3);
-		SetBankMomentScale(-5e-3);
+		SetYawMomentScale(-5e-3);
 	}
 	SetLiftCoeffFunc(0);
     ClearExhaustRefs();
@@ -1065,8 +1321,6 @@ void Saturn::SetChuteStage1()
 	SetView(-1.35);
 
 	DeactivateNavmode(NAVMODE_KILLROT);
-
-	SetDrogueDeployLight(true);
 }
 
 void Saturn::SetChuteStage2()
@@ -1083,7 +1337,7 @@ void Saturn::SetChuteStage2()
 	if (GetFlightModel() >= 1)
 	{
 		SetPitchMomentScale (-5e-3);
-		SetBankMomentScale (-5e-3);
+		SetYawMomentScale (-5e-3);
 	}
 	SetLiftCoeffFunc(0);
     ClearExhaustRefs();
@@ -1110,7 +1364,7 @@ void Saturn::SetChuteStage3()
 	if (GetFlightModel() >= 1)
 	{
 		SetPitchMomentScale(-5e-3);
-		SetBankMomentScale(-5e-3);
+		SetYawMomentScale(-5e-3);
 	}
 	SetLiftCoeffFunc (0);
     ClearExhaustRefs();
@@ -1137,7 +1391,7 @@ void Saturn::SetChuteStage4()
 	if (GetFlightModel() >= 1)
 	{
 		SetPitchMomentScale (-5e-3);
-		SetBankMomentScale (-5e-3);
+		SetYawMomentScale (-5e-3);
 	}
 	SetLiftCoeffFunc(0);
     ClearExhaustRefs();
@@ -1148,8 +1402,6 @@ void Saturn::SetChuteStage4()
 	ClearThrusters();
 	AddRCS_CM(CM_RCS_THRUST, -1.2);
 	SetView(-1.35);
-
-	SetMainDeployLight(true);
 }
 
 void Saturn::SetSplashStage()
@@ -1166,7 +1418,7 @@ void Saturn::SetSplashStage()
 	if (GetFlightModel() >= 1)
 	{
 		SetPitchMomentScale (-5e-3);
-		SetBankMomentScale (-5e-3);
+		SetYawMomentScale (-5e-3);
 	}
 	SetLiftCoeffFunc(0);
     ClearExhaustRefs();
@@ -1199,7 +1451,7 @@ void Saturn::SetRecovery()
 	if (GetFlightModel() >= 1)
 	{
 		SetPitchMomentScale (-5e-3);
-		SetBankMomentScale (-5e-3);
+		SetYawMomentScale (-5e-3);
 	}
 	SetLiftCoeffFunc(0);
     ClearExhaustRefs();
@@ -1273,23 +1525,13 @@ bool Saturn::clbkLoadGenericCockpit ()
 // Generic function to jettison the escape tower.
 //
 
-void Saturn::JettisonLET(bool UseMain, bool AbortJettison)
+void Saturn::JettisonLET(bool AbortJettison)
 
-{
+{		
 	//
 	// Don't do anything if the tower isn't attached!
 	//
-	if (!LESAttached)
-		return;
-
-	//
-	// If the jettison motor fails and we're trying to
-	// use it for the jettison, return.
-	//
-	// We'll always give them one way to jettison the LES as
-	// being unable to jettison it is fatal.
-	//
-	if (!UseMain && LaunchFail.LESJetMotorFail)
+	if (!LESAttached || !LESLegsCut)
 		return;
 
 	//
@@ -1336,44 +1578,28 @@ void Saturn::JettisonLET(bool UseMain, bool AbortJettison)
 	LESConfig.SettingsType.word = 0;
 	LESConfig.SettingsType.LES_SETTINGS_GENERAL = 1;
 	LESConfig.SettingsType.LES_SETTINGS_ENGINES = 1;
-	LESConfig.SettingsType.LES_SETTINGS_THRUST = 1;
 
-	//
-	// Pressing the LES jettison button fires the main LET engine. The TWR JETT
-	// switches jettison the LES and fire the jettison engines.
-	//
-	/// \todo If the LES jettison button is pressed before using the TWR JETT switches,
-	/// the explosive bolts won't fire, so the main LET motor will fire while
-	/// still attached to the CM!
-	///
-	/// See: AOH 2.9.4.8.4
-	///
+	LESConfig.FireLEM = FireLEM;
+	LESConfig.FireTJM = FireTJM;
+	LESConfig.FirePCM = FirePCM;
 
-	LESConfig.FireMain = UseMain;
-
-	LESConfig.MissionTime = MissionTime;
-	LESConfig.Realism = Realism;
-	LESConfig.VehicleNo = VehicleNo;
 	LESConfig.LowRes = LowRes;
 	LESConfig.ProbeAttached = AbortJettison && HasProbe;
-	LESConfig.ISP_LET_SL = ISP_LET_SL;
-	LESConfig.ISP_LET_VAC = ISP_LET_VAC;
-	LESConfig.THRUST_VAC_LET = THRUST_VAC_LET;
 
-	//
-	// If this is the CSM abort stage, we need to transfer fuel information from
-	// the CSM LET.
-	//
-	// Usually this will be zero, so you'd better use the right jettison button!
-	//
-	/// \todo At  some point we should expand this so that we can jettison the LES
-	/// while the main abort motor is running.
-	///
-
-	if (ph_let)
+	if (ph_lem)
 	{
-		LESConfig.MainFuelKg = GetPropellantMass(ph_let);
-		LESConfig.SettingsType.LES_SETTINGS_MAIN_FUEL = 1;
+		LESConfig.LaunchEscapeFuelKg = GetPropellantMass(ph_lem);
+		LESConfig.SettingsType.LES_SETTINGS_MFUEL = 1;
+	}
+	//if (ph_tjm)
+	//{
+		//LESConfig.JettisonFuelKg = GetPropellantMass(ph_tjm);
+		//LESConfig.SettingsType.LES_SETTINGS_MFUEL = 1;
+	//}
+	if (ph_pcm)
+	{
+		LESConfig.PitchControlFuelKg = GetPropellantMass(ph_pcm);
+		LESConfig.SettingsType.LES_SETTINGS_PFUEL = 1;
 	}
 
 	LES *les_vessel = (LES *) oapiGetVesselInterface(hesc1);
@@ -1403,8 +1629,6 @@ void Saturn::JettisonLET(bool UseMain, bool AbortJettison)
 		SwindowS.play();
 	}
 	SwindowS.done();
-
-	SetLESMotorLight(true);
 
 	//
 	// Event management
@@ -1469,4 +1693,30 @@ void Saturn::JettisonNosecap()
 	GetApolloName(VName);
 	strcat(VName, "-NOSECAP");
 	hNosecapVessel = oapiCreateVessel(VName, "ProjectApollo/Sat1Aerocap", vs4b);
+}
+
+void Saturn::DeployCanard()
+{
+	if (!LESAttached) return;
+	if (canard.IsDeployed()) return;
+
+	canard.Deploy();
+
+	CMLETCanardAirfoilConfig();
+}
+
+void Saturn::CMLETAirfoilConfig()
+{
+	ClearAirfoilDefinitions();
+
+	CreateAirfoil(LIFT_VERTICAL, _V(0.0, 0.0, 1.12), CMLETVertCoeffFunc, 3.5, 11.95 / 2.0, 1.0);
+	CreateAirfoil(LIFT_HORIZONTAL, _V(0.0, 0.0, 1.12), CMLETHoriCoeffFunc, 3.5, 11.95 / 2.0, 1.0);
+}
+
+void Saturn::CMLETCanardAirfoilConfig()
+{
+	ClearAirfoilDefinitions();
+
+	CreateAirfoil(LIFT_VERTICAL, _V(0.0, 0.0, 1.12), CMLETCanardVertCoeffFunc, 3.5, 11.95 / 2.0, 1.0);
+	CreateAirfoil(LIFT_HORIZONTAL, _V(0.0, 0.0, 1.12), CMLETHoriCoeffFunc, 3.5, 11.95 / 2.0, 1.0);
 }

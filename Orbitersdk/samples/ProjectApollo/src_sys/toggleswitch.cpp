@@ -718,6 +718,14 @@ double CircuitBrakerSwitch::Current()
 	return Amperes;
 }
 
+double CircuitBrakerSwitch::Frequency()
+{
+	if ((state != 0) && SRC)
+		return SRC->Frequency();
+
+	return 0.0;
+}
+
 void CircuitBrakerSwitch::InitSound(SoundLib *s) {
 
 	if (!Sclick.isValid())
@@ -2039,6 +2047,125 @@ void PowerStateRotationalSwitch::LoadState(char *line)
 	CheckPowerState();
 }
 
+void OrdealRotationalSwitch::DrawSwitch(SURFHANDLE drawSurface) {
+
+	RotationalSwitch::DrawSwitch(drawSurface);
+
+	if (mouseDown) {
+		RECT rt;
+		char label[100];
+		sprintf(label, "%d", value);
+
+		HDC hDC = oapiGetDC(drawSurface);
+		HFONT font = CreateFont(22, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 0, 0, "Arial");
+		SelectObject(hDC, font);
+		SetTextColor(hDC, RGB(255, 255, 255));
+		SetTextAlign(hDC, TA_CENTER);
+		SetBkMode(hDC, OPAQUE);
+		SetBkColor(hDC, RGB(146, 146, 146));
+
+		if (GetState() == 0) {
+			rt.left = 29 + x;
+			rt.top = 24 + y;
+			rt.right = 60 + x;
+			rt.bottom = 55 + y;
+			ExtTextOut(hDC, 44 + x, 28 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
+
+		}
+		else if (GetState() == 1) {
+			rt.left = 35 + x;
+			rt.top = 30 + y;
+			rt.right = 59 + x;
+			rt.bottom = 52 + y;
+			ExtTextOut(hDC, 49 + x, 31 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
+
+		}
+		else if (GetState() == 2) {
+			rt.left = 29 + x;
+			rt.top = 29 + y;
+			rt.right = 60 + x;
+			rt.bottom = 59 + y;
+			ExtTextOut(hDC, 44 + x, 34 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
+
+		}
+		else if (GetState() == 3) {
+			TextOut(hDC, 42 + x, 36 + y, label, strlen(label));
+
+		}
+		else if (GetState() == 4) {
+			rt.left = 28 + x;
+			rt.top = 30 + y;
+			rt.right = 54 + x;
+			rt.bottom = 60 + y;
+			ExtTextOut(hDC, 37 + x, 34 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
+
+		}
+		else if (GetState() == 5) {
+			TextOut(hDC, 32 + x, 31 + y, label, strlen(label));
+
+		}
+		else if (GetState() == 6) {
+			rt.left = 25 + x;
+			rt.top = 24 + y;
+			rt.right = 55 + x;
+			rt.bottom = 54 + y;
+			ExtTextOut(hDC, 39 + x, 28 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
+		}
+
+		DeleteObject(font);
+		oapiReleaseDC(drawSurface, hDC);
+	}
+}
+
+bool OrdealRotationalSwitch::CheckMouseClick(int event, int mx, int my) {
+
+	if (event & PANEL_MOUSE_LBDOWN) {
+		// Check whether it's actually in our switch region.
+		if (mx < x || my < y)
+			return false;
+
+		if (mx >(x + width) || my >(y + height))
+			return false;
+
+		lastX = mx;
+		mouseDown = true;
+
+	}
+	else if (((event & PANEL_MOUSE_LBPRESSED) != 0) && mouseDown) {
+		if (abs(mx - lastX) >= 2) {
+			value += (int)((mx - lastX) / 2.);
+			value = min(max(value, 10), 310);
+			lastX = mx;
+		}
+
+	}
+	else if (event & PANEL_MOUSE_LBUP) {
+		mouseDown = false;
+		return false;
+	}
+	SetValue((int)((value / 50.) + 0.5));
+	return true;
+}
+
+void OrdealRotationalSwitch::SaveState(FILEHANDLE scn) {
+
+	if (position) {
+		oapiWriteScenario_int(scn, name, value);
+	}
+}
+
+void OrdealRotationalSwitch::LoadState(char *line) {
+
+	char buffer[100];
+	int val;
+
+	sscanf(line, "%s %i", buffer, &val);
+	if (!strnicmp(buffer, name, strlen(name))) {
+		value = val;
+		SetValue((int)((value / 50.) + 0.5));
+	}
+}
+
 //
 // Thumbwheel Switch
 //
@@ -2653,13 +2780,19 @@ void MissionTimerSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SUR
 // of the switch.
 //
 
+void ThreeSourceSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row)
+
+{
+	ThreePosSwitch::Init(xp, yp, w, h, surf, bsurf, row);
+}
+
 void ThreeSourceSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, e_object *s1, e_object *s2, e_object *s3)
 
 {
 	ThreePosSwitch::Init(xp, yp, w, h, surf, bsurf, row);
-	source1 = s1;
-	source2 = s2;
-	source3 = s3;
+	source[0] = s1;
+	source[1] = s2;
+	source[2] = s3;
 
 	UpdateSourceState();
 }
@@ -2689,13 +2822,13 @@ void ThreeSourceSwitch::UpdateSourceState()
 
 {
 	if (IsUp()) {
-		WireTo(source1);
+		WireTo(source[0]);
 	}
 	else if (IsCenter()) {
-		WireTo(source2);
+		WireTo(source[1]);
 	}
 	else if (IsDown()) {
-		WireTo(source3);
+		WireTo(source[2]);
 	}
 }
 
@@ -2703,6 +2836,13 @@ void ThreeSourceSwitch::LoadState(char *line)
 
 {
 	ThreePosSwitch::LoadState(line);
+	UpdateSourceState();
+}
+
+void ThreeSourceSwitch::SetSource(int i, e_object *s)
+{
+	source[i] = s;
+
 	UpdateSourceState();
 }
 
@@ -2888,6 +3028,76 @@ void TwoOutputSwitch::LoadState(char *line)
 }
 
 
+NSourceDestSwitch::NSourceDestSwitch(int n)
+{
+	nSources = n;
+	sources = new e_object *[nSources];
+	buses = new DCbus *[nSources];
+
+	int i;
+
+	for (i = 0; i < nSources; i++)
+	{
+		sources[i] = 0;
+		buses[i] = 0;
+	}
+}
+
+NSourceDestSwitch::~NSourceDestSwitch()
+{
+	if (sources)
+	{
+		delete[] sources;
+		sources = 0;
+	}
+	if (buses)
+	{
+		delete[] buses;
+		buses = 0;
+	}
+}
+
+bool NSourceDestSwitch::SwitchTo(int newState, bool dontspring)
+{
+	if (ToggleSwitch::SwitchTo(newState, dontspring))
+	{
+		UpdateSourceState();
+		return true;
+	}
+	return false;
+}
+
+void NSourceDestSwitch::UpdateSourceState()
+{
+	if (IsUp()) {
+		for (int i = 0;i < nSources;i++)
+		{
+			buses[i]->WireTo(sources[i]);
+		}
+	}
+	else if (IsDown()) {
+		for (int i = 0;i < nSources;i++)
+		{
+			buses[i]->Disconnect();
+		}
+	}
+}
+
+void NSourceDestSwitch::WireSourcesToBuses(int bus, e_object* i, DCbus* o)
+{
+	if (bus > 0 && bus <= nSources)
+	{
+		sources[bus - 1] = i;
+		buses[bus - 1] = o;
+	}
+}
+
+void NSourceDestSwitch::LoadState(char *line)
+{
+	ToggleSwitch::LoadState(line);
+	UpdateSourceState();
+}
+
 //
 // ThreeOutputSwitch allows you to connect one of the three outputs to the input based on the position
 // of the switch.
@@ -3034,9 +3244,9 @@ void ThreeSourceTwoDestSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE sur
 
 {
 	ThreePosSwitch::Init(xp, yp, w, h, surf, bsurf, row);
-	source1 = s1;
-	source2 = s2;
-	source3 = s3;
+	source[0] = s1;
+	source[1] = s2;
+	source[2] = s3;
 	dest1 = d1;
 	dest2 = d2;
 
@@ -3572,23 +3782,22 @@ bool CMCOpticsModeSwitch::SwitchTo(int newState, bool dontspring)
 {
 	if (AGCThreePoswitch::SwitchTo(newState,dontspring)) {
 		if (agc) {
-			unsigned int SwitchBits;
-			SwitchBits = agc->GetCh33Switches();
-			SwitchBits &= 077707;  // Clear bits
 			if (IsUp()) {
-				SwitchBits |= 010; // CMC MODE, ZERO OFF				
-				agc->SetCh33Switches(SwitchBits);
+				// CMC MODE, ZERO OFF				
+				agc->SetInputChannelBit(033, CMCControl, true);
+				agc->SetInputChannelBit(033, ZeroOptics_33, false);
 				return true;
 			}
 			if (IsCenter()) {
-				SwitchBits |= 030; // MANUAL MODE, ZERO OFF
-				
-				agc->SetCh33Switches(SwitchBits);
+				// MANUAL MODE, ZERO OFF
+				agc->SetInputChannelBit(033, CMCControl, false);
+				agc->SetInputChannelBit(033, ZeroOptics_33, false);
 				return true;
 			}
 			if (IsDown()) {
-				SwitchBits |= 020; // MANUAL MODE, ZERO ON
-				agc->SetCh33Switches(SwitchBits);
+				// MANUAL MODE, ZERO ON
+				agc->SetInputChannelBit(033, CMCControl, false);
+				agc->SetInputChannelBit(033, ZeroOptics_33, true);
 				return true;
 			}
 		}
@@ -3669,6 +3878,29 @@ void AGCThreePoswitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFH
 {
 	ThreePosSwitch::Init(xp, yp, w, h, surf, bsurf, row);
 	agc = c;
+}
+
+void AGCGuardedToggleSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, ApolloGuidance *c)
+
+{
+	GuardedToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row);
+	agc = c;
+}
+
+bool AGCIOGuardedToggleSwitch::SwitchTo(int newState, bool dontspring)
+{
+	if (AGCGuardedToggleSwitch::SwitchTo(newState, dontspring)) {
+		if (agc) {
+			if (IsUp()) {
+				agc->SetInputChannelBit(Channel, Bit, UpValue);
+			}
+			else if (IsDown()) {
+				agc->SetInputChannelBit(Channel, Bit, !UpValue);
+			}
+		}
+		return true;
+	}
+	return false;
 }
 
 

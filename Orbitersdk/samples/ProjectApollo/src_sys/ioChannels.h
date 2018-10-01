@@ -231,7 +231,7 @@ enum ChannelValue33_Bits {
         // Spare 1					///< Unused.
 		RangeUnitDataGood = 1,
 		// Spare 1					///< Unused.
-		ZeroOptics_33 = 3,				    ///< Optics ZERO switch
+		ZeroOptics_33 = 3,			///< Optics ZERO switch
 		CMCControl,				    ///< Optics under CMC control
 		// NotUsed 2				///< Unused.
 		// Spare 2					///< Unused.
@@ -239,9 +239,22 @@ enum ChannelValue33_Bits {
 		UplinkTooFast,
 		DownlinkTooFast,
 		PIPAFail,
-		AGCWarning,
+		AGCWarning,					///< AGC Internal use only.
 		AGCOscillatorAlarm,
 } ;
+
+enum ChannelValue163_Bits {
+
+	Ch163DSKYWarn = 0,				///< Turn on the CMC/LGC light.
+	Ch163LightTemp = 3,				///< Turn on the Temperature light.
+	Ch163LightKbRel,				///< Turn on the Keyboard Release light.
+	Ch163FlashVerbNoun,				///< Flash the Verb and Noun displays.			
+	Ch163LightOprErr,				///< Light the Operator Error light
+	Ch163LightRestart,				///< Light the Restart light
+	Ch163LightStandby,				///< Light the Standby light
+	Ch163ELOff,						///< Switch off EL panel power
+
+};
 
 ///
 /// \ingroup AGCIO
@@ -261,13 +274,6 @@ typedef union {
 //
 // For now we'll also put AGC addresses in here.
 //
-
-//
-// For Artemis 072, these are 03065 and 03066.
-//
-
-#define AGC_DAPDTR1			03066
-#define AGC_DAPDTR2			03067
 
 ///
 /// \brief Get AGC bank number from AGC flat address.

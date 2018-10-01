@@ -32,11 +32,9 @@
 #include "nasspsound.h"
 #include "toggleswitch.h"
 #include "apolloguidance.h"
-#include "dsky.h"
 #include "csmcomputer.h"
-#include "IMU.h"
-#include "lvimu.h"
 #include "saturn.h"
+#include "LEM.h"
 #include "ioChannels.h"
 #include "tracer.h"
 
@@ -52,9 +50,14 @@ void PMP::Init(Saturn *vessel){
 }
 
 void PMP::SystemTimestep(double simdt) {
-	if(sat->PMPSwitch.GetState() != THREEPOSSWITCH_CENTER){
-		if(sat->FlightBus.Voltage() > 18){
-			sat->FlightBus.DrawPower(8.5);
+	if (sat->PMPSwitch.GetState() == THREEPOSSWITCH_UP) {
+		if (sat->PMPPowerPrimCB.Voltage() > 18) {
+			sat->PMPPowerPrimCB.DrawPower(8.5);
+		}
+	}
+	else if (sat->PMPSwitch.GetState() == THREEPOSSWITCH_DOWN) {
+		if (sat->PMPPowerAuxCB.Voltage() > 18) {
+			sat->PMPPowerAuxCB.DrawPower(8.5);
 		}
 	}
 }
@@ -66,25 +69,35 @@ void PMP::TimeStep(double simt){
 // Unifed S-Band System
 USB::USB(){
 	sat = NULL;
+	ant = NULL;
 	fm_ena = 1; pa_ovr_1 = 1; pa_ovr_2 = 1;
 	pa_mode_1 = 0; pa_timer_1 = 0;
 	pa_mode_2 = 0; pa_timer_2 = 0;
 	xpdr_sel = THREEPOSSWITCH_CENTER; // OFF
+	rcvr_agc_voltage = 0.0;
 }
 
 void USB::Init(Saturn *vessel){
 	sat = vessel;
+	ant = &sat->omnib;
 	fm_ena = 1; pa_ovr_1 = 1; pa_ovr_2 = 1;
 	pa_mode_1 = 0; pa_timer_1 = 0;
 	pa_mode_2 = 0; pa_timer_2 = 0;
 	xpdr_sel = THREEPOSSWITCH_CENTER; // OFF
+	rcvr_agc_voltage = 0.0;
 }
 
-void USB::SystemTimestep(double simdt) {	
+void USB::SystemTimestep(double simdt) {
 	// S-Band Transponder power
 	if(sat->SBandNormalXPDRSwitch.GetState() != xpdr_sel){		
-		if(sat->FlightBus.Voltage() > 12){
-			sat->FlightBus.DrawPower(1); // Consume switching power
+		if (sat->SBandPWRAmpl1FLTBusCB.Voltage() > 12.0 && sat->SBandNormalXPDRSwitch.GetState() == THREEPOSSWITCH_UP)
+		{
+			sat->SBandPWRAmpl1FLTBusCB.DrawPower(1); // Consume switching power
+			xpdr_sel = sat->SBandNormalXPDRSwitch.GetState();
+		}
+		else if (sat->SBandPWRAmpl2FLTBusCB.Voltage() > 12.0 && sat->SBandNormalXPDRSwitch.GetState() == THREEPOSSWITCH_DOWN)
+		{
+			sat->SBandPWRAmpl2FLTBusCB.DrawPower(1); // Consume switching power
 			xpdr_sel = sat->SBandNormalXPDRSwitch.GetState();
 		}
 	}
@@ -92,33 +105,33 @@ void USB::SystemTimestep(double simdt) {
 		case THREEPOSSWITCH_CENTER: // OFF
 			break; 
 		case THREEPOSSWITCH_UP:     // PRIM
-			if(sat->TelcomGroup1Switch.Voltage() > 100){ sat->TelcomGroup1Switch.DrawPower(16.5); } break;
+			if(sat->SBandPWRAmpl1Group1CB.Voltage() > 100){ sat->SBandPWRAmpl1Group1CB.DrawPower(16.5); } break;
 		case THREEPOSSWITCH_DOWN:   // SEC
-			if(sat->TelcomGroup2Switch.Voltage() > 100){ sat->TelcomGroup2Switch.DrawPower(16.5); } break;
+			if(sat->SBandPWRAmpl2Group1CB.Voltage() > 100){ sat->SBandPWRAmpl2Group1CB.DrawPower(16.5); } break;
 	}
 	// S-Band FM Transmitter power
 	if(fm_ena > 0){
 		if(fm_ena == 2){ // Forced on by up tlm
-			if(fm_opr == false && sat->FlightBus.Voltage() > 12){
-				sat->FlightBus.DrawPower(1.5); // Consume switching power
+			if(fm_opr == false && sat->SBandFMXMTRFLTBusCB.Voltage() > 12){
+				sat->SBandFMXMTRFLTBusCB.DrawPower(1.5); // Consume switching power
 				fm_opr = true;
 			}
 		}else{
 			if(sat->SBandAuxSwitch1.GetState() == THREEPOSSWITCH_UP){ // TAPE selected
-				if(fm_opr == false && sat->FlightBus.Voltage() > 12){
-					sat->FlightBus.DrawPower(1.5); // Consume switching power
+				if(fm_opr == false && sat->SBandFMXMTRFLTBusCB.Voltage() > 12){
+					sat->SBandFMXMTRFLTBusCB.DrawPower(1.5); // Consume switching power
 					fm_opr = true;
 				}
 			}else{
 				if(sat->SBandAuxSwitch2.GetState() != THREEPOSSWITCH_CENTER){ // TV or SCI selected
-					if(fm_opr == false && sat->FlightBus.Voltage() > 12){
-						sat->FlightBus.DrawPower(1.5); // Consume switching power
+					if(fm_opr == false && sat->SBandFMXMTRFLTBusCB.Voltage() > 12){
+						sat->SBandFMXMTRFLTBusCB.DrawPower(1.5); // Consume switching power
 						fm_opr = true;
 					}
 				}else{
 					// Both off
-					if(fm_opr == true && sat->FlightBus.Voltage() > 12){
-						sat->FlightBus.DrawPower(1.5); // Consume switching power
+					if(fm_opr == true && sat->SBandFMXMTRFLTBusCB.Voltage() > 12){
+						sat->SBandFMXMTRFLTBusCB.DrawPower(1.5); // Consume switching power
 						fm_opr = false;
 					}
 				}
@@ -126,8 +139,8 @@ void USB::SystemTimestep(double simdt) {
 		}
 	}else{
 		// FM disabled by telemetry
-		if(fm_opr == true && sat->FlightBus.Voltage() > 12){
-			sat->FlightBus.DrawPower(1.5); // Consume switching power
+		if(fm_opr == true && sat->SBandFMXMTRFLTBusCB.Voltage() > 12){
+			sat->SBandFMXMTRFLTBusCB.DrawPower(1.5); // Consume switching power
 			fm_opr = false;
 		}
 	}
@@ -228,6 +241,31 @@ void USB::SystemTimestep(double simdt) {
 void USB::TimeStep(double simt) {
 
 	/// \todo Move all DrawPower's to SystemTimestep
+
+	//S-Band Antenna switches
+	if (sat->SBandAntennaSwitch2.GetState() == THREEPOSSWITCH_UP)
+	{
+		if (sat->SBandAntennaSwitch1.GetState() == THREEPOSSWITCH_UP)
+		{
+			ant = &sat->omnia;
+		}
+		else if (sat->SBandAntennaSwitch1.GetState() == THREEPOSSWITCH_CENTER)
+		{
+			ant = &sat->omnib;
+		}
+		else if (sat->SBandAntennaSwitch1.GetState() == THREEPOSSWITCH_DOWN)
+		{
+			ant = &sat->omnic;
+		}
+	}
+	else if (sat->SBandAntennaSwitch2.GetState() == THREEPOSSWITCH_CENTER)
+	{
+		ant = &sat->omnid;
+	}
+	else if (sat->SBandAntennaSwitch2.GetState() == THREEPOSSWITCH_DOWN)
+	{
+		ant = &sat->hga;
+	}
 	 
 	// Power Amplifier #1 
 	switch(pa_mode_1){
@@ -437,6 +475,24 @@ void USB::TimeStep(double simt) {
 		}
 	}
 
+	// Receiver AGC Voltage
+	if (sat->SBandNormalPwrAmpl1Switch.IsUp()) {
+		if (ant && pa_mode_1 > 2) {
+			rcvr_agc_voltage = ant->GetSignalStrength();
+		}
+		else {
+			rcvr_agc_voltage = 0.0;
+		}
+	}
+	else {
+		if (ant && pa_mode_2 > 2) {
+			rcvr_agc_voltage = ant->GetSignalStrength();
+		}
+		else {
+			rcvr_agc_voltage = 0.0;
+		}
+	}
+
 	// sprintf(oapiDebugString(), "USB - pa_mode_1 %d pa_mode_2 %d", pa_mode_1, pa_mode_2);
 }
 
@@ -462,17 +518,37 @@ void USB::SaveState(FILEHANDLE scn) {
 // Unifed S-Band System
 HGA::HGA(){
 	sat = NULL;
-	Pitch = 0;
-	Yaw = 0;
+	Alpha = 0;
+	Beta = 0;
+	Gamma = 0;
 	SignalStrength = 0;
+	PitchRes = 0;
+	YawRes = 0;
+	scanlimit = false;
 	scanlimitwarn = false;
+
+	for (int i = 0;i < 0;i++)
+	{
+		HornSignalStrength[i] = 0.0;
+	}
+
+	double angdiff = 1.0*RAD;
+
+	U_Horn[0] = _V(cos(angdiff), 0.0, -sin(angdiff));
+	U_Horn[1] = _V(cos(-angdiff), 0.0, -sin(-angdiff));
+	U_Horn[2] = _V(cos(angdiff), sin(angdiff), 0.0);
+	U_Horn[3] = _V(cos(-angdiff), sin(-angdiff), 0.0);
 }
 
 void HGA::Init(Saturn *vessel){
 	sat = vessel;
-	Pitch = 0;
-	Yaw = 180;
+	Alpha = 180.0*RAD;
+	Beta = 0;
+	Gamma = 90.0*RAD;
+	PitchRes = 0;
+	YawRes = 180.0*RAD;
 	SignalStrength = 0;
+	scanlimit = false;
 	scanlimitwarn = false;
 }
 
@@ -480,6 +556,9 @@ bool HGA::IsPowered()
 {
 	// Do we have a HGA?
 	if (sat->NoHGA) return false;
+
+	// Fully deployed antenna boom operates micro switch; separated SM deenergized power switch
+	if (sat->GetStage() != CSM_LEM_STAGE) return false;
 
 	// Do we have power?
 	if (!sat->GHAPowerSwitch.IsUp()) return false;		// Switched off
@@ -493,6 +572,7 @@ bool HGA::IsPowered()
 
 // Draw power
 void HGA::SystemTimestep(double simdt) {	
+	
 	// Do we have power?
 	if (!IsPowered()) return;
 
@@ -509,58 +589,103 @@ void HGA::SystemTimestep(double simdt) {
 }
 
 // Do work
-void HGA::TimeStep(double simt, double simdt) {
-	SignalStrength = 0;
-	scanlimitwarn = false;
+void HGA::TimeStep(double simt, double simdt)
+{
+	// Do we have power and a SM?
+	if (!IsPowered())
+	{
+		SignalStrength = 0;
+		scanlimitwarn = false;
+		scanlimit = false;
 
-	// Do we have power?
-	if (!IsPowered()) return;
+		return;
+	}
 
-	double PitchCmd, YawCmd, gain;
+	double gain;
+	double AAxisCmd, BAxisCmd, CAxisCmd;
 
 	//Only manual acquisition active
 	if (sat->GHATrackSwitch.IsCenter())
 	{
+		double PitchCmd, YawCmd;
+
 		PitchCmd = -(double)sat->HighGainAntennaPitchPositionSwitch.GetState()*30.0 + 90.0;
 		YawCmd = (double)sat->HighGainAntennaYawPositionSwitch.GetState()*30.0;
+
+		//Command Resolver
+		VECTOR3 U_RB;
+		U_RB = PitchYawToBodyVector(PitchCmd*RAD, YawCmd*RAD);
+		BodyToAC(U_RB, AAxisCmd, CAxisCmd);
+		BAxisCmd = 0.0;
+
+		//sprintf(oapiDebugString(), "PitchCmd: %lf° YawCmd: %lf° AAxisCmd: %lf° CAxisCmd: %lf°", PitchCmd, YawCmd, AAxisCmd*DEG, CAxisCmd*DEG);
 	}
 	else
 	{
-		PitchCmd = 0.0;
-		YawCmd = 180.0;
+		double AzimuthErrorSignal, ElevationErrorSignal;
+
+		AzimuthErrorSignal = (HornSignalStrength[0] - HornSignalStrength[1])*0.25;
+		ElevationErrorSignal = (HornSignalStrength[2] - HornSignalStrength[3])*0.25;
+
+		AAxisCmd = 180.0*RAD;
+		BAxisCmd = 0.0;
+		CAxisCmd = 90.0*RAD;
 	}
 
-	//TBD: Convert to A- and C-Axis
+	//SERVO DRIVE
 
-	//5°/s rate limit, not based on documentation; arbitrary for the moment; TBD: Drive A-, B-, and C-Axis
-	ServoDrive(Pitch, PitchCmd, 5.0, simdt);
-	ServoDrive(Yaw, YawCmd, 5.0, simdt);
+	//5°/s rate limit, not based on documentation; arbitrary for the moment
+	ServoDrive(Alpha, AAxisCmd, 5.0*RAD, simdt);
+	ServoDrive(Beta, BAxisCmd, 5.0*RAD, simdt);
+	ServoDrive(Gamma, CAxisCmd, 5.0*RAD, simdt);
 
-	VECTOR3 U_RP, pos, R_E, R_M, U_R, AxVec;
-	MATRIX3 Rot, AxRot;
+	//GIMBAL LIMITS
+	if (Alpha > PI2)
+	{
+		Alpha = PI2;
+	}
+	else if (Alpha < -PI2)
+	{
+		Alpha = -PI2;
+	}
+	if (Beta > 23.5*RAD)
+	{
+		Beta = 23.5*RAD;
+	}
+	else if (Beta < -23.5*RAD)
+	{
+		Beta = -23.5*RAD;
+	}
+	if (Gamma > 125.0*RAD)
+	{
+		Gamma = 125.0*RAD;
+	}
+	else if (Gamma < -4.0*RAD)
+	{
+		Gamma = -4.0*RAD;
+	}
+
+	//sprintf(oapiDebugString(), "AAxisCmd: %lf° CAxisCmd: %lf° Alpha: %lf° Gamma: %lf°", AAxisCmd*DEG, CAxisCmd*DEG, Alpha*DEG, Gamma*DEG);
+
+	//READOUT RESOLVER
+	VECTOR3 U_Readout;
+	U_Readout = ABCAndVectorToBody(Alpha, 0, Gamma, _V(1.0, 0.0, 0.0));
+	BodyVectorToPitchYaw(U_Readout, PitchRes, YawRes);
+
+	//sprintf(oapiDebugString(), "Alpha: %lf° Gamma: %lf° PitchRes: %lf° YawRes: %lf°", Alpha*DEG, Gamma*DEG, PitchRes*DEG, YawRes*DEG);
+
+	VECTOR3 U_RP, pos, R_E, R_M, U_R;
+	MATRIX3 Rot;
 	double relang, beamwidth, Moonrelang;
 
 	OBJHANDLE hMoon = oapiGetObjectByName("Moon");
 	OBJHANDLE hEarth = oapiGetObjectByName("Earth");
-
-	//Unit vector of antenna in vessel's local frame
-	U_RP = unit(_V(sin(Pitch*RAD + PI05)*sin(Yaw*RAD), -cos(Pitch*RAD + PI05), sin(Pitch*RAD + PI05)*cos(Yaw*RAD)));
-
-	AxRot = _M(0.0, cos(52.25*RAD), -sin(52.25*RAD), -1.0, 0.0, 0.0, 0.0, sin(52.25*RAD), cos(52.25*RAD));
-
-	AxVec = mul(AxRot,_V(sin(Pitch*RAD), -sin(Pitch*RAD)*cos(Yaw*RAD), cos(Pitch*RAD)*cos(Yaw*RAD)));
-
 
 	//Global position of Earth, Moon and spacecraft, spacecraft rotation matrix from local to global
 	sat->GetGlobalPos(pos);
 	oapiGetGlobalPos(hEarth, &R_E);
 	oapiGetGlobalPos(hMoon, &R_M);
 	sat->GetRotationMatrix(Rot);
-	
-	//Calculate antenna pointing vector in global frame
-	U_R = mul(Rot, U_RP);
-	//relative angle between antenna pointing vector and direction of Earth
-	relang = acos(dotp(U_R, unit(R_E - pos)));
 
 	//Not based on reality and just for testing: relative angle greater beamwidth no signal strength, uses cosine function to get increase of signal strength from 0 to 100
 	if (sat->GHABeamSwitch.IsUp())		//Wide
@@ -581,38 +706,71 @@ void HGA::TimeStep(double simt, double simdt) {
 
 	double a = acos(sqrt(sqrt(0.5))) / (beamwidth / 2.0); //Scaling for beamwidth... I think; now with actual half-POWER beamwidth
 
-	if (relang < PI05/a)
-	{
-		SignalStrength = cos(a*relang)*cos(a*relang)*gain;
-	}
-	else
-	{
-		SignalStrength = 0.0;
-	}
-
 	//Moon in the way
 	Moonrelang = dotp(unit(R_M - pos), unit(R_E - pos));
 
 	if (Moonrelang > cos(asin(oapiGetSize(hMoon) / length(R_M - pos))))
 	{
 		SignalStrength = 0.0;
+		for (int i = 0;i < 4;i++)
+		{
+			HornSignalStrength[i] = 0.0;
+		}
+	}
+	else
+	{
+		for (int i = 0;i < 4;i++)
+		{
+			//Unit vector of antenna in vessel's local frame
+			U_RP = ABCAndVectorToBody(Alpha, Beta, Gamma, U_Horn[i]);
+			//Convert from Apollo CSM coordinate system to left-handed Orbiter coordinate system
+			U_RP = _V(U_RP.y, -U_RP.z, U_RP.x);
+
+			//Calculate antenna pointing vector in global frame
+			U_R = mul(Rot, U_RP);
+			//relative angle between antenna pointing vector and direction of Earth
+			relang = acos(dotp(U_R, unit(R_E - pos)));
+
+			if (relang < PI05 / a)
+			{
+				HornSignalStrength[i] = cos(a*relang)*cos(a*relang)*gain;
+			}
+			else
+			{
+				HornSignalStrength[i] = 0.0;
+			}
+		}
+
+		SignalStrength = (HornSignalStrength[0] + HornSignalStrength[1] + HornSignalStrength[2] + HornSignalStrength[3]) / 4.0;
+
+		//sprintf(oapiDebugString(), "%f %f %f %f", HornSignalStrength[0], HornSignalStrength[1], HornSignalStrength[2], HornSignalStrength[3]);
 	}
 
-	double YawScal, scanlim, scanlimwarn;
-	//Scaling for function
-	YawScal = (Yaw - 180.0) / 116.8332;
+	double scanlim, scanlimwarn;
 
 	//Scan limit function
-	scanlim = -6.2637*pow(YawScal, 7) + 8.4309*pow(YawScal, 6) + 31.9103*pow(YawScal, 5) - 36.7725*pow(YawScal, 4) - 75.4615*pow(YawScal, 3) + 40.4809*pow(YawScal, 2) + 83.0710*YawScal + 10.5345;
+	scanlim = 11.0*RAD*sin(2.0*Alpha - PI05) + 105.0*RAD;
 	//Scan limit warning function
-	scanlimwarn = -3.4845*pow(YawScal, 7) + 13.4789*pow(YawScal, 6) + 22.5672*pow(YawScal, 5) - 56.3628*pow(YawScal, 4) - 69.5117*pow(YawScal, 3) + 57.5809*pow(YawScal, 2) + 84.4028*YawScal - 7.2412;
+	scanlimwarn = 11.0*RAD*sin(2.0*Alpha - PI05) + PI05;
 
-	if (Pitch > scanlimwarn)
+	if (Gamma > scanlim)
+	{
+		scanlimit = true;
+	}
+	else
+	{
+		scanlimit = false;
+	}
+	if (Gamma > scanlimwarn)
 	{
 		scanlimitwarn = true;
 	}
+	else
+	{
+		scanlimitwarn = false;
+	}
 
-	//sprintf(oapiDebugString(), "Pitch: %lf° Yaw: %lf° SignalStrength %lf RelAng %lf, AxVec: %f %f %f", Pitch, Yaw, SignalStrength, relang*DEG, AxVec.x, AxVec.y, AxVec.z);
+	//sprintf(oapiDebugString(), "A: %lf° B: %lf° C: %lf° PitchRes: %lf° YawRes: %lf° SignalStrength %lf RelAng %lf Warn: %d Limit: %d", Alpha*DEG, Beta*DEG, Gamma*DEG, PitchRes*DEG, YawRes*DEG, SignalStrength, relang*DEG, scanlimitwarn, scanlimit);
 }
 
 void HGA::ServoDrive(double &Angle, double AngleCmd, double RateLimit, double simdt)
@@ -635,6 +793,62 @@ void HGA::ServoDrive(double &Angle, double AngleCmd, double RateLimit, double si
 
 }
 
+VECTOR3 HGA::PitchYawToBodyVector(double pit, double ya)
+{
+	return _V(cos(ya)*cos(pit), sin(ya)*cos(pit), -sin(pit));
+}
+
+void HGA::BodyVectorToPitchYaw(VECTOR3 U_R, double &pitch, double &yaw)
+{
+	VECTOR3 RP, U_RP, U_X, U_Y, U_Z;
+	double x;
+
+	U_X = _V(1, 0, 0);
+	U_Y = _V(0, 1, 0);
+	U_Z = _V(0, 0, 1);
+
+	RP = U_R - U_Z * dotp(U_R, U_Z);
+	U_RP = unit(RP);
+	yaw = acos(dotp(U_RP, U_X));
+	x = dotp(U_RP, U_Y);
+	if (x < 0)
+	{
+		yaw = PI2 - yaw;
+	}
+	pitch = acos(dotp(U_R, U_Z)) - PI05;
+}
+
+void HGA::BodyToAC(VECTOR3 U_R, double &alpha, double &gamma)
+{
+	MATRIX3 MB_apo, MC_apo;
+	VECTOR3 U_R3;
+	double theta;
+
+	theta = -52.25*RAD;
+
+	MB_apo = _M(cos(theta), 0.0, -sin(theta), 0.0, 1.0, 0.0, sin(theta), 0.0, cos(theta));
+	MC_apo = _M(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+
+	U_R3 = mul(MB_apo, mul(MC_apo, U_R));
+	alpha = atan2(U_R3.z, U_R3.y);
+	gamma = acos(U_R3.x);
+}
+
+VECTOR3 HGA::ABCAndVectorToBody(double alpha, double beta, double gamma, VECTOR3 U_R)
+{
+	MATRIX3 M1, M2, M3, MB, MC;
+	double theta;
+
+	theta = -52.25*RAD;
+
+	M3 = _M(cos(gamma), -sin(gamma), 0.0, sin(gamma), cos(gamma), 0.0, 0.0, 0.0, 1.0);
+	M2 = _M(cos(beta), 0.0, sin(beta), 0.0, 1.0, 0.0, -sin(beta), 0.0, cos(beta));
+	M1 = _M(1.0, 0.0, 0.0, 0.0, cos(alpha), -sin(alpha), 0.0, sin(alpha), cos(alpha));
+	MB = _M(cos(theta), 0.0, sin(theta), 0.0, 1.0, 0.0, -sin(theta), 0.0, cos(theta));
+MC = _M(0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+return mul(MC, mul(MB, mul(M1, mul(M2, mul(M3, U_R)))));
+}
+
 bool HGA::ScanLimitWarning()
 {
 	return scanlimitwarn;
@@ -642,16 +856,346 @@ bool HGA::ScanLimitWarning()
 
 // Load
 void HGA::LoadState(char *line) {
-	sscanf(line + 15, "%lf %lf", &Pitch, &Yaw);
+	sscanf(line + 15, "%lf %lf %lf", &Alpha, &Beta, &Gamma);
 }
 
 // Save
 void HGA::SaveState(FILEHANDLE scn) {
 	char buffer[256];
 
-	sprintf(buffer, "%lf %lf", Pitch, Yaw);
+	sprintf(buffer, "%lf %lf %lf", Alpha, Beta, Gamma);
 
 	oapiWriteScenario_string(scn, "HIGHGAINANTENNA", buffer);
+}
+
+OMNI::OMNI(VECTOR3 dir)
+{
+	direction = unit(dir);
+	hpbw_factor = 0.0;
+	hMoon = NULL;
+	hEarth = NULL;
+}
+
+void OMNI::Init(Saturn *vessel) {
+	sat = vessel;
+
+	double beamwidth = 50.0*RAD;
+	hpbw_factor = acos(sqrt(sqrt(0.5))) / (beamwidth / 2.0); //Scaling for beamwidth
+
+	hMoon = oapiGetObjectByName("Moon");
+	hEarth = oapiGetObjectByName("Earth");
+}
+
+void OMNI::TimeStep()
+{
+	VECTOR3 U_RP, pos, R_E, R_M, U_R;
+	MATRIX3 Rot;
+	double relang, Moonrelang;
+
+	//Unit vector of antenna in vessel's local frame
+	U_RP = _V(direction.y, -direction.z, direction.x);
+
+	//Global position of Earth, Moon and spacecraft, spacecraft rotation matrix from local to global
+	sat->GetGlobalPos(pos);
+	oapiGetGlobalPos(hEarth, &R_E);
+	oapiGetGlobalPos(hMoon, &R_M);
+	sat->GetRotationMatrix(Rot);
+
+	//Calculate antenna pointing vector in global frame
+	U_R = mul(Rot, U_RP);
+	//relative angle between antenna pointing vector and direction of Earth
+	relang = acos(dotp(U_R, unit(R_E - pos)));
+
+	if (relang < PI05 / hpbw_factor)
+	{
+		SignalStrength = cos(hpbw_factor*relang)*cos(hpbw_factor*relang)*50.0;
+	}
+	else
+	{
+		SignalStrength = 0.0;
+	}
+
+	//Moon in the way
+	Moonrelang = dotp(unit(R_M - pos), unit(R_E - pos));
+
+	if (Moonrelang > cos(asin(oapiGetSize(hMoon) / length(R_M - pos))))
+	{
+		SignalStrength = 0.0;
+	}
+}
+
+VHFAntenna::VHFAntenna(VECTOR3 dir)
+{
+
+}
+
+VHFAMTransceiver::VHFAMTransceiver()
+{
+	vhfASwitch = NULL;
+	vhfBSwitch = NULL;
+	rcvSwitch = NULL;
+	ctrPowerCB = NULL;
+	K1 = false;
+	K2 = false;
+	receiveA = false;
+	receiveB = false;
+	transmitA = false;
+	transmitB = false;
+}
+
+void VHFAMTransceiver::Init(ThreePosSwitch *vhfASw, ThreePosSwitch *vhfBSw, ThreePosSwitch *rcvSw, CircuitBrakerSwitch *ctrpowcb)
+{
+	vhfASwitch = vhfASw;
+	vhfBSwitch = vhfBSw;
+	rcvSwitch = rcvSw;
+	ctrPowerCB = ctrpowcb;
+}
+
+void VHFAMTransceiver::Timestep()
+{
+	if (vhfASwitch->GetState() != THREEPOSSWITCH_CENTER && ctrPowerCB->IsPowered())
+	{
+		K1 = true;
+	}
+	else
+	{
+		K1 = false;
+	}
+
+	if (vhfBSwitch->GetState() != THREEPOSSWITCH_CENTER && ctrPowerCB->IsPowered())
+	{
+		K2 = true;
+	}
+	else
+	{
+		K2 = false;
+	}
+
+	if (K1 && vhfASwitch->GetState() != THREEPOSSWITCH_CENTER && ctrPowerCB->IsPowered())
+	{
+		transmitA = true;
+	}
+	else
+	{
+		transmitA = false;
+	}
+
+	if (K2 && vhfBSwitch->GetState() != THREEPOSSWITCH_CENTER && ctrPowerCB->IsPowered())
+	{
+		transmitB = true;
+	}
+	else
+	{
+		transmitB = false;
+	}
+
+	if ((vhfASwitch->IsDown() || vhfBSwitch->IsUp() || rcvSwitch->IsDown()) && ctrPowerCB->IsPowered())
+	{
+		receiveA = true;
+	}
+	else
+	{
+		receiveA = false;
+	}
+
+	if ((vhfBSwitch->IsDown() || vhfASwitch->IsUp() || rcvSwitch->IsUp()) && ctrPowerCB->IsPowered())
+	{
+		receiveB = true;
+	}
+	else
+	{
+		receiveB = false;
+	}
+
+	//sprintf(oapiDebugString(), "%d %d %d %d %d %d", K1, K2, transmitA, transmitB, receiveA, receiveB);
+}
+
+// Load
+void VHFAMTransceiver::LoadState(char *line) {
+	int one, two, three, four, five, six;
+	
+	sscanf(line + 14, "%d %d %d %d %d %d", &one, &two, &three, &four, &five, &six);
+	K1 = (one != 0);
+	K2 = (two != 0);
+	transmitA = (three != 0);
+	transmitB = (four != 0);
+	receiveA = (five != 0);
+	receiveB = (six != 0);
+}
+
+// Save
+void VHFAMTransceiver::SaveState(FILEHANDLE scn) {
+	char buffer[256];
+
+	sprintf(buffer, "%d %d %d %d %d %d", K1, K2, transmitA, transmitB, receiveA, receiveB);
+
+	oapiWriteScenario_string(scn, "VHFTRANSCEIVER", buffer);
+}
+
+VHFRangingSystem::VHFRangingSystem()
+{
+	sat = NULL;
+	powercb = NULL;
+	powerswitch = NULL;
+	resetswitch = NULL;
+	dataGood = false;
+	range = 0.0;
+	isRanging = false;
+	lem = NULL;
+	phaseLockTimer = 0.0;
+	hasLock = 0;
+}
+
+void VHFRangingSystem::Init(Saturn *vessel, CircuitBrakerSwitch *cb, ToggleSwitch *powersw, ToggleSwitch *resetsw, VHFAMTransceiver *transc)
+{
+	sat = vessel;
+	powercb = cb;
+	powerswitch = powersw;
+	resetswitch = resetsw;
+	transceiver =  transc;
+}
+
+void VHFRangingSystem::RangingReturnSignal()
+{
+	hasLock = 3;
+}
+
+void VHFRangingSystem::TimeStep(double simdt)
+{
+	ChannelValue val33;
+
+	val33 = sat->agc.GetInputChannel(033);
+	dataGood = false;
+	range = 0.0;
+
+	if (!IsPowered())
+	{
+		val33[RangeUnitDataGood] = 0;
+		sat->agc.SetInputChannel(033, val33);
+		hasLock = 0;
+		isRanging = false;
+		return;
+	}
+
+	if (!lem)
+	{
+		VESSEL *lm = sat->agc.GetLM();
+		if (lm) lem = (static_cast<LEM*>(lm));
+	}
+
+	if (resetswitch->IsUp())
+	{
+		isRanging = true;
+	}
+
+	if (isRanging && transceiver->IsVHFRangingConfig())
+	{
+		if (lem)
+		{
+			VECTOR3 R;
+			double newrange;
+
+			oapiGetRelativePos(sat->GetHandle(), lem->GetHandle(), &R);
+			newrange = length(R);
+
+			if (abs(internalrange - newrange) < 1800.0*0.3048*simdt)
+			{
+				//Specification is 200NM range, but during the flights up to 320NM was achieved
+				if (newrange > 500.0*0.3048 && newrange < 320.0*1852.0)
+				{
+					lem->SendVHFRangingSignal(sat, false);
+				}
+			}
+
+			internalrange = newrange;
+
+			if (hasLock)
+			{
+				if (phaseLockTimer < 13.0)
+				{
+					phaseLockTimer += simdt;
+				}
+			}
+			else
+			{
+				phaseLockTimer = 0.0;
+			}
+
+			if (phaseLockTimer > 13.0)
+			{
+				range = internalrange;
+				dataGood = true;
+			}
+		}
+	}
+
+	ChannelValue val13;
+	val13 = sat->agc.GetInputChannel(013);
+
+	if (dataGood == 1 && val33[RangeUnitDataGood] == 0) { val33[RangeUnitDataGood] = 1; sat->agc.SetInputChannel(033, val33); }
+	if (dataGood == 0 && val33[RangeUnitDataGood] == 1) { val33[RangeUnitDataGood] = 0; sat->agc.SetInputChannel(033, val33); }
+
+	if (val13[RangeUnitActivity] == 1) {
+		int radarBits = 0;
+		if (val13[RangeUnitSelectA] == 1) { radarBits |= 1; }
+		if (val13[RangeUnitSelectB] == 1) { radarBits |= 2; }
+		if (val13[RangeUnitSelectC] == 1) { radarBits |= 4; }
+
+		switch (radarBits) {
+		case 4:
+			// Docs says this should be 0.01 NM/bit, or 18.52 meters/bit
+			sat->agc.vagc.Erasable[0][RegRNRAD] = (int16_t)fmod(range / 18.52, 32768.0);
+			sat->agc.SetInputChannelBit(013, RangeUnitActivity, 0);
+			sat->agc.GenerateRadarupt();
+			break;
+		default:
+			break;
+		}
+	}
+
+	//sprintf(oapiDebugString(), "%d %d %d %f %f %o", isRanging, hasLock, dataGood, range, phaseLockTimer, sat->agc.vagc.Erasable[0][RegRNRAD]);
+
+	//Reset after the timestep
+	if (hasLock) hasLock--;
+}
+
+void VHFRangingSystem::SystemTimestep(double simdt)
+{
+	if (IsPowered())
+	{
+		powercb->DrawPower(10.0);
+	}
+}
+
+bool VHFRangingSystem::IsPowered()
+{
+	// Do we have a VHF Ranging System?
+	if (sat->NoVHFRanging) return false;
+
+	if (powerswitch->IsUp() && powercb && powercb->IsPowered())
+	{
+		return true;
+	}
+
+	return false;
+}
+
+// Load
+void VHFRangingSystem::LoadState(char *line) {
+	int one, two;
+
+	sscanf(line + 10, "%d %d %d %lf %lf %lf", &one, &two, &hasLock, &internalrange, &range, &phaseLockTimer);
+	dataGood = (one != 0);
+	isRanging = (two != 0);
+}
+
+// Save
+void VHFRangingSystem::SaveState(FILEHANDLE scn) {
+	char buffer[256];
+
+	sprintf(buffer, "%d %d %d %lf %lf %lf", dataGood, isRanging, hasLock, internalrange, range, phaseLockTimer);
+
+	oapiWriteScenario_string(scn, "VHFRANGING", buffer);
 }
 
 // Socket registration method (registers sockets to be deinitialized
@@ -865,6 +1409,8 @@ unsigned char PCM::measure(int channel, int type, int ccode){
 	PyroStatus pyroStatus;
 	SECSStatus secsStatus;
 	RCSStatus rcsStatus;
+
+	unsigned char data = 0;
 
 	switch(type){
 		case TLM_A:  // ANALOG
@@ -1351,7 +1897,7 @@ unsigned char PCM::measure(int channel, int type, int ccode){
 						case 46:		// SM HE MANF C PRESS
 							return(scale_data(0,0,400));
 						case 47:		// LM HEATER CURRENT
-							return(scale_data(0,0,10));
+							return(scale_data(sat->LMUmbilicalFeeder.Current(),0,10));
 						case 48:		// PCM HI LEVEL 85 PCT REF
 							return(scale_data(0,0,5));
 						case 49:		// PCM LO LEVEL 15 PCT REF
@@ -1858,7 +2404,12 @@ unsigned char PCM::measure(int channel, int type, int ccode){
 							   7 = CM RCS PRESS SIG A
 							   8 = TRANS CTL +Y CMD
 								*/
-							return(0);
+							sat->GetSECSStatus(secsStatus);
+
+							data |= (secsStatus.CMRCSPressureSignalA << 0);
+							data |= (secsStatus.SLASepRelayA << 4);
+							data |= (secsStatus.CMRCSPressureSignalA << 6);
+							return data;
 						case 23:
 							/* 1 = CM-SM SEP RELAY B
 							   3 = SCS CHANNEL ENABLE RCS B
@@ -1866,15 +2417,23 @@ unsigned char PCM::measure(int channel, int type, int ccode){
 							   6 = TRANS CTL -Y CMD
 							   7 = SLA SEP RELAY B
 							   8 = TRANS CTL +Z CMD
-								*/
-							return(0);
+								*/;
+							sat->GetSECSStatus(secsStatus);
+
+							data |= (secsStatus.CMRCSPressureSignalB << 0);
+							data |= (secsStatus.SLASepRelayB << 4);
+							data |= (secsStatus.CMRCSPressureSignalB << 6);
+							return data;
 						case 24:
 							/* 1 = FWD HS JET A
 							   2 = TRANS CTL -Z CMD
 							   3 = DIRECT RCS #1
 							   4 = DIRECT RCS #2
 								*/
-							return(0);
+							sat->GetSECSStatus(secsStatus);
+
+							data |= (secsStatus.FwdHeatshieldJettA << 0);
+							return data;
 						case 25:
 							/* 1 = LIMIT CYCLE
 							   3 = MANUAL ATT PITCH ACCEL CMD
@@ -1888,7 +2447,10 @@ unsigned char PCM::measure(int channel, int type, int ccode){
 						case 26:
 							/* 5 = FWD HS JET B
 								*/
-							return(0);
+							sat->GetSECSStatus(secsStatus);
+
+							data |= (secsStatus.FwdHeatshieldJettB << 4);
+							return data;
 						case 27: // ZEROES
 							return(0);
 						case 28:
@@ -3845,13 +4407,11 @@ void PCM::handle_uplink() {
 			sat->UPTLMSwitch.GetState() == TOGGLESWITCH_DOWN) {
 			rx_offset = 0; uplink_state = 0; break;
 		}
-		// Must be in vAGC mode
-		if (sat->agc.Yaagc) {
-			// Move to INLINK
-			sat->agc.vagc.Erasable[0][045] = cmc_uplink_wd;
-			// Cause UPRUPT
-			sat->agc.GenerateUprupt();
-		}
+		// Move to INLINK
+		sat->agc.vagc.Erasable[0][045] = cmc_uplink_wd;
+		// Cause UPRUPT
+		sat->agc.GenerateUprupt();
+
 		//sprintf(oapiDebugString(),"CMC UPLINK DATA %05o",cmc_uplink_wd);
 		rx_offset = 0; uplink_state = 0;
 	}

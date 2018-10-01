@@ -36,11 +36,8 @@
 
 #include "toggleswitch.h"
 #include "apolloguidance.h"
-#include "dsky.h"
 #include "csmcomputer.h"
 #include "ioChannels.h"
-#include "IMU.h"
-#include "lvimu.h"
 
 #include "saturn.h"
 
@@ -50,27 +47,6 @@ void SaturnToggleSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SUR
 {
 	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
 	sat = s;
-}
-
-void SaturnGuardedPushSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, Saturn *s, int xoffset, int yoffset, int lxoffset, int lyoffset)
-
-{
-	GuardedPushSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset, lxoffset, lyoffset);
-	sat = s;
-}
-
-bool LESMotorFireSwitch::SwitchTo(int newState, bool dontspring)
-
-{
-	if (GuardedPushSwitch::SwitchTo(newState,dontspring) && Toggled())
-	{
-		ClearToggled();
-		sat->JettisonLET(true);
-
-		return true;
-	}
-
-	return false;
 }
 
 bool XLunarSwitch::SwitchTo(int newState, bool dontspring)
@@ -257,7 +233,7 @@ void SaturnCryoQuantityMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 
 			#define O2FAILURETIME	(46.0 * 3600.0 + 45.0 * 60.0)
 
-			if (Sat->GetApolloNo() == 13) {
+			if (Sat->GetApolloNo() == 1301) {
 				if (Sat->GetMissionTime() >= (O2FAILURETIME + 5.0)) {
 					v = 1.05;
 				}
@@ -702,9 +678,11 @@ double SaturnLeftO2FlowMeter::QueryValue()
 
 	// O2 main regulator output flow 
 	/// \todo Is this the correct flow for that meter? No documentation found yet...
-	
+	return atm.O2FlowXducerLBH;
+	/*
 	return atm.CabinRegulatorFlowLBH + atm.O2DemandFlowLBH + atm.DirectO2FlowLBH + 
 		   atm.SuitTestFlowLBH + atm.CabinRepressFlowLBH + atm.EmergencyCabinRegulatorFlowLBH;
+	*/
 }
 
 void SaturnLeftO2FlowMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -741,8 +719,11 @@ double SaturnRightO2FlowMeter::QueryValue()
 	Sat->GetAtmosStatus(atm);
 
 	// O2 main regulator output flow 	
-	return atm.CabinRegulatorFlowLBH + atm.O2DemandFlowLBH + atm.DirectO2FlowLBH + 
-		   atm.SuitTestFlowLBH + atm.CabinRepressFlowLBH + atm.EmergencyCabinRegulatorFlowLBH;
+	return atm.O2FlowXducerLBH;
+	/*
+	return atm.CabinRegulatorFlowLBH + atm.O2DemandFlowLBH + atm.DirectO2FlowLBH +
+	atm.SuitTestFlowLBH + atm.CabinRepressFlowLBH + atm.EmergencyCabinRegulatorFlowLBH;
+	*/
 }
 
 void SaturnRightO2FlowMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -1004,7 +985,7 @@ bool DirectO2RotationalSwitch::SwitchTo(int newValue)
 	}
 	return false;
 }
-
+/*
 void DirectO2RotationalSwitch::CheckValve()
 
 {
@@ -1014,27 +995,67 @@ void DirectO2RotationalSwitch::CheckValve()
 	
 	} else if (GetState() == 5) {
 		Pipe->in->h_open = SP_VALVE_OPEN;
-		Pipe->flowMax = 0.1 / LBH;
+		Pipe->flowMax = 6.0 / LBH;		//0.1 lb/min
 
 	} else if (GetState() == 4) {
 		Pipe->in->h_open = SP_VALVE_OPEN;
-		Pipe->flowMax = 0.2 / LBH;
+		Pipe->flowMax = 12.0 / LBH;		//0.2 lb/min
 
 	} else if (GetState() == 3) {
 		Pipe->in->h_open = SP_VALVE_OPEN;
-		Pipe->flowMax = 0.31 / LBH;
+		Pipe->flowMax = 18.6 / LBH;		//0.31 lb/min
 
 	} else if (GetState() == 2) {
 		Pipe->in->h_open = SP_VALVE_OPEN;
-		Pipe->flowMax = 0.41 / LBH;
+		Pipe->flowMax = 24.6 / LBH;		//0.41 lb/min
 
 	} else if (GetState() == 1) {
 		Pipe->in->h_open = SP_VALVE_OPEN;
-		Pipe->flowMax = 0.53 / LBH;
+		Pipe->flowMax = 31.8 / LBH;		//0.53 lb/min
 
 	} else if (GetState() == 0) {
 		Pipe->in->h_open = SP_VALVE_OPEN;
-		Pipe->flowMax = 0.67 / LBH;
+		Pipe->flowMax = 40.2 / LBH;		//0.67 lb/min
+	}
+}
+*/
+
+void DirectO2RotationalSwitch::CheckValve()
+
+{
+	if (GetState() == 6) {
+		Pipe->in->h_open = SP_VALVE_CLOSE;
+		Pipe->flowMax = 0;
+
+	}
+	else if (GetState() == 5) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 0.42 / LBH;  //0.007 lb/min
+
+	}
+	else if (GetState() == 4) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 0.78 / LBH;  //0.013 lb/min
+
+	}
+	else if (GetState() == 3) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 1.56 / LBH;  //0.026 lb/min
+
+	}
+	else if (GetState() == 2) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 24.6 / LBH;		//0.41 lb/min
+
+	}
+	else if (GetState() == 1) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 31.8 / LBH;		//0.53 lb/min
+
+	}
+	else if (GetState() == 0) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 40.2 / LBH;		//0.67 lb/min
 	}
 }
 
@@ -1350,8 +1371,8 @@ double SaturnLVSPSPcMeter::QueryValue()
 		return Sat->GetSPSEngine()->GetChamberPressurePSI();
 
 	} else {
-		if (Sat->LETAttached() && Sat->GetDynPressure() > 100.0) {
-			return fabs((10.0 / RAD) * Sat->GetAOA());
+		if (Sat->stage < CSM_LEM_STAGE) {
+			return fabs((10.0 / RAD) * Sat->qball.GetAOA());
 		} else {
 			return 0;
 		}
@@ -1894,8 +1915,7 @@ void SaturnEMSDvDisplay::Init(SURFHANDLE digits, SwitchRow &row, Saturn *s)
 void SaturnEMSDvDisplay::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 
 {
-	if (Voltage() < SP_MIN_DCVOLTAGE) return;
-	if (Sat->ems.IsOff()) return; 
+	if (Voltage() < SP_MIN_DCVOLTAGE || Sat->ems.IsOff() || !Sat->ems.IsDisplayPowered()) return;
 
 	if (v < 0) {
 		oapiBlt(drawSurface, Digits, 0, 0, 161, 0, 10, 19);
@@ -1909,7 +1929,10 @@ void SaturnEMSDvDisplay::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 			Curdigit = buffer[i] - '0';
 			oapiBlt(drawSurface, Digits, (i == 6 ? 0 : 10) + 16 * i, 0, 16 * Curdigit, 0, 16, 19);
 		} else if (buffer[i] == '.') {
-			oapiBlt(drawSurface, Digits, 10 + 16 * i, 0, 200, 0, 4, 19);
+			if (!Sat->ems.IsDecimalPointBlanked())
+			{
+				oapiBlt(drawSurface, Digits, 10 + 16 * i, 0, 200, 0, 4, 19);
+			}
 		}
 	}
 }
@@ -2018,21 +2041,6 @@ void SaturnASCPSwitch::SetState(int value) {
 	Sat->ascp.output.data[Axis] = value / 10.;
 }
 
-
-void SaturnAbortSwitch::Init(SwitchRow &row, Saturn *s) {
-	MeterSwitch::Init(row);
-	Sat = s;
-}
-
-int SaturnAbortSwitch::GetState() {
-	return (Sat->bAbort ? TOGGLESWITCH_UP : TOGGLESWITCH_DOWN);
-}
-
-void SaturnAbortSwitch::SetState(int value) {
-	// Nothing for now
-}
-
-
 bool SaturnEMSDvSetSwitch::CheckMouseClick(int event, int mx, int my) {
 
 	int oldPos = position;
@@ -2115,6 +2123,29 @@ bool SaturnCabinPressureReliefLever::SwitchTo(int newState)
 			return true;
 	}
 	return false;
+}
+
+void SaturnCabinPressureReliefLever::SetState(int value)
+{
+	if (ThumbwheelSwitch::SwitchTo(value))
+	{
+		if (state == 3 && guardState == 0)
+		{
+			guardState = 1;
+		}
+	}
+}
+
+void SaturnCabinPressureReliefLever::Guard()
+{
+	if (guardState) {
+		guardState = 0;
+
+		if (state == 3)
+		{
+			state = 2;
+		}
+	}
 }
 
 void SaturnCabinPressureReliefLever::SaveState(FILEHANDLE scn) {
@@ -2273,177 +2304,67 @@ void CSMLMPowerSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFH
 	ThreePosSwitch::Init(xp, yp, w, h, surf, bsurf, row);
 }
 
-bool CSMLMPowerSwitch::CheckMouseClick(int event, int mx, int my)
-
+void CSMLMPowerSwitch::LoadState(char *line)
 {
-	if (SaturnThreePosSwitch::CheckMouseClick(event, mx, my)) {
+	ToggleSwitch::LoadState(line);
+
+	switch (state)
+	{
+	case THREEPOSSWITCH_UP:
+		sat->CSMToLEMPowerDrain.Enable();
+		sat->CSMToLEMPowerDrain.WireTo(&sat->LMUmbilicalFeeder);
+		break;
+	default:
+		sat->CSMToLEMPowerDrain.Disable();
+		sat->CSMToLEMPowerDrain.WireTo(NULL);
+		break;
+	}
+
+}
+
+bool CSMLMPowerSwitch::SwitchTo(int newState, bool dontspring)
+{
+	if (SaturnThreePosSwitch::SwitchTo(newState, dontspring)) {
 		// First -- Are we docked?
-		if(sat->dockingprobe.IsHardDocked() == false){ return true; }
-		// Umbilical connected? (Supposed to be by docking!)
-		if(sat->CSMToLEMConnector.connectedTo == NULL){ return true; }
+		if (sat->dockingprobe.IsHardDocked() == false) { return true; }
+		// Umbilical connected? (Supposed to be after LM Pressurization and hatch removal)
+		if (sat->CSMToLEMConnector.connectedTo == NULL) { return true; }
 		ConnectorMessage msg;
 		ConnectorMessageValue mval;
-		msg.destination = LEM_CSM_POWER;		
+		msg.destination = LEM_CSM_POWER;
 		msg.messageType = 42;
-		switch(state){
-			case THREEPOSSWITCH_UP:
-				// Connect the bus
-				sat->CSMToLEMPowerDrain.Enable();
-				sat->CSMToLEMPowerDrain.WireTo(&sat->LMUmbilicalFeeder);				
-				// Turn on LEM				
-				mval.iValue = 1; // Relay State 1 = Deny Descent ECA operation
-				msg.val1 = mval;
-				sat->CSMToLEMConnector.SendMessage(msg);
-				break;
-			case THREEPOSSWITCH_CENTER:
-				// Turn off LEM (but don't disconnect it)
-				sat->CSMToLEMPowerDrain.Disable();
-				sat->CSMToLEMPowerDrain.WireTo(NULL);
-				break;
-			case THREEPOSSWITCH_DOWN:
-				// Reset LEM				
-				mval.iValue = 0; // Relay State 0 = Permit Descent ECA operation
-				msg.val1 = mval;
-				sat->CSMToLEMConnector.SendMessage(msg);
-				// Ensure disconnected
-				sat->CSMToLEMPowerDrain.Disable();
-				sat->CSMToLEMPowerDrain.WireTo(NULL);
-				break;
+		switch (state) {
+		case THREEPOSSWITCH_UP:
+			// Connect the bus
+			sat->CSMToLEMPowerDrain.Enable();
+			sat->CSMToLEMPowerDrain.WireTo(&sat->LMUmbilicalFeeder);
+			// Turn on LEM
+			mval.iValue = 1; // Relay State 1 = Deny Descent ECA operation
+			msg.val1 = mval;
+			sat->CSMToLEMConnector.SendMessage(msg);
+			break;
+		case THREEPOSSWITCH_CENTER:
+			// Turn off LEM (but don't disconnect it)
+			sat->CSMToLEMPowerDrain.Disable();
+			sat->CSMToLEMPowerDrain.WireTo(NULL);
+			break;
+		case THREEPOSSWITCH_DOWN:
+			// Reset LEM
+			mval.iValue = 0; // Relay State 0 = Permit Descent ECA operation
+			msg.val1 = mval;
+			sat->CSMToLEMConnector.SendMessage(msg);
+			// Ensure disconnected
+			sat->CSMToLEMPowerDrain.Disable();
+			sat->CSMToLEMPowerDrain.WireTo(NULL);
+			break;
 		}
-
 		return true;
 	}
 	return false;
-}
-
-bool CSMLMPowerSwitch::SwitchTo(int newState)
-{
-	if (SaturnThreePosSwitch::SwitchTo(newState)) {
-		return true;
-	}
-	return false;
-}
-
-void OrdealRotationalSwitch::DrawSwitch(SURFHANDLE drawSurface) {
-
-	RotationalSwitch::DrawSwitch(drawSurface);
-
-	if (mouseDown) {
-		RECT rt;
-		char label[100];
-		sprintf(label, "%d", value);
-
-		HDC hDC = oapiGetDC(drawSurface);
-		HFONT font = CreateFont(22, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 0, 0, "Arial");
-		SelectObject(hDC, font);
-		SetTextColor(hDC, RGB(255, 255, 255));
-		SetTextAlign(hDC, TA_CENTER);
-		SetBkMode(hDC, OPAQUE);
-		SetBkColor(hDC, RGB(146, 146, 146));
-		
-		if (GetState() == 0) {
-			rt.left = 29 + x;
-			rt.top = 24 + y;
-			rt.right = 60 + x;
-			rt.bottom = 55 + y;
-			ExtTextOut(hDC, 44 + x, 28 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
-
-		} else if (GetState() == 1) {
-			rt.left = 35 + x;
-			rt.top = 30 + y;
-			rt.right = 59 + x;
-			rt.bottom = 52 + y;
-			ExtTextOut(hDC, 49 + x, 31 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
-
-		} else if (GetState() == 2) {
-			rt.left = 29 + x;
-			rt.top = 29 + y;
-			rt.right = 60 + x;
-			rt.bottom = 59 + y;
-			ExtTextOut(hDC, 44 + x, 34 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
-
-		} else if (GetState() == 3) {
-			TextOut(hDC, 42 + x, 36 + y, label, strlen(label));
-		
-		} else if (GetState() == 4) {
-			rt.left = 28 + x;
-			rt.top = 30 + y;
-			rt.right = 54 + x;
-			rt.bottom = 60 + y;
-			ExtTextOut(hDC, 37 + x, 34 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
-
-		} else if (GetState() == 5) {
-			TextOut(hDC, 32 + x, 31 + y, label, strlen(label));
-
-		} else if (GetState() == 6) {
-			rt.left = 25 + x;
-			rt.top = 24 + y;
-			rt.right = 55 + x;
-			rt.bottom = 54 + y;
-			ExtTextOut(hDC, 39 + x, 28 + y, ETO_OPAQUE, &rt, label, strlen(label), NULL);
-		} 
-
-		DeleteObject(font);
-		oapiReleaseDC(drawSurface, hDC);
-	}
-}
-
-bool OrdealRotationalSwitch::CheckMouseClick(int event, int mx, int my) {
-
-	if (event & PANEL_MOUSE_LBDOWN) {
-		// Check whether it's actually in our switch region.
-		if (mx < x || my < y)
-			return false;
-
-		if (mx > (x + width) || my > (y + height))
-			return false;
-
-		lastX = mx;
-		mouseDown = true;
-
-	} else if (((event & PANEL_MOUSE_LBPRESSED) != 0) && mouseDown) {
-		if (abs(mx - lastX) >= 2) {
-			value += (int) ((mx - lastX) / 2.);
-			value = min(max(value, 10), 310);
-			lastX = mx;
-		}
-
-	} else if (event & PANEL_MOUSE_LBUP) {
-		mouseDown = false;
-		return false;
-	}
-	SetValue((int) ((value / 50.) + 0.5));
-	return true;
-}
-
-void OrdealRotationalSwitch::SaveState(FILEHANDLE scn) {
-
-	if (position) {
-		oapiWriteScenario_int (scn, name, value); 
-	}		
-}
-
-void OrdealRotationalSwitch::LoadState(char *line) {
-
-	char buffer[100];
-	int val;
-
-	sscanf(line, "%s %i", buffer, &val); 
-	if (!strnicmp(buffer, name, strlen(name))) {
-		value = val;
-		SetValue((int) ((value / 50.) + 0.5));
-	}
 }
 
 double SaturnHighGainAntennaPitchMeter::QueryValue(){
-	if (Sat->hga.IsPowered())
-	{
-		return Sat->hga.Pitch;
-	}
-	else
-	{
-		return 90.0;
-	}
+	return Sat->hga.GetResolvedPitch();
 }
 
 void SaturnHighGainAntennaPitchMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface){
@@ -2453,7 +2374,7 @@ void SaturnHighGainAntennaPitchMeter::DoDrawSwitch(double v, SURFHANDLE drawSurf
 }
 
 double SaturnHighGainAntennaStrengthMeter::QueryValue(){
-	return Sat->hga.SignalStrength; 
+	return Sat->usb.rcvr_agc_voltage;
 }
 
 void SaturnHighGainAntennaStrengthMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface){
@@ -2463,14 +2384,7 @@ void SaturnHighGainAntennaStrengthMeter::DoDrawSwitch(double v, SURFHANDLE drawS
 }
 
 double SaturnHighGainAntennaYawMeter::QueryValue(){
-	if (Sat->hga.IsPowered())
-	{
-		return Sat->hga.Yaw;
-	}
-	else
-	{
-		return 0.0;
-	}
+	return Sat->hga.GetResolvedYaw();
 }
 
 void SaturnHighGainAntennaYawMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface){
@@ -2480,7 +2394,15 @@ void SaturnHighGainAntennaYawMeter::DoDrawSwitch(double v, SURFHANDLE drawSurfac
 }
 
 double SaturnLMDPGauge::QueryValue(){
-	return 4; // FIXME: Return actual data when actual data available
+	if (Sat->LMTunnelVentValve.GetState() == 2)
+	{
+		AtmosStatus atm;
+		Sat->GetAtmosStatus(atm);
+
+		return atm.CabinPressurePSI - atm.TunnelPressurePSI;
+	}
+
+	return -1.0;
 }
 
 void SaturnLMDPGauge::DoDrawSwitch(double v, SURFHANDLE drawSurface){
@@ -2504,3 +2426,52 @@ void SaturnLMDPGauge::DrawNeedle (SURFHANDLE surf, int x, int y, double rad, dou
 	oapiReleaseDC (surf, hDC);
 }
 
+// Right Docking Target Switch
+bool DockingTargetSwitch::SwitchTo(int newState, bool dontspring)
+{
+	if (SaturnThreePosSwitch::SwitchTo(newState, dontspring)) {
+		switch (state) {
+		case THREEPOSSWITCH_UP:  // BRIGHT
+			sat->CMdocktgt = true;
+			break;
+		case THREEPOSSWITCH_CENTER:  // DIM
+			sat->CMdocktgt = true;
+			break;
+		case THREEPOSSWITCH_DOWN:  // OFF
+			sat->CMdocktgt = false;
+			break;
+		}
+		sat->SetCMdocktgtMesh();
+		//sprintf(oapiDebugString(), "Flag %d, Index number %d", sat->CMdocktgt, sat->cmdocktgtidx);
+		return true;
+	}
+	return false;
+}
+
+SaturnLiftoffNoAutoAbortSwitch::SaturnLiftoffNoAutoAbortSwitch()
+{
+	secs = NULL;
+}
+
+void SaturnLiftoffNoAutoAbortSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, SECS *s,
+	int xoffset, int yoffset, int lxoffset, int lyoffset)
+{
+	GuardedPushSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset, lxoffset, lyoffset);
+
+	secs = s;
+}
+
+void SaturnLiftoffNoAutoAbortSwitch::DoDrawSwitch(SURFHANDLE drawSurface)
+{
+	if (secs->LiftoffLightPower()) {
+		if (!secs->NoAutoAbortLightPower())
+			SetOffset(78, 81);
+		else
+			SetOffset(234, 81);
+	}
+	else {
+		SetOffset(0, 81);
+	}
+
+	GuardedPushSwitch::DoDrawSwitch(drawSurface);
+}

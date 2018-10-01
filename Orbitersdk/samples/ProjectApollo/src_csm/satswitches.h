@@ -31,6 +31,7 @@ class RCSPropellantValve;
 class SMRCSPropellantSource;
 class CMRCSPropellantSource;
 class DSE;
+class SECS;
 
 class SaturnToggleSwitch : public ToggleSwitch {
 public:
@@ -58,22 +59,6 @@ public:
 
 protected:
 	RCSValve *valve;
-};
-
-class SaturnGuardedPushSwitch : public GuardedPushSwitch
-{
-public:
-	SaturnGuardedPushSwitch() { sat = 0; };
-	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, Saturn *v, int xoffset = 0, int yoffset = 0, int lxoffset = 0, int lyoffset = 0);
-
-protected:
-	Saturn *sat;
-};
-
-class LESMotorFireSwitch : public SaturnGuardedPushSwitch
-{
-public:
-	virtual bool SwitchTo(int newState, bool dontspring = false);
 };
 
 class XLunarSwitch : public SaturnToggleSwitch {
@@ -791,19 +776,6 @@ protected:
 	int Axis;
 };
 
-class SaturnAbortSwitch : public MeterSwitch {
-public:
-	void Init(SwitchRow &row, Saturn *s);
-	double QueryValue() { return 0; }
-	void DoDrawSwitch(double v, SURFHANDLE drawSurface) {};
-
-	int GetState();
-	void SetState(int value);
-
-protected:
-	Saturn *Sat;
-};
-
 class SaturnEMSDvSetSwitch {
 
 public:
@@ -830,6 +802,8 @@ public:
 	void SaveState(FILEHANDLE scn);
 	void LoadState(char *line);
 	virtual bool SwitchTo(int newState);
+	void Guard();
+	void SetState(int value);
 
 protected:
 	int guardState;
@@ -888,24 +862,25 @@ class CSMLMPowerSwitch : public SaturnThreePosSwitch
 public:
 	CSMLMPowerSwitch() { sat = 0; };
 	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, Saturn *s);
-	bool CSMLMPowerSwitch::CheckMouseClick(int event, int mx, int my);
-	bool CSMLMPowerSwitch::SwitchTo(int newState);
+	virtual bool SwitchTo(int newState, bool dontspring = false);
+	void LoadState(char *line);
 protected:
 	Saturn *sat;
 };
 
-class OrdealRotationalSwitch: public RotationalSwitch {
-
+class DockingTargetSwitch : public SaturnThreePosSwitch
+{
 public:
-	OrdealRotationalSwitch() { value = 100; lastX = 0; mouseDown = false; };
-	virtual void DrawSwitch(SURFHANDLE drawSurface);
-	virtual bool CheckMouseClick(int event, int mx, int my);
-	virtual void SaveState(FILEHANDLE scn);
-	virtual void LoadState(char *line);
-	int GetValue() { return value; }
+	virtual bool SwitchTo(int newState, bool dontspring = false);
+};
 
+class SaturnLiftoffNoAutoAbortSwitch :public GuardedPushSwitch
+{
+public:
+	SaturnLiftoffNoAutoAbortSwitch();
+	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, SECS *s,
+		int xoffset = 0, int yoffset = 0, int lxoffset = 0, int lyoffset = 0);
+	void DoDrawSwitch(SURFHANDLE drawSurface);
 protected:
-	int value;
-	int lastX;
-	bool mouseDown;
+	SECS * secs;
 };

@@ -38,8 +38,6 @@
 #include "toggleswitch.h"
 #include "apolloguidance.h"
 #include "LEMcomputer.h"
-#include "dsky.h"
-#include "IMU.h"
 #include "LEM.h"
 
 #include "leva.h"
@@ -136,7 +134,6 @@ void LEVA::init()
 	speed = 0.0;
 
 	ApolloNo = 0;
-	Realism = 0;
 
 
 	// touchdown point test
@@ -161,7 +158,7 @@ void LEVA::SetAstroStage ()
 	SetRotDrag (_V(0, 0, 0));
 	SetCW(0, 0, 0, 0);
 	SetPitchMomentScale(0);
-	SetBankMomentScale(0);
+	SetYawMomentScale(0);
 	SetLiftCoeffFunc(0); 
 		
 	ClearMeshes();
@@ -206,7 +203,6 @@ void LEVA::ToggleLRV()
 			LRVSettings lrvs;
 
 			lrvs.MissionNo = ApolloNo;
-			lrvs.Realism = Realism;
 			lrv->SetLRVStats(lrvs);
 		}
 	}
@@ -446,7 +442,7 @@ int LEVA::clbkConsumeBufferedKey(DWORD key, bool down, char *kstate) {
 	//
 
 	if (key == OAPI_KEY_V && down == true) {				
-		if ((ApolloNo > 14) || (ApolloNo == 0) || (!Realism)) {
+		if ((ApolloNo > 14) || (ApolloNo == 0)) {
 			ToggleLRV();
 			return 1;
 		}
@@ -530,7 +526,6 @@ void LEVA::SetEVAStats(LEVASettings &evas)
 
 {
 	ApolloNo = evas.MissionNo;
-	Realism = evas.Realism;
 	StateSet = true;
 }
 
@@ -677,9 +672,6 @@ void LEVA::LoadState(FILEHANDLE scn, VESSELSTATUS *vs)
 		else if (!strnicmp (line, "MISSIONNO", 9)) {
 			sscanf(line + 9, "%d", &ApolloNo);
 		}
-		else if (!strnicmp (line, "REALISM", 7)) {
-			sscanf(line + 7, "%d", &Realism);
-		}
 		else {
             ParseScenarioLine (line, vs);
         }
@@ -753,7 +745,6 @@ void LEVA::SaveState(FILEHANDLE scn)
 	if (ApolloNo != 0) {
 		oapiWriteScenario_int (scn, "MISSIONNO", ApolloNo);
 	}
-	oapiWriteScenario_int (scn, "REALISM", Realism);
 }
 
 DLLCLBK VESSEL *ovcInit (OBJHANDLE hvessel, int flightmodel)

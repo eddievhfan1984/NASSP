@@ -25,6 +25,12 @@
 #ifndef __PROJECTAPOLLOMFD_H
 #define __PROJECTAPOLLOMFD_H
 
+#include "ProjectApolloMFDButtons.h"
+
+class Saturn;
+class LEM;
+class Crawler;
+
 ///
 /// \ingroup MFD
 ///
@@ -37,14 +43,62 @@ public:
 	bool ConsumeButton (int bt, int event);
 	bool ConsumeKeyBuffered (DWORD key);
 	void Update (HDC hDC);
-	void GetStateVector (void);	
-	void IMFDP30Uplink (void);
-	void IMFDP31Uplink (void);
+	void GetStateVector (void);
 	bool SetSource(char *rstr);
+	bool SetIUSource(char *rstr);
 	bool SetReferencePlanet(char *rstr);
 	bool SetCrewNumber (char *rstr);
 	bool SetPrimECSTestHeaterPower (char *rstr);
 	bool SetSecECSTestHeaterPower (char *rstr);
+	bool SetSwitchSelectorChannel(char *rstr);
+	bool SetTimebaseUpdate(char *rstr);
+	void CalculateV42Angles(void);
+	void menuPressEnterOnCMCLGC(void);
+	void menuPressEnterOnDSKYDEDA(void);
+	void menuCycleLMAlignType();
+	bool SetImpactTIG(char *rstr);
+	bool SetImpactBT(char *rstr);
+	bool SetImpactPitch(char *rstr);
+	bool SetImpactYaw(char *rstr);
+
+	void menuVoid();
+	void menuSetMainPage();
+	void menuSetGNCPage();
+	void menuSetECSPage();
+	void menuSetIUPage();
+	void menuSetTELEPage();
+	void menuSetLGCPage();
+	void menuSetSOCKPage();
+	void menuSetDebugPage();
+
+	void menuKillRot();
+	void menuSaveEMSScroll();
+	void menuVAGCCoreDump();
+	void menuSetCrewNumber();
+	void menuSetCDRInSuit();
+	void menuSetLMPInSuit();
+	void menuSetPrimECSTestHeaterPower();
+	void menuSetSecECSTestHeaterPower();
+	void menuAbortUplink();
+	void menuStateVectorUpdate();
+	void menuClockUpdate();
+	void menuSunburstSuborbitalAbort();
+	void menuSunburstCOI();
+	void menuSetSource();
+	void menuSetReference();
+	void menuSetSVSlot();
+	void menuClearDebugLine();
+	void menuFreezeDebugLine();
+	void menuSetIUSource();
+	void menuCycleIUUplinkType();
+	void menuCycleSwitSelStage();
+	void menuSetSwitSelChannel();
+	void menuIUUplink();
+	void menuSetTBUpdateTime();
+	void menuSetImpactTIG();
+	void menuSetImpactBT();
+	void menuSetImpactPitch();
+	void menuSetImpactYaw();
 
 	void WriteStatus (FILEHANDLE scn) const;
 	void ReadStatus (FILEHANDLE scn);
@@ -53,6 +107,9 @@ public:
 	static int MsgProc (UINT msg, UINT mfd, WPARAM wparam, LPARAM lparam);
 
 protected:
+
+	void GetCSM();
+
 	HBITMAP hBmpLogo;
 	DWORD width;
 	DWORD height;
@@ -66,6 +123,8 @@ protected:
 	static struct ScreenData {
 		int screen;
 	} screenData;
+
+	const ProjectApolloMFDButtons m_buttonPages;
 };
 
 #endif // !__PROJECTAPOLLOMFD_H

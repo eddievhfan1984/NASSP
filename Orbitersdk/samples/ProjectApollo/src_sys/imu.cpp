@@ -37,7 +37,6 @@
 
 #include "ioChannels.h"
 #include "IMU.h"
-#include "lvimu.h"
 #include "yaAGC/agc_engine.h"
 
 #include "toggleswitch.h"
@@ -94,10 +93,13 @@ void IMU::Init()
 
 	OurVessel = 0;
 	IMUHeater = 0;
+	IMUHeat = 0;
+	IMUCase = 0;
 	PowerSwitch = 0;
 
-	DoZeroIMUCDUs();
-	LastTime = -1;
+	DoZeroIMUGimbals();
+	LastSimDT = -1;
+	IMUTempF = 0.0;
 	
 	LogInit();
 }
@@ -111,6 +113,11 @@ void IMU::SetVessel(VESSEL *v, bool LEMFlag)
 	else
 		pipaRate = 0.0585; // CSM: 1 pulse = 5.85 cm/s
 };
+
+void IMU::SetVesselFlag(bool LEMFlag)
+{
+	LEM = LEMFlag;
+}
 
 bool IMU::IsCaged()
 
@@ -130,7 +137,7 @@ void IMU::SetCaged(bool val)
 		agc.SetInputChannelBit(030, IMUCage, val);
 
 		if (val) {
-			DoZeroIMUCDUs();
+			DoZeroIMUGimbals();
 		}
 	}
 }
@@ -204,9 +211,9 @@ void IMU::ChannelOutput(int address, ChannelValue value)
     
     	if (val12[ZeroIMUCDUs]) {
 			DoZeroIMUCDUs();
-			agc.SetErasable(0, RegCDUX, 0);
-			agc.SetErasable(0, RegCDUY, 0);
-			agc.SetErasable(0, RegCDUZ, 0);
+			agc.ProcessIMUCDUReadCount(RegCDUX, 0);
+			agc.ProcessIMUCDUReadCount(RegCDUY, 0);
+			agc.ProcessIMUCDUReadCount(RegCDUZ, 0);
 		}
 	}
     	 
@@ -276,7 +283,8 @@ bool IMU::IsPowered()
 
 {
 	if (DCPower.Voltage() < SP_MIN_DCVOLTAGE) { return false; }
-	if (IMUHeater && !IMUHeater->pumping) { return false; }
+	//TBD: Implement IMU failure logic for very off nominal temperatures
+	//if (IMUHeater && !IMUHeater->pumping) { return false; }
 	if (PowerSwitch) {
 		if (PowerSwitch->IsDown()) { return false; }
 	}
@@ -296,16 +304,52 @@ void IMU::WireHeaterToBuses(Boiler *heater, e_object *a, e_object *b)
 { 
 	IMUHeater = heater;
 	DCHeaterPower.WireToBuses(a, b);
-	IMUHeater->WireTo(&DCHeaterPower);
+	if (IMUHeater)
+		IMUHeater->WireTo(&DCHeaterPower);
 }
 
-void IMU::Timestep(double simt) 
+void IMU::InitThermals(h_HeatLoad *heat, h_Radiator *cas)
+{
+	IMUHeat = heat;
+	IMUCase = cas;
+}
+
+void IMU::Timestep(double simdt) 
 
 {
 	TRACESETUP("IMU::Timestep");
 
-	double deltaTime, pulses;
+	double pulses;
 	ChannelValue val12;
+
+	//ISS Temperature Alarm Module
+
+	bool tempBit = agc.GetInputChannelBit(030, TempInLimits);
+
+	if (DCHeaterPower.Voltage() < SP_MIN_DCVOLTAGE)
+	{
+		if (tempBit) agc.SetInputChannelBit(030, TempInLimits, false);
+	}
+	else
+	{
+		if (IMUCase)
+		{
+			IMUTempF = KelvinToFahrenheit(IMUCase->GetTemp());
+		}
+		else
+		{
+			IMUTempF = 130.0;
+		}
+
+		if (IMUTempF > 126.0 && IMUTempF < 134.0)
+		{
+			if (!tempBit) agc.SetInputChannelBit(030, TempInLimits, true);
+		}
+		else
+		{
+			if (tempBit) agc.SetInputChannelBit(030, TempInLimits, false);
+		}
+	}
 
 	if (!Operate) {
 		if (IsPowered())
@@ -327,17 +371,17 @@ void IMU::Timestep(double simt)
 	}
 	
 	// fill OrbiterData
-	VESSELSTATUS vs;
-	OurVessel->GetStatus(vs);
+	VECTOR3 arot;
+	OurVessel->GetGlobalOrientation(arot);
 
-	Orbiter.Attitude.X = vs.arot.x;
-	Orbiter.Attitude.Y = vs.arot.y;
-	Orbiter.Attitude.Z = vs.arot.z;
+	Orbiter.Attitude.X = arot.x;
+	Orbiter.Attitude.Y = arot.y;
+	Orbiter.Attitude.Z = arot.z;
 
 	// Vessel to Orbiter global transformation
-	MATRIX3	tinv = getRotationMatrixZ(-vs.arot.z);
-	tinv = mul(getRotationMatrixY(-vs.arot.y), tinv);
-	tinv = mul(getRotationMatrixX(-vs.arot.x), tinv);
+	MATRIX3	tinv = getRotationMatrixZ(-arot.z);
+	tinv = mul(getRotationMatrixY(-arot.y), tinv);
+	tinv = mul(getRotationMatrixX(-arot.x), tinv);
 
 	if (!Initialized) {
 		SetOrbiterAttitudeReference();
@@ -347,23 +391,34 @@ void IMU::Timestep(double simt)
 		OurVessel->GetWeightVector(w);
 		// Transform to Orbiter global and calculate weight acceleration
 		w = mul(tinv, w) / OurVessel->GetMass();
+
+		//Orbiter 2016 hack
+		if (length(w) == 0.0)
+		{
+			w = GetGravityVector();
+		}
+
 		LastWeightAcceleration = w;
 
 		OurVessel->GetGlobalVel(LastGlobalVel);
 
-		LastTime = simt;
+		LastSimDT = simdt;
 		Initialized = true;
 	} 
 	else {
-		deltaTime = (simt - LastTime);
-
 		// Calculate accelerations
 		VECTOR3 w, vel;
 		OurVessel->GetWeightVector(w);
 		// Transform to Orbiter global and calculate accelerations
 		w = mul(tinv, w) / OurVessel->GetMass();
+
+		//Orbiter 2016 hack
+		if (length(w) == 0.0)
+		{
+			w = GetGravityVector();
+		}
 		OurVessel->GetGlobalVel(vel);
-		VECTOR3 dvel = (vel - LastGlobalVel) / deltaTime;
+		VECTOR3 dvel = (vel - LastGlobalVel) / LastSimDT;
 
 		// Measurements with the 2006-P1 version showed that the average of the weight 
 		// vector of this and the last step match the force vector while in free fall
@@ -416,20 +471,20 @@ void IMU::Timestep(double simt)
 			//sprintf(oapiDebugString(), "accel x %.10f y %.10f z %.10f l %.10f", accel.x, accel.y, accel.z, length(accel));								
 
 			// pulse PIPAs
-			pulses = RemainingPIPA.X + (accel.x * deltaTime / pipaRate);
+			pulses = RemainingPIPA.X + (accel.x * LastSimDT / pipaRate);
 			PulsePIPA(RegPIPAX, (int) pulses);
 			RemainingPIPA.X = pulses - (int) pulses;
 
-			pulses = RemainingPIPA.Y + (accel.y * deltaTime / pipaRate);
+			pulses = RemainingPIPA.Y + (accel.y * LastSimDT / pipaRate);
 			PulsePIPA(RegPIPAY, (int) pulses);
 			RemainingPIPA.Y = pulses - (int) pulses;
 
-			pulses = RemainingPIPA.Z + (accel.z * deltaTime / pipaRate);
+			pulses = RemainingPIPA.Z + (accel.z * LastSimDT / pipaRate);
 			PulsePIPA(RegPIPAZ, (int) pulses);
 			RemainingPIPA.Z = pulses - (int) pulses;			
 		}
-		LastTime = simt;
-	}	
+		LastSimDT = simdt;
+	}
 }
 
 void IMU::SystemTimestep(double simdt) 
@@ -437,9 +492,17 @@ void IMU::SystemTimestep(double simdt)
 {
 	if (Operate) {
 		if (Caged)
+		{
 			DCPower.DrawPower(61.7);
+			if (IMUHeat)
+				IMUHeat->GenerateHeat(14.9);
+		}
 		else
+		{
 			DCPower.DrawPower(325.0);
+			if (IMUHeat)
+				IMUHeat->GenerateHeat(78.6);
+		}
 	}
 }
 
@@ -501,7 +564,7 @@ void IMU::DriveGimbal(int index, int RegCDU, double angle)
 	
 	// Gyro pulses to CDU pulses
 	pulses = (int)(((double)radToGyroPulses(Gimbals[index])) / 64.0);	
-	agc.SetErasable(0, RegCDU, (pulses & 077777));
+	agc.ProcessIMUCDUReadCount(RegCDU, (pulses & 077777));
 
 	char buffers[80];
 	sprintf(buffers,"DRIVE GIMBAL index %o REGCDU %o angle %f pulses %o",index,RegCDU,angle,pulses);
@@ -573,6 +636,14 @@ void IMU::DoZeroIMUCDUs()
 	Gimbal.X = 0;
 	Gimbal.Y = 0;
 	Gimbal.Z = 0;
+}
+
+void IMU::DoZeroIMUGimbals()
+
+{
+	Gimbal.X = 0;
+	Gimbal.Y = 0;
+	Gimbal.Z = 0;
 	SetOrbiterAttitudeReference();
 }
 
@@ -584,6 +655,78 @@ VECTOR3 IMU::GetTotalAttitude()
 	v.y = Gimbal.Y;
 	v.z = Gimbal.Z;
 	return v;
+}
+
+VECTOR3 IMU::GetGravityVector()
+{
+	OBJHANDLE gravref = OurVessel->GetGravityRef();
+	OBJHANDLE hSun = oapiGetObjectByName("Sun");
+	VECTOR3 R, U_R;
+	OurVessel->GetRelativePos(gravref, R);
+	U_R = unit(R);
+	double r = length(R);
+	VECTOR3 R_S, U_R_S;
+	OurVessel->GetRelativePos(hSun, R_S);
+	U_R_S = unit(R_S);
+	double r_S = length(R_S);
+	double mu = GGRAV * oapiGetMass(gravref);
+	double mu_S = GGRAV * oapiGetMass(hSun);
+	int jcount = oapiGetPlanetJCoeffCount(gravref);
+	double JCoeff[5];
+	for (int i = 0; i < jcount; i++)
+	{
+		JCoeff[i] = oapiGetPlanetJCoeff(gravref, i);
+	}
+	double R_E = oapiGetSize(gravref);
+
+	VECTOR3 a_dP;
+
+	a_dP = -U_R;
+
+	if (jcount > 0)
+	{
+		MATRIX3 mat;
+		VECTOR3 U_Z;
+		double costheta, P2, P3;
+
+		oapiGetPlanetObliquityMatrix(gravref, &mat);
+		U_Z = mul(mat, _V(0, 1, 0));
+
+		costheta = dotp(U_R, U_Z);
+
+		P2 = 3.0 * costheta;
+		P3 = 0.5*(15.0*costheta*costheta - 3.0);
+		a_dP += (U_R*P3 - U_Z * P2)*JCoeff[0] * pow(R_E / r, 2.0);
+		if (jcount > 1)
+		{
+			double P4;
+			P4 = 1.0 / 3.0*(7.0*costheta*P3 - 4.0*P2);
+			a_dP += (U_R*P4 - U_Z * P3)*JCoeff[1] * pow(R_E / r, 3.0);
+			if (jcount > 2)
+			{
+				double P5;
+				P5 = 0.25*(9.0*costheta*P4 - 5.0 * P3);
+				a_dP += (U_R*P5 - U_Z * P4)*JCoeff[2] * pow(R_E / r, 4.0);
+			}
+		}
+	}
+	a_dP *= mu / pow(r, 2.0);
+	a_dP -= U_R_S * mu_S / pow(r_S, 2.0);
+
+	if (gravref == oapiGetObjectByName("Moon"))
+	{
+		OBJHANDLE hEarth = oapiGetObjectByName("Earth");
+
+		VECTOR3 R_Ea, U_R_E;
+		OurVessel->GetRelativePos(hEarth, R_Ea);
+		U_R_E = unit(R_Ea);
+		double r_E = length(R_Ea);
+		double mu_E = GGRAV * oapiGetMass(hEarth);
+
+		a_dP -= U_R_E * mu_E / pow(r_E, 2.0);
+	}
+
+	return a_dP;
 }
 
 typedef union
@@ -703,9 +846,9 @@ void IMU::LoadState(FILEHANDLE scn)
 			sscanf(line + 3, "%lf", &flt);
 			Orbiter.AttitudeReference.m33 = flt;
 		}
-		else if (!strnicmp (line, "LTM", 3)) {
-			sscanf(line + 3, "%lf", &flt);
-			LastTime = flt;
+		else if (!strnicmp (line, "LSDT", 4)) {
+			sscanf(line + 4, "%lf", &flt);
+			LastSimDT = flt;
 		}
 		else if (!strnicmp (line, "STATE", 5)) {
 			IMUState state;
@@ -748,7 +891,7 @@ void IMU::SaveState(FILEHANDLE scn)
 	papiWriteScenario_double(scn, "M31", Orbiter.AttitudeReference.m31);
 	papiWriteScenario_double(scn, "M32", Orbiter.AttitudeReference.m32);
 	papiWriteScenario_double(scn, "M33", Orbiter.AttitudeReference.m33);
-	papiWriteScenario_double(scn, "LTM", LastTime);
+	papiWriteScenario_double(scn, "LSDT", LastSimDT);
 
 	//
 	// Copy internal state to the structure.

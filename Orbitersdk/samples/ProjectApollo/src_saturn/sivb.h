@@ -55,6 +55,9 @@ union SIVbSettingFlags
 	SIVbSettingFlags() { word = 0; };
 };
 
+class IU;
+class SIVBSystems;
+
 ///
 /// Data structure passed from main vessel to SIVb to configure it after staging.
 ///
@@ -67,7 +70,6 @@ struct SIVBSettings
 
 	int Payload;					///< Payload type.
 	int VehicleNo;					///< Saturn vehicle number.
-	int Realism;					///< Realism level.
 
 	double THRUST_VAC;				///< Vacuum thrust.
 	double ISP_VAC;					///< Vacuum ISP.
@@ -75,12 +77,15 @@ struct SIVBSettings
 	double MissionTime;				///< Current MET in seconds.
 	double EmptyMass;				///< Empty mass in kg.
 	double PayloadMass;				///< Payload mass in kg.
-	double ApsFuelKg;				///< APS fuel in kg.
+	double ApsFuel1Kg;				///< APS fuel no. 1 in kg.
+	double ApsFuel2Kg;				///< APS fuel no. 2 in kg.
 	double MainFuelKg;				///< Remaining fuel in kg.
 
 	bool PanelsHinged;				///< Are SLA panels hinged?
+	double PanelProcess;			///< SLA Panels opening progress
 	bool SaturnVStage;				///< Saturn V stage or Saturn 1b stage?
 	bool LowRes;					///< Low-res meshes?
+	bool IUSCContPermanentEnabled;
 
 	double SLARotationLimit;		///< SLA rotation limit in degrees (usually 45.0).
 
@@ -90,19 +95,23 @@ struct SIVBSettings
 
 	double LMDescentFuelMassKg;		///< Mass of fuel in descent stage of LEM.
 	double LMAscentFuelMassKg;		///< Mass of fuel in ascent stage of LEM.
+	double LMDescentEmptyMassKg;	///< Empty mass of descent stage of LEM.
+	double LMAscentEmptyMassKg;		///< Empty mass of ascent stage of LEM.
 	char PayloadName[64];			///< Payload Name
 
 	int LMPadCount;					///< Count of LM PAD data.
 	unsigned int *LMPad;			///< LM PAD data.
+	int AEAPadCount;				///< Count of AEA PAD data.
+	unsigned int *AEAPad;			///< AEA PAD data.
 
 	///
 	/// LEM checklist file
 	///
 	char LEMCheck[100];
-	bool LEMCheckAuto;
 
-	SIVBSettings() { LMPad = 0; LMPadCount = 0; LEMCheck[0] = 0; LEMCheckAuto = 0; };
+	SIVBSettings() { LMPad = 0; LMPadCount = 0; AEAPad = 0; AEAPadCount = 0; LEMCheck[0] = 0; };
 
+	IU *iu_pointer;
 };
 
 class SIVB;
@@ -205,8 +214,8 @@ public:
 			unsigned PanelsOpened:1;
 			unsigned SaturnVStage:1;
 			unsigned LowRes:1;
-			unsigned J2IsActive:1;
-			unsigned FuelVenting:1;
+			unsigned IUSCContPermanentEnabled:1;
+			unsigned spare2:1;
 			unsigned Payloaddatatransfer:1;
 		};
 		unsigned long word;
@@ -231,6 +240,8 @@ public:
 	/// \param mjd Current MJD.
 	///
 	void clbkPreStep(double simt, double simdt, double mjd);
+
+	void clbkPostStep(double simt, double simdt, double mjd);
 
 	///
 	/// \brief Orbiter state loading function.
@@ -259,34 +270,25 @@ public:
 	virtual void SetState(SIVBSettings &state);
 
 	///
-	/// \brief Set thrust level of the J2 engine.
-	/// \param thrust Thrust level from 0.0 to 1.0.
-	///
-	void SetJ2ThrustLevel(double thrust);
-
-	///
 	/// \brief Get thrust level of the J2 engine.
 	/// \return Thrust level from 0.0 to 1.0.
 	///
 	double GetJ2ThrustLevel();
 
 	///
-	/// \brief Set thrust level of the APS engine.
-	/// \param thrust Thrust level from 0.0 to 1.0.
-	///
-	void SetAPSThrustLevel(double thrust);
-
-	///
-	/// \brief Enable or disable the J2 engine.
-	/// \param Enable Enable if true, disable if false.
-	///
-	void EnableDisableJ2(bool Enable);
-
-	///
 	/// \brief Get mission time.
 	/// \return Mission time in seconds since launch.
 	///
 	double GetMissionTime();
+
+	bool GetSIVBThrustOK();
+
+	void SetSIVBThrusterDir(double yaw, double pitch);
+	void SetAPSAttitudeEngine(int n, bool on) { sivbsys->SetAPSAttitudeEngine(n, on); }
+	void SIVBEDSCutoff(bool cut);
+	void SIVBSwitchSelector(int channel);
+
+	IU *GetIU() { return iu; };
 
 	///
 	/// \brief Get main propellant mass.
@@ -300,31 +302,7 @@ public:
 	///
 	double GetTotalMass();
 
-	///
-	/// \brief Set up engines as fuel venting thurster.
-	///
-	void SetVentingThruster();
-
-	///
-	/// \brief Set up active J2 engine.
-	///
-	void SetActiveJ2Thruster();
-
-	///
-	/// \brief Start venting.
-	///
-	void StartVenting();
-
-	///
-	/// \brief Stop venting.
-	///
-	void StopVenting();
-
-	///
-	/// \brief Is the SIVb venting fuel?
-	/// \return True if venting.
-	///
-	bool IsVenting();
+	virtual double GetPayloadMass();
 
 	///
 	/// \brief Get main battery power.
@@ -413,11 +391,12 @@ protected:
 	int MissionNo;					///< Apollo mission number.
 	int VehicleNo;					///< Saturn vehicle number.
 	SIVbState State;				///< Main stage state.
-	int Realism;					///< Realism level.
 
 	double EmptyMass;				///< Empty mass in kg.
 	double PayloadMass;				///< Payload mass in kg.
 	double MainFuel;				///< Main fuel mass in kg.
+	double ApsFuel1Kg;				///< APS fuel no. 1 in kg.
+	double ApsFuel2Kg;				///< APS fuel no. 2 in kg.
 
 	double MissionTime;				///< Current MET in seconds.
 	double NextMissionEventTime;	///< Next event time for automated operation.
@@ -427,8 +406,7 @@ protected:
 	bool PanelsOpened;				///< SLA Panels are open.
 	bool SaturnVStage;				///< Stage from Saturn V.
 	bool LowRes;					///< Using low-res meshes.
-	bool J2IsActive;				///< Is the J2 active for burns?
-	bool FuelVenting;				///< Is the SIVb venting fuel?
+	bool IUSCContPermanentEnabled;
 
 	double RotationLimit;			///< Panel rotation limit from 0.0 to 1.0 (1.0 = 180 degrees).
 	double CurrentThrust;			///< Current thrust level (0.0 to 1.0).
@@ -438,6 +416,11 @@ protected:
 
 	double LMDescentFuelMassKg;		///< Mass of fuel in descent stage of LEM.
 	double LMAscentFuelMassKg;		///< Mass of fuel in ascent stage of LEM.
+	double LMDescentEmptyMassKg;	///< Empty mass of descent stage of LEM.
+	double LMAscentEmptyMassKg;		///< Empty mass of ascent stage of LEM.
+
+	// Exterior light definitions
+	BEACONLIGHTSPEC dockingLights[5];             // docking lights
 
 	//
 	// LM PAD
@@ -449,6 +432,12 @@ protected:
 	int LMPadLoadCount;
 	int LMPadValueCount;
 
+	int AEAPadCount;				///< Count of AEA PAD values.
+	unsigned int *AEAPad;			///< AEA PAD load data.
+
+	int AEAPadLoadCount;
+	int AEAPadValueCount;
+
 	char PayloadName[64];			///< Name of payload, if appropriate.
 
 	bool Payloaddatatransfer;		///< Have we transferred data to the payload?
@@ -457,7 +446,6 @@ protected:
 	/// LEM checklist file
 	///
 	char LEMCheck[100];
-	bool LEMCheckAuto;
 
 	OBJHANDLE hs4b1;
 	OBJHANDLE hs4b2;
@@ -469,7 +457,11 @@ protected:
 	///
 	/// \brief Instrument Unit.
 	///
-	IU iu;
+	IU* iu;
+
+	bool iuinitflag;
+
+	SIVBSystems *sivbsys;
 
 	///
 	/// \brief Connector from SIVb to CSM when docked.
@@ -496,9 +488,10 @@ protected:
 
 	Battery *MainBattery;
 
-	THRUSTER_HANDLE th_att_rot[10], th_main[1], th_att_lin[2];                 // handles for APS engines
-	THGROUP_HANDLE thg_aps, thg_main, thg_sep, thg_sepPanel;
-	PROPELLANT_HANDLE ph_aps, ph_main;
+	THRUSTER_HANDLE th_aps_rot[6], th_main[1], th_aps_ull[2];                 // handles for APS engines
+	THRUSTER_HANDLE th_lox_vent;
+	THGROUP_HANDLE thg_main, thg_sep, thg_sepPanel, thg_ver;
+	PROPELLANT_HANDLE ph_aps1, ph_aps2, ph_main;
 
 	UINT panelAnim;
 	UINT panelAnimPlusX;
@@ -525,9 +518,6 @@ enum CSMSIVBMessageType
 	CSMSIVB_GET_MAIN_BATTERY_POWER,			///< Get the main battery power level.
 	CSMSIVB_GET_MAIN_BATTERY_ELECTRICS,		///< Get the main battery voltage and current.
 	CSMSIVB_IS_VENTABLE,					///< Is this a ventable vessel?
-	CSMSIVB_IS_VENTING,						///< Is the vessel venting fuel?
-	CSMSIVB_START_VENTING,					///< Start fuel venting.
-	CSMSIVB_STOP_VENTING,					///< Stop fuel venting.
 	CSMSIVB_START_SEPARATION,				///< Start charging separation pyros.
 	CSMSIVB_STOP_SEPARATION,				///< Stop charging separation pyros.
 	SIVBCSM_IGNORE_DOCK_EVENT,				///< CSM docking probe should ignore next docking event (for payload creation)

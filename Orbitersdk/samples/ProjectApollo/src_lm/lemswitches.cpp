@@ -38,7 +38,7 @@
 #include "apolloguidance.h"
 #include "dsky.h"
 #include "LEMcomputer.h"
-#include "IMU.h"
+#include "lm_channels.h"
 
 #include "LEM.h"
 
@@ -190,7 +190,7 @@ double LMSuitTempMeter::QueryValue()
 
 {
 	if(!lem){ return 0; }
-	return lem->ecs.Suit_Temp;
+	return lem->scera1.GetVoltage(21, 1)*20.0 + 20.0;
 }
 
 void LMSuitTempMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -218,7 +218,7 @@ double LMCabinTempMeter::QueryValue()
 
 {
 	if(!lem){ return 0; }
-	return lem->ecs.Cabin_Temp;
+	return lem->scera1.GetVoltage(21, 2)*20.0 + 20.0;
 }
 
 void LMCabinTempMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -243,10 +243,9 @@ void LMSuitPressMeter::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 }
 
 double LMSuitPressMeter::QueryValue()
-
 {
 	if(!lem){ return 0; }
-	return lem->ecs.Suit_Press;
+	return lem->scera1.GetVoltage(5, 1)*2.0;
 }
 
 void LMSuitPressMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -274,7 +273,7 @@ double LMCabinPressMeter::QueryValue()
 
 {
 	if(!lem){ return 0; }
-	return lem->ecs.Cabin_Press;
+	return lem->ecs.GetCabinPressurePSI();
 }
 
 void LMCabinPressMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -284,13 +283,13 @@ void LMCabinPressMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 }
 
 // ECS indicator, cabin CO2 level
-LMCabinCO2Meter::LMCabinCO2Meter()
+LMCO2Meter::LMCO2Meter()
 
 {
 	NeedleSurface = 0;
 }
 
-void LMCabinCO2Meter::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
+void LMCO2Meter::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 
 {
 	MeterSwitch::Init(row);
@@ -298,15 +297,14 @@ void LMCabinCO2Meter::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 	NeedleSurface = surf;
 }
 
-double LMCabinCO2Meter::QueryValue()
+double LMCO2Meter::QueryValue()
 
 {
 	if(!lem){ return 0; }
-	// FIXME: NEED TO HANDLE SUIT GAS DIVERTER HERE
-	return lem->ecs.Cabin_CO2;
+	return lem->scera1.GetVoltage(5, 2)*6.0;
 }
 
-void LMCabinCO2Meter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
+void LMCO2Meter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 
 {
 	double cf,sf; // Correction Factor, Scale factor
@@ -361,13 +359,7 @@ double LMGlycolTempMeter::QueryValue()
 
 {
 	if(!lem){ return 0; }
-	if(lem->GlycolRotary.GetState() == 0){
-		// Secondary
-		return(lem->ecs.Secondary_CL_Glycol_Temp[0]);
-	}else{
-		// Primary
-		return(lem->ecs.Primary_CL_Glycol_Temp[0]);
-	}
+	return lem->scera1.GetVoltage(10, 1)*20.0 + 20.0;
 }
 
 void LMGlycolTempMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -397,10 +389,10 @@ double LMGlycolPressMeter::QueryValue()
 	if(!lem){ return 0; }
 	if(lem->GlycolRotary.GetState() == 0){
 		// Secondary
-		return(lem->ecs.Secondary_CL_Glycol_Press[1]);
+		return(lem->ecs.GetSecondaryGlycolPressure());
 	}else{
 		// Primary
-		return(lem->ecs.Primary_CL_Glycol_Press[1]);
+		return(lem->ecs.GetPrimaryGlycolPressure());
 	}
 }
 
@@ -434,11 +426,14 @@ double LMOxygenQtyMeter::QueryValue()
 		default:
 			return 0;
 		case 1: // DES
-			return(((lem->ecs.Des_Oxygen[0] + lem->ecs.Des_Oxygen[1])/(48.01*2))*100);
+			return (lem->ecs.DescentOxyTankQuantityLBS()/(48.0))*100; 
+		//For J-Mission Conversion
+		//case 1: // DES
+		//	return (lem->ecs.DescentOxyTankQuantityLBS() / (96.0)) * 100;
 		case 2: // ASC 1
-			return((lem->ecs.Asc_Oxygen[0]/2.43)*100);
+			return (lem->ecs.AscentOxyTank1QuantityLBS()/(2.43))*100;	
 		case 3: // ASC 2
-			return((lem->ecs.Asc_Oxygen[1]/2.43)*100);
+			return (lem->ecs.AscentOxyTank2QuantityLBS()/(2.43))*100;	
 	}
 }
 
@@ -472,11 +467,11 @@ double LMWaterQtyMeter::QueryValue()
 		default:
 			return 0;
 		case 1: // DES
-			return(((lem->ecs.Des_Water[0] + lem->ecs.Des_Water[1])/(333*2))*100);
+			return lem->scera1.GetVoltage(7, 3)*20.0;
 		case 2: // ASC 1
-			return((lem->ecs.Asc_Water[0]/42.5)*100);
+			return lem->scera1.GetVoltage(8, 1)*20.0;
 		case 3: // ASC 2
-			return((lem->ecs.Asc_Water[1]/42.5)*100);
+			return lem->scera1.GetVoltage(8, 2)*20.0;
 	}
 }
 
@@ -558,7 +553,19 @@ void LMRCSAPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 double LMRCSAPressInd::QueryValue()
 
 {
-	return 200.0;
+	if (!lem) { return 0; }
+	switch (lem->TempPressMonRotary) {
+	case 0: //HELIUM
+		return lem->scera1.GetVoltage(6, 1)*350.0 / 5.0;
+	case 1: //PRPLNT
+		return lem->scera1.GetVoltage(6, 3)*350.0 / 5.0;
+	case 2: //FUEL MANF
+		return lem->RCSA.GetRCSFuelManifoldPressPSI();
+	case 3: //OXID MANF
+		return lem->RCSA.GetRCSOxidManifoldPressPSI();
+	default:
+		return 0;
+	}
 }
 
 void LMRCSAPressInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -585,7 +592,19 @@ void LMRCSBPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 double LMRCSBPressInd::QueryValue()
 
 {
-	return 200.0;
+	if (!lem) { return 0; }
+	switch (lem->TempPressMonRotary) {
+	case 0: //HELIUM
+		return lem->scera1.GetVoltage(6, 2)*350.0 / 5.0;
+	case 1: //PRPLNT
+		return lem->scera1.GetVoltage(6, 4)*350.0 / 5.0;
+	case 2: //FUEL MANF
+		return lem->RCSB.GetRCSFuelManifoldPressPSI();
+	case 3: //OXID MANF
+		return lem->RCSB.GetRCSOxidManifoldPressPSI();
+	default:
+		return 0;
+	}
 }
 
 void LMRCSBPressInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -612,7 +631,7 @@ void LMRCSAQtyInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 double LMRCSAQtyInd::QueryValue()
 
 {
-	return 50.0;
+	return lem->RCSA.GetRCSPropellantQuantity()*100.0;
 }
 
 void LMRCSAQtyInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -639,7 +658,7 @@ void LMRCSBQtyInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 double LMRCSBQtyInd::QueryValue()
 
 {
-	return 50.0;
+	return lem->RCSB.GetRCSPropellantQuantity()*100.0;
 }
 
 void LMRCSBQtyInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -666,7 +685,26 @@ void TempMonitorInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 double TempMonitorInd::QueryValue()
 
 {
-	return 50.0;
+	if (!lem) { return 0; }
+	switch (lem->TempMonitorRotary) {
+	case 0: // RR
+		return lem->scera1.GetVoltage(21, 4) * 80.0 - 200.0;
+	case 1: // LR
+		return lem->scera1.GetVoltage(21, 3) * 80.0 - 200.0;
+		//Quad temperatures are scaled to the proper display increments
+	case 2: // Quad 1
+		return lem->scera1.GetVoltage(20, 4) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
+	case 3: // Quad 2
+		return lem->scera1.GetVoltage(20, 3) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
+	case 4: // Quad 3
+		return lem->scera1.GetVoltage(20, 2) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
+	case 5: // Quad 4
+		return lem->scera1.GetVoltage(20, 1) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
+	case 6: // S-Band
+		return lem->scera2.GetVoltage(21, 1) * 80.0 - 200.0;
+	default:
+		return 0.0;
+	}
 }
 
 void TempMonitorInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -693,7 +731,7 @@ void EngineThrustInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 double EngineThrustInd::QueryValue()
 
 {
-	if (lem->stage < 2)
+	if (lem->stage < 2 && lem->th_hover[0])
 	{
 		return lem->GetThrusterLevel(lem->th_hover[0])*100.0;
 	}
@@ -736,6 +774,38 @@ void CommandedThrustInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 	oapiBlt(drawSurface, NeedleSurface,  58, 114-((int)v), 7, 0, 7, 7, SURF_PREDEF_CK);
 }
 
+// Thrust/Weight Indicator
+ThrustWeightInd::ThrustWeightInd()
+
+{
+	NeedleSurface = 0;
+}
+
+void ThrustWeightInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
+
+{
+	MeterSwitch::Init(row);
+	lem = s;
+	NeedleSurface = surf;
+}
+
+double ThrustWeightInd::QueryValue()
+
+{
+	return lem->mechanicalAccelerometer.GetYAccel() / 1.594104;
+}
+
+void ThrustWeightInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
+
+{
+	oapiBlt(drawSurface, NeedleSurface, 20, (int)(161.5 - 25.0*v), 0, 0, 8, 7, SURF_PREDEF_CK);
+}
+
+double ThrustWeightInd::AdjustForPower(double val)
+{
+	return val;
+}
+
 // Main Fuel Temperature Indicator
 MainFuelTempInd::MainFuelTempInd()
 
@@ -770,18 +840,28 @@ MainFuelPressInd::MainFuelPressInd()
 	NeedleSurface = 0;
 }
 
-void MainFuelPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
+void MainFuelPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s, ThreePosSwitch *temppressmonswitch)
 
 {
 	MeterSwitch::Init(row);
 	lem = s;
 	NeedleSurface = surf;
+	monswitch = temppressmonswitch;
 }
 
 double MainFuelPressInd::QueryValue()
 
 {
-	return 150.0;
+	if (monswitch->IsUp())
+	{
+		return lem->GetAPSPropellant()->GetFuelTankUllagePressurePSI();
+	}
+	else if (monswitch->IsCenter() || monswitch->IsDown())
+	{
+		return lem->GetDPSPropellant()->GetFuelTankUllagePressurePSI();
+	}
+
+	return 0.0;
 }
 
 void MainFuelPressInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -824,103 +904,34 @@ MainOxidizerPressInd::MainOxidizerPressInd()
 	NeedleSurface = 0;
 }
 
-void MainOxidizerPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
+void MainOxidizerPressInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s, ThreePosSwitch *temppressmonswitch)
 
 {
 	MeterSwitch::Init(row);
 	lem = s;
 	NeedleSurface = surf;
+	monswitch = temppressmonswitch;
 }
 
 double MainOxidizerPressInd::QueryValue()
 
 {
-	return 150.0;
+	if (monswitch->IsUp())
+	{
+		return lem->GetAPSPropellant()->GetOxidizerTankUllagePressurePSI();
+	}
+	else if (monswitch->IsCenter() || monswitch->IsDown())
+	{
+		return lem->GetDPSPropellant()->GetOxidizerTankUllagePressurePSI();
+	}
+
+	return 0.0;
 }
 
 void MainOxidizerPressInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 
 {	
 	oapiBlt(drawSurface, NeedleSurface,  240, 115-((int)(v*0.34)), 7, 0, 7, 7, SURF_PREDEF_CK);
-}
-
-LEMValveTalkback::LEMValveTalkback()
-
-{
-	Valve = 0;
-	our_vessel = 0;
-}
-
-void LEMValveTalkback::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SwitchRow &row, int vlv, LEM *s)
-
-{
-	IndicatorSwitch::Init(xp, yp, w, h, surf, row);
-
-	Valve = vlv;
-	our_vessel = s;
-}
-
-int LEMValveTalkback::GetState()
-
-{
-	//sprintf(oapiDebugString(),"SRCV %f STATE %d",SRC->Voltage(),our_vessel->GetValveState(Valve));
-	if (our_vessel && (SRC->Voltage() > 20))
-		return our_vessel->GetValveState(Valve) ? 1 : 0;
-
-	return 0;
-}
-
-void LEMValveSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, LEM *s, int valve, IndicatorSwitch *ind)
-
-{
-	LEMThreePosSwitch::Init(xp, yp, w, h, surf, bsurf, row, s);
-
-	Valve = valve;
-	Indicator = ind;
-}
-
-/*bool LEMValveSwitch::CheckMouseClick(int event, int mx, int my)
-
-{
-	if (LEMThreePosSwitch::CheckMouseClick(event, mx, my)) {
-		CheckValve(GetState());
-		return true;
-	}
-
-	return false;
-}*/
-
-bool LEMValveSwitch::SwitchTo(int newState, bool dontspring)
-
-{
-	if (LEMThreePosSwitch::SwitchTo(newState, dontspring)) {
-		// some of these switches are spring-loaded, 
-		// so we have to use newState here
-		CheckValve(newState);
-		return true;
-	}
-
-	return false;
-}
-
-void LEMValveSwitch::CheckValve(int s) 
-
-{
-	//sprintf(oapiDebugString(),"Switching %d",SRC->Voltage());	
-	if (lem && (SRC->Voltage() > 20)) {
-		if (s == THREEPOSSWITCH_UP) {
-			lem->SetValveState(Valve, true);
-			lem->CheckRCS();
-			if (Indicator)
-				Indicator->SetState(1);
-		}
-		else if (s == THREEPOSSWITCH_DOWN) {
-			lem->SetValveState(Valve, false);
-			lem->CheckRCS();
-			if (Indicator)
-				Indicator->SetState(0);
-		}
-	}
 }
 
 void LEMBatterySwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, LEM *s,
@@ -980,33 +991,24 @@ bool LEMBatterySwitch::SwitchTo(int newState, bool dontspring)
 {
 	//sprintf(oapiDebugString(),"NewState %d",newState);
 	if (LEMThreePosSwitch::SwitchTo(newState, dontspring)) {
-		// Check for control power
-		if (afl == 1) {
-			if (lem->CDRAscECAContCB.Voltage() < 24 && lem->LMPAscECAContCB.Voltage() < 24) { return true; }
-		}
-		else {
-			if (lem->CDRDesECAContCB.Voltage() < 24 && lem->LMPDesECAContCB.Voltage() < 24) { return true; }
-		}
 		switch (state) {
 		case THREEPOSSWITCH_UP:
 			switch (srcno) {
 			case 1: // HV
 				eca->input = 1;
-				if (eca->dc_source_tb != NULL) {
-					eca->dc_source_tb->SetState(1);
-				}
 				break;
 			case 2: // LV
 				eca->input = 2;
-				if (eca->dc_source_tb != NULL) {
-					eca->dc_source_tb->SetState(2);
-				}
 				break;
 			}
 			break;
 		case THREEPOSSWITCH_DOWN:
-			if (eca->dc_source_tb != NULL) {
-				eca->dc_source_tb->SetState(0);
+			// Check for control power
+			if (afl == 1) {
+				if (lem->CDRAscECAContCB.Voltage() < 24 && lem->LMPAscECAContCB.Voltage() < 24) { return true; }
+			}
+			else {
+				if (lem->CDRDesECAContCB.Voltage() < 24 && lem->LMPDesECAContCB.Voltage() < 24) { return true; }
 			}
 			eca->input = 0;
 			break;
@@ -1079,11 +1081,6 @@ bool LEMDeadFaceSwitch::SwitchTo(int newState, bool dontspring)
 				lem->DES_LMPs28VBusB.WireTo(&lem->ECA_1b);
 				lem->DES_CDRs28VBusA.WireTo(&lem->ECA_2a);
 				lem->DES_CDRs28VBusB.WireTo(&lem->ECA_2b);
-				// Reconnect EPS monitor stuff
-				lem->EPSMonitorSelectRotary.SetSource(1, lem->Battery1);
-				lem->EPSMonitorSelectRotary.SetSource(2, lem->Battery2);
-				lem->EPSMonitorSelectRotary.SetSource(3, lem->Battery3);
-				lem->EPSMonitorSelectRotary.SetSource(4, lem->Battery4);
 				lem->DSCBattFeedTB.SetState(1);
 			}
 			break;
@@ -1094,10 +1091,6 @@ bool LEMDeadFaceSwitch::SwitchTo(int newState, bool dontspring)
 			lem->DES_LMPs28VBusB.Disconnect();
 			lem->DES_CDRs28VBusA.Disconnect();
 			lem->DES_CDRs28VBusB.Disconnect();
-			lem->EPSMonitorSelectRotary.SetSource(1, NULL);
-			lem->EPSMonitorSelectRotary.SetSource(2, NULL);
-			lem->EPSMonitorSelectRotary.SetSource(3, NULL);
-			lem->EPSMonitorSelectRotary.SetSource(4, NULL);
 			lem->DSCBattFeedTB.SetState(0);
 			break;
 		}
@@ -1130,21 +1123,15 @@ void LEMInverterSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURF
 
 bool LEMInverterSwitch::ChangeState(int newState){
 	switch(newState){
-		case THREEPOSSWITCH_UP:      // INV 2			
-			if(inv1 != NULL){ inv1->active = 0; }
-			if(inv2 != NULL){ inv2->active = 1; }
+		case THREEPOSSWITCH_UP:      // INV 2
 			lem->ACBusA.WireTo(&lem->AC_A_INV_2_FEED_CB);
 			lem->ACBusB.WireTo(&lem->AC_B_INV_2_FEED_CB);
 			break;
 		case THREEPOSSWITCH_CENTER:  // INV 1
-			if(inv1 != NULL){ inv1->active = 1; }
-			if(inv2 != NULL){ inv2->active = 0; }			
 			lem->ACBusA.WireTo(&lem->AC_A_INV_1_FEED_CB);
 			lem->ACBusB.WireTo(&lem->AC_B_INV_1_FEED_CB);
 			break;
-		case THREEPOSSWITCH_DOWN:    // OFF				
-			if(inv1 != NULL){ inv1->active = 0; }
-			if(inv2 != NULL){ inv2->active = 0; }
+		case THREEPOSSWITCH_DOWN:    // OFF
 			lem->ACBusA.Disconnect();
 			lem->ACBusB.Disconnect();
 			break;
@@ -1162,6 +1149,36 @@ bool LEMInverterSwitch::SwitchTo(int newState, bool dontspring)
 	return false;
 }
 
+LGCThrusterPairSwitch::LGCThrusterPairSwitch()
+{
+	inputbit = 0;
+}
+
+void LGCThrusterPairSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, LEM *l, int bit)
+{
+	LEMThreePosSwitch::Init(xp, yp, w, h, surf, bsurf, row, l);
+
+	inputbit = bit;
+}
+
+bool LGCThrusterPairSwitch::SwitchTo(int newState, bool dontspring)
+{
+	if (LEMThreePosSwitch::SwitchTo(newState, dontspring)) {
+
+		if (newState == THREEPOSSWITCH_UP)
+		{
+			lem->agc.SetInputChannelBit(032, inputbit, false);
+		}
+		else if (newState == THREEPOSSWITCH_DOWN)
+		{
+			lem->agc.SetInputChannelBit(032, inputbit, true);
+		}
+
+		return true;
+	}
+	return false;
+}
+
 // Meters
 void LEMRoundMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s)
 
@@ -1171,57 +1188,50 @@ void LEMRoundMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s)
 }
 
 // DC Voltmeter
+
+void LEMDCVoltMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
 double LEMDCVoltMeter::QueryValue()
 
 {
-	switch(lem->EPSMonitorSelectRotary.GetState()){
+	if (!lem) { return 0; }
+	switch (lem->EPSMonitorSelectRotary) {
 		case 0: // ED/OFF
-			switch(lem->EPSEDVoltSelect.GetState()){
-				case THREEPOSSWITCH_UP:		// ED Battery A
-				case THREEPOSSWITCH_DOWN:	// ED Battery B
-					return 37.1; // Fake unloaded battery
-					break;
-				case THREEPOSSWITCH_CENTER: // OFF
-					return 0;
-					break;
-				default:
-					return 0;
-					break;
-			}
+			return(lem->scera1.GetVoltage(7, 4) * 8.0);
 			break;
 		case 1: // Battery 1
-			if(lem->Battery1){ return(lem->Battery1->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 1) * 8.0);
 			break;
 		case 2: // Battery 2
-			if(lem->Battery2){ return(lem->Battery2->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 2) * 8.0);
 			break;
 		case 3: // Battery 3
-			if(lem->Battery3){ return(lem->Battery3->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 3) * 8.0);
 			break;
 		case 4: // Battery 4
-			if(lem->Battery4){ return(lem->Battery4->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(16, 4) * 8.0);
 			break;
 		case 5: // Battery 5
-			if(lem->Battery5){ return(lem->Battery5->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(17, 1) * 8.0);
 			break;
 		case 6: // Battery 6
-			if(lem->Battery6){ return(lem->Battery6->Voltage()); }else{ return 0; }
+			return(lem->scera2.GetVoltage(18, 1) * 8.0);
 			break;
 		case 7: // CDR DC BUS
-			return(lem->CDRs28VBus.Voltage());
+			return(lem->scera1.GetVoltage(18, 3) * 8.0);
 			break;
 		case 8: // LMP DC BUS
-			return(lem->LMPs28VBus.Voltage());
+			return(lem->scera2.GetVoltage(8, 3) * 8.0);
 			break;
-		case 9: // AC BUS (?)
-			if(lem->ACBusA.Voltage() > 85){
-				return(lem->ACBusA.Voltage()-85);
-			}else{
-				return(0);
-			}
+		case 9: // AC BUS
+			return((lem->scera1.GetVoltage(18, 2) * 25.0)/3.125);	//3.125 factor from AOH
 			break;		
 		default:
-			return(0);
+			return 0.0;
 	}
 }
 
@@ -1236,26 +1246,34 @@ void LEMDCVoltMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface){
 }
 
 // DC Ammeter
+
+void LEMDCAmMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
 double LEMDCAmMeter::QueryValue(){	
-	switch(lem->EPSMonitorSelectRotary.GetState()){
+	if (!lem) { return 0; }
+	switch (lem->EPSMonitorSelectRotary) {
 		case 0: // ED/OFF
-			return 0; // Means either off or unloaded ED battery
+			return 0.0; // Means either off or unloaded ED battery
 			break;
 		case 1: // Battery 1
 			if(lem->Battery1 && lem->Battery1->Voltage() > 0){ 
-				return(lem->Battery1->PowerLoad()/lem->Battery1->Voltage()); }else{ return 0; }
+				return((lem->Battery1->PowerLoad()/lem->Battery1->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 2: // Battery 2
 			if(lem->Battery2 && lem->Battery2->Voltage() > 0){
-				return(lem->Battery2->PowerLoad()/lem->Battery2->Voltage()); }else{ return 0; }
+				return((lem->Battery2->PowerLoad()/lem->Battery2->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 3: // Battery 3
 			if(lem->Battery3 && lem->Battery3->Voltage() > 0){
-				return(lem->Battery3->PowerLoad()/lem->Battery3->Voltage()); }else{ return 0; }
+				return((lem->Battery3->PowerLoad()/lem->Battery3->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 4: // Battery 4
 			if(lem->Battery4 && lem->Battery4->Voltage() > 0){
-				return(lem->Battery4->PowerLoad()/lem->Battery4->Voltage()); }else{ return 0; }
+				return((lem->Battery4->PowerLoad()/lem->Battery4->Voltage())*2.0); }else{ return 0; }
 			break;
 		case 5: // Battery 5
 			if(lem->Battery5 && lem->Battery5->Voltage() > 0){
@@ -1266,22 +1284,16 @@ double LEMDCAmMeter::QueryValue(){
 				return(lem->Battery6->PowerLoad()/lem->Battery6->Voltage()); }else{ return 0; }
 			break;
 		case 7: // CDR DC BUS
-			if(lem->CDRs28VBus.Voltage() > 0){
-				return(lem->CDRs28VBus.PowerLoad()/lem->CDRs28VBus.Voltage()); }else{ return 0; }
+			return 0.0; // No current is read for this
 			break;
 		case 8: // LMP DC BUS
-			if(lem->LMPs28VBus.Voltage() > 0){
-				return(lem->LMPs28VBus.PowerLoad()/lem->LMPs28VBus.Voltage()); }else{ return 0; }
+			return 0.0; // No current is read for this
 			break;
-		case 9: // AC BUS (?)
-			if(lem->ACBusA.Voltage() > 0){
-				return(lem->ACBusA.PowerLoad()/lem->ACBusA.Voltage());
-			}else{
-				return(0);
-			}
-			break;		
+		case 9: // AC BUS
+			return 0.0; // No current is read for this
+			break;	
 		default:
-			return(0);
+			return 0.0;
 	}	
 }
 
@@ -1307,8 +1319,25 @@ double LEMVoltCB::Current()
 	return Amperes;
 }
 
-void EngineStartButton::Init(ToggleSwitch* stopbutton) {
+void EngineStartButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* stopbutton, LEM *l) {
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
+	lem = l;
 	this->stopbutton = stopbutton;
+}
+
+bool EngineStartButton::CheckMouseClick(int event, int mx, int my) {
+
+	int OldState = state;
+
+	if (!visible) return false;
+	if (mx < x || my < y) return false;
+	if (mx >(x + width) || my >(y + height)) return false;
+
+	if (event == PANEL_MOUSE_LBDOWN)
+	{
+		Push();
+	}
+	return true;
 }
 
 bool EngineStartButton::Push()
@@ -1319,7 +1348,7 @@ bool EngineStartButton::Push()
 	{
 		if (ToggleSwitch::SwitchTo(1)) {
 
-			sprintf(oapiDebugString(), "Engine Start: %d, Engine Stop: %d", GetState(), stopbutton->GetState());
+			Sclick.play();
 			return true;
 		}
 	}
@@ -1327,8 +1356,49 @@ bool EngineStartButton::Push()
 	return false;
 }
 
-void EngineStopButton::Init(ToggleSwitch* startbutton) {
+void EngineStartButton::DoDrawSwitch(SURFHANDLE DrawSurface) {
+
+	if (lem->lca.GetAnnunVoltage() > 2.25 && (lem->LampToneTestRotary.GetState() == 3 || IsUp())) {
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+	}
+	else {
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset, width, height, SURF_PREDEF_CK);
+		}
+	}
+}
+
+void EngineStopButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, ToggleSwitch* startbutton, LEM *l) {
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
+	lem = l;
 	this->startbutton = startbutton;
+}
+
+bool EngineStopButton::CheckMouseClick(int event, int mx, int my) {
+	
+	int OldState = state;
+
+	if (!visible) return false;
+	if (mx < x || my < y) return false;
+	if (mx >(x + width) || my >(y + height)) return false;
+
+	if (event == PANEL_MOUSE_LBDOWN)
+	{
+		Push();
+	}
+	return true;
 }
 
 bool EngineStopButton::Push()
@@ -1339,10 +1409,651 @@ bool EngineStopButton::Push()
 		
 		if (newstate = 1)
 		{
-			startbutton->SwitchTo(0);
-			sprintf(oapiDebugString(), "Engine Start: %d, Engine Stop: %d", startbutton->GetState(), GetState());
+			if (startbutton)
+			{
+				startbutton->SwitchTo(0);
+			}
 		}
+		Sclick.play();
 		return true;
+	}
+
+	return false;
+}
+
+void EngineStopButton::DoDrawSwitch(SURFHANDLE DrawSurface) {
+	
+	if (lem->lca.GetAnnunVoltage() > 2.25 && (lem->LampToneTestRotary.GetState() == 3 || IsUp())){
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset + height, width, height, SURF_PREDEF_CK);
+		}
+	}
+	else {
+		if (IsUp())
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset, width, height, SURF_PREDEF_CK);
+		}
+		else
+		{
+			oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset + width, yOffset, width, height, SURF_PREDEF_CK);
+		}
+	}
+}
+
+bool LMAbortButton::CheckMouseClick(int event, int mx, int my) {
+
+	int OldState = state;
+
+	if (!visible) return false;
+	if (mx < x || my < y) return false;
+	if (mx >(x + width) || my >(y + height)) return false;
+
+	if (event == PANEL_MOUSE_LBDOWN)
+	{
+		if (state == 0) {
+			SwitchTo(1, true);
+			Sclick.play();
+			lem->agc.SetInputChannelBit(030, AbortWithDescentStage, false);
+			lem->aea.SetInputPortBit(IO_2020, AGSAbortDiscrete, true);
+		}
+		else if (state == 1) {
+			SwitchTo(0, true);
+			Sclick.play();
+			lem->agc.SetInputChannelBit(030, AbortWithDescentStage, true);
+			lem->aea.SetInputPortBit(IO_2020, AGSAbortDiscrete, false);
+		}
+	}
+	return true;
+}
+
+void LMAbortButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, LEM *l)
+
+{
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
+	lem = l;
+}
+
+LMAbortStageButton::LMAbortStageButton() 
+{ 
+	lem = 0; 
+};
+
+void LMAbortStageButton::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, int xoffset, int yoffset, LEM *l)
+
+{
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row, xoffset, yoffset);
+	lem = l;
+}
+
+void LMAbortStageButton::DrawSwitch(SURFHANDLE DrawSurface) {
+
+	if (!visible) return;
+
+	if (guardState) {
+		DoDrawSwitch(DrawSurface);
+	}
+	else {
+		oapiBlt(DrawSurface, guardSurface, guardX, guardY, guardXOffset, guardYOffset, guardWidth, guardHeight, SURF_PREDEF_CK);
+	}
+}
+
+bool LMAbortStageButton::CheckMouseClick(int event, int mx, int my) {
+
+	if (!visible) return false;
+
+	if (event & PANEL_MOUSE_RBDOWN) {
+		if (mx >= guardX && mx <= guardX + guardWidth &&
+			my >= guardY && my <= guardY + guardHeight) {
+			if (guardState) {
+				Guard();
+			}
+			else {
+				guardState = 1;
+			}
+			guardClick.play();
+			return true;
+		}
+	}
+	else if (event & (PANEL_MOUSE_LBDOWN)) {
+		if (guardState) {
+
+
+			if (!visible) return false;
+			if (mx < x || my < y) return false;
+			if (mx >(x + width) || my >(y + height)) return false;
+
+			if (state == 0) {
+				SwitchTo(1);
+				Sclick.play();
+			}
+			else if (state == 1) {
+				SwitchTo(0);
+				Sclick.play();
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+void LEMPanelOrdeal::Init(SwitchRow &row, LEM *l) {
+	MeterSwitch::Init(row);
+	lem = l;
+}
+
+int LEMPanelOrdeal::GetState() {
+	return lem->ordealEnabled;
+}
+
+void LEMPanelOrdeal::SetState(int value) {
+
+	if (value == 0) value = -1;
+
+	lem->ordealEnabled = value;
+}
+
+RadarSignalStrengthAttenuator::RadarSignalStrengthAttenuator(char *i_name, double minIn, double maxIn, double minOut, double maxOut) :
+	VoltageAttenuator(i_name, minIn, maxIn, minOut, maxOut)
+{
+}
+
+void RadarSignalStrengthAttenuator::Init(LEM *l, RotationalSwitch *testmonitorselectorswitch, e_object *Instrum)
+{
+	lem = l;
+	TestMonitorRotarySwitch = testmonitorselectorswitch;
+
+	WireTo(Instrum);
+}
+
+double RadarSignalStrengthAttenuator::GetValue()
+{
+	double val = 0.0;
+
+	switch (TestMonitorRotarySwitch->GetState())
+	{
+	case 0:	//ALT XMTR
+		val = lem->LR.GetAltTransmitterPower();
+		break;
+	case 1:	//VEL XMTR
+		val = lem->LR.GetVelTransmitterPower();
+		break;
+	case 2:	//AGC
+		val = lem->RR.GetSignalStrength();
+		break;
+	case 3:	//XMTR PWR
+		val = lem->RR.GetTransmitterPower();
+		break;
+	case 4:	//SHAFT ERR
+		val = lem->RR.GetShaftErrorSignal();
+		break;
+	case 5:	//TRUN ERR
+		val = lem->RR.GetTrunnionErrorSignal();
+		break;
+	}
+
+	return val;
+}
+
+void LEMSteerableAntennaPitchMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
+double LEMSteerableAntennaPitchMeter::QueryValue() {
+	return lem->SBandSteerable.GetPitch();
+}
+
+void LEMSteerableAntennaPitchMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface) {
+	v = (210.0 - v) * 0.75;
+	DrawNeedle(drawSurface, 91 / 2, 90 / 2, 25.0, v * RAD);
+	oapiBlt(drawSurface, FrameSurface, 0, 0, 0, 0, 91, 90, SURF_PREDEF_CK);
+}
+
+void LEMSteerableAntennaYawMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
+double LEMSteerableAntennaYawMeter::QueryValue() {
+	return lem->SBandSteerable.GetYaw();
+}
+
+void LEMSteerableAntennaYawMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface) {
+	v = (120.0 - v) * 0.75;
+	DrawNeedle(drawSurface, 91 / 2, 90 / 2, 25.0, v * RAD);
+	oapiBlt(drawSurface, FrameSurface, 0, 0, 0, 0, 91, 90, SURF_PREDEF_CK);
+}
+
+void LEMSBandAntennaStrengthMeter::Init(HPEN p0, HPEN p1, SwitchRow &row, LEM *s, SURFHANDLE frameSurface)
+{
+	LEMRoundMeter::Init(p0, p1, row, s);
+	FrameSurface = frameSurface;
+}
+
+double LEMSBandAntennaStrengthMeter::QueryValue() {
+	return lem->SBand.rcvr_agc_voltage;
+}
+
+void LEMSBandAntennaStrengthMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface) {
+	v = 220.0 - 2.7*v;
+	DrawNeedle(drawSurface, 91 / 2, 90 / 2, 25.0, v * RAD);
+	oapiBlt(drawSurface, FrameSurface, 0, 0, 0, 0, 91, 90, SURF_PREDEF_CK);
+}
+
+LEMDPSValveTalkback::LEMDPSValveTalkback()
+{
+	valve = 0;
+}
+
+
+void LEMDPSValveTalkback::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SwitchRow &row, DPSValve *v, bool failopen)
+
+{
+	IndicatorSwitch::Init(xp, yp, w, h, surf, row, failopen);
+	valve = v;
+}
+
+int LEMDPSValveTalkback::GetState()
+
+{
+	if (valve && SRC && (SRC->Voltage() > SP_MIN_DCVOLTAGE))
+		state = valve->IsOpen() ? 1 : 0;
+	else
+		// Should this fail open?
+		state = (failOpen ? 1 : 0);
+
+	return state;
+}
+
+LEMSCEATalkback::LEMSCEATalkback()
+{
+	ssswitch = 0;
+}
+
+void LEMSCEATalkback::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SwitchRow &row, SCEA_SolidStateSwitch *s, bool failopen)
+
+{
+	IndicatorSwitch::Init(xp, yp, w, h, surf, row, failopen);
+	ssswitch = s;
+}
+
+int LEMSCEATalkback::GetState()
+
+{
+	if (ssswitch && SRC && (SRC->Voltage() > SP_MIN_DCVOLTAGE) && ssswitch->IsClosed())
+		state = (failOpen ? 0 : 1);
+	else
+		// Should this fail open?
+		state = (failOpen ? 1 : 0);
+
+	return state;
+}
+
+LEMDoubleSCEATalkback::LEMDoubleSCEATalkback()
+{
+	ssswitch1 = 0;
+	ssswitch2 = 0;
+}
+
+void LEMDoubleSCEATalkback::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SwitchRow &row, SCEA_SolidStateSwitch *s1, SCEA_SolidStateSwitch *s2)
+
+{
+	IndicatorSwitch::Init(xp, yp, w, h, surf, row);
+	ssswitch1 = s1;
+	ssswitch2 = s2;
+}
+
+int LEMDoubleSCEATalkback::GetState()
+
+{
+	if (SRC && SRC->Voltage() > SP_MIN_DCVOLTAGE)
+	{
+		if (ssswitch1 && ssswitch1->IsClosed())
+			state = 1;
+		else if (ssswitch2 && ssswitch2->IsClosed())
+			state = 2;
+		else
+			state = 0;
+	}
+	else
+	{
+		state = 0;
+	}
+
+	return state;
+}
+
+LEMRCSQuadTalkback::LEMRCSQuadTalkback()
+{
+	ssswitch = 0;
+	tcaFailure = 0;
+}
+
+void LEMRCSQuadTalkback::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SwitchRow &row, SCEA_SolidStateSwitch *s, TCA_FlipFlop *tcaf)
+
+{
+	IndicatorSwitch::Init(xp, yp, w, h, surf, row, true);
+	ssswitch = s;
+	tcaFailure = tcaf;
+}
+
+int LEMRCSQuadTalkback::GetState()
+{
+	if (ssswitch && tcaFailure)
+	{
+		if (tcaFailure->IsSet())
+			state = 2;
+		else if (ssswitch->IsClosed())
+			state = 0;
+		else
+			state = 1;
+	}
+	else
+		state = 1;
+
+	return state;
+}
+
+void LEMDPSDigitalMeter::Init(SURFHANDLE surf, SwitchRow &row, LEM *l)
+{
+	MeterSwitch::Init(row);
+	Digits = surf;
+	lem = l;
+}
+
+void LEMDPSDigitalMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
+{
+	if (lem->stage > 1) return;
+	if (Voltage() < SP_MIN_DCVOLTAGE || lem->PROP_PQGS_CB.Voltage() < SP_MIN_DCVOLTAGE || lem->QTYMonSwitch.IsDown()) return;
+
+	double percent = v * 100.0;
+
+	int Curdigit2 = (int)percent;
+	int Curdigit = (int)percent / 10;
+
+	oapiBlt(drawSurface, Digits, 0, 0, 19 * Curdigit, 0, 19, 21);
+	oapiBlt(drawSurface, Digits, 20, 0, 19 * (Curdigit2 - (Curdigit * 10)), 0, 19, 21);
+}
+
+double LEMDPSOxidPercentMeter::QueryValue()
+{
+	return lem->GetDPSPropellant()->GetOxidPercent();
+}
+
+
+double LEMDPSFuelPercentMeter::QueryValue()
+{
+	return lem->GetDPSPropellant()->GetFuelPercent();
+}
+
+LEMDigitalHeliumPressureMeter::LEMDigitalHeliumPressureMeter()
+
+{
+	source = 0;
+	Digits = 0;
+}
+
+void LEMDigitalHeliumPressureMeter::Init(SURFHANDLE surf, SwitchRow &row, RotationalSwitch *s, LEM *l)
+
+{
+	MeterSwitch::Init(row);
+	source = s;
+	Digits = surf;
+	lem = l;
+}
+
+double LEMDigitalHeliumPressureMeter::QueryValue()
+
+{
+	if (!source) return 0;
+
+	if (source->GetState() == 0)
+	{
+		return 0.0;
+	}
+	else if (source->GetState() == 1)
+	{
+		return lem->GetDPSPropellant()->GetAmbientHeliumPressPSI();
+	}
+	else if (source->GetState() == 2)
+	{
+		return lem->GetDPSPropellant()->GetSupercriticalHeliumPressPSI();
+	}
+	else if (source->GetState() == 5)
+	{
+		return lem->scera1.GetVoltage(8, 4) * 800.0;
+	}
+	else if (source->GetState() == 6)
+	{
+		return lem->scera1.GetVoltage(19, 1) * 800.0;
+	}
+
+	return 0;
+}
+
+void LEMDigitalHeliumPressureMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
+{
+	if (Voltage() < SP_MIN_DCVOLTAGE || source->GetState() == 0) return;
+
+	int Curdigit4 = (int)v;
+	int Curdigit3 = (int)v / 10;
+	int Curdigit2 = (int)v / 100;
+	int Curdigit = (int)v / 1000;
+
+	oapiBlt(drawSurface, Digits, 0, 0, 19 * Curdigit, 0, 19, 21);
+	oapiBlt(drawSurface, Digits, 20, 0, 19 * (Curdigit2 - (Curdigit * 10)), 0, 19, 21);
+	oapiBlt(drawSurface, Digits, 40, 0, 19 * (Curdigit3 - (Curdigit2 * 10)), 0, 19, 21);
+	oapiBlt(drawSurface, Digits, 60, 0, 19 * (Curdigit4 - (Curdigit3 * 10)), 0, 19, 21);
+}
+
+void DEDAPushSwitch::DoDrawSwitch(SURFHANDLE DrawSurface) {
+
+	if (IsUp()) {
+		oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset, width, height, SURF_PREDEF_CK);
+	}
+	else {
+		oapiBlt(DrawSurface, SwitchSurface, x, y, xOffset, yOffset + 173, width, height, SURF_PREDEF_CK);
+	}
+}
+
+AscentO2RotationalSwitch::AscentO2RotationalSwitch()
+{
+	InhibitSwitch = NULL;
+	DesO2Switch = NULL;
+}
+
+void AscentO2RotationalSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, PushSwitch *InhibitSw, RotationalSwitch *DesO2Sw)
+{
+	RotationalSwitch::Init(xp, yp, w, h, surf, bsurf, row);
+	InhibitSwitch = InhibitSw;
+	DesO2Switch = DesO2Sw;
+}
+
+bool AscentO2RotationalSwitch::SwitchTo(int newValue)
+{
+	if (newValue == 1 || InhibitSwitch->GetState() || DesO2Switch->GetState() == 1)
+	{
+		if (RotationalSwitch::SwitchTo(newValue)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void LMSuitTempRotationalSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, h_Pipe *p, h_Pipe *bp)
+
+{
+	RotationalSwitch::Init(xp, yp, w, h, surf, bsurf, row);
+	Pipe = p;
+	Bypass = bp;
+}
+
+bool LMSuitTempRotationalSwitch::SwitchTo(int newValue)
+
+{
+	if (RotationalSwitch::SwitchTo(newValue)) {
+		CheckValve();
+		return true;
+	}
+	return false;
+}
+
+void LMSuitTempRotationalSwitch::CheckValve()
+
+{
+	if (GetState() == 0) {
+		Pipe->in->h_open = SP_VALVE_CLOSE;
+		Pipe->flowMax = 0;
+		Bypass->in->h_open = SP_VALVE_OPEN;
+		Bypass->flowMax = 290.0 / LBH;
+
+	}
+	else if (GetState() == 1) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 30.0 / LBH;	
+		Bypass->in->h_open = SP_VALVE_OPEN;
+		Bypass->flowMax = 260.0 / LBH;
+
+	}
+	else if (GetState() == 2) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 60.0 / LBH;
+		Bypass->in->h_open = SP_VALVE_OPEN;
+		Bypass->flowMax = 230.0 / LBH;
+
+	}
+	else if (GetState() == 3) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 90.0 / LBH;
+		Bypass->in->h_open = SP_VALVE_OPEN;
+		Bypass->flowMax = 200.0 / LBH;
+
+	}
+	else if (GetState() == 4) {
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 120.0 / LBH;
+		Bypass->in->h_open = SP_VALVE_OPEN;
+		Bypass->flowMax = 170.0 / LBH;
+
+	}
+}
+
+void LMLiquidGarmentCoolingRotationalSwitch::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, h_Pipe *hx, h_Pipe *p)
+
+{
+	RotationalSwitch::Init(xp, yp, w, h, surf, bsurf, row);
+	HX = hx;
+	Pipe = p;
+}
+
+bool LMLiquidGarmentCoolingRotationalSwitch::SwitchTo(int newValue)
+
+{
+	if (RotationalSwitch::SwitchTo(newValue)) {
+		CheckValve();
+		return true;
+	}
+	return false;
+}
+
+void LMLiquidGarmentCoolingRotationalSwitch::CheckValve()
+
+{
+	if (GetState() == 5) {
+		HX->in->h_open = SP_VALVE_CLOSE;
+		HX->flowMax = 0;
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 240.0 / LBH;
+	}
+	else if (GetState() == 4) {
+		HX->in->h_open = SP_VALVE_OPEN;
+		HX->flowMax = 48.0 / LBH;
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 192.0 / LBH;
+	}
+	else if (GetState() == 3) {
+		HX->in->h_open = SP_VALVE_OPEN;
+		HX->flowMax = 96.0 / LBH;
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 144.0 / LBH;
+	}
+	else if (GetState() == 2) {
+		HX->in->h_open = SP_VALVE_OPEN;
+		HX->flowMax = 144.0 / LBH;
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 96.0 / LBH;
+	}
+	else if (GetState() == 1) {
+		HX->in->h_open = SP_VALVE_OPEN;
+		HX->flowMax = 192.0 / LBH;
+		Pipe->in->h_open = SP_VALVE_OPEN;
+		Pipe->flowMax = 48.0 / LBH;
+	}
+	else if (GetState() == 0) {
+		HX->in->h_open = SP_VALVE_OPEN;
+		HX->flowMax = 240.0 / LBH;
+		Pipe->in->h_open = SP_VALVE_CLOSE;
+		Pipe->flowMax = 0;
+	}
+}
+
+LMForwardHatchHandle::LMForwardHatchHandle()
+{
+	cabin = NULL;
+	forwardHatch = NULL;
+}
+
+void LMForwardHatchHandle::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, h_Tank *cab, LEMForwardHatch *fh)
+{
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row);
+
+	cabin = cab;
+	forwardHatch = fh;
+}
+
+bool LMForwardHatchHandle::SwitchTo(int newState, bool dontspring)
+{
+	if (!forwardHatch->IsOpen())
+	{
+		if (state == 1 || cabin->space.Press < 0.08 / PSI)
+		{
+			return ToggleSwitch::SwitchTo(newState, dontspring);
+		}
+	}
+
+	return false;
+}
+
+LMOverheadHatchHandle::LMOverheadHatchHandle()
+{
+	pipe = NULL;
+	ovhdHatch = NULL;
+}
+
+void LMOverheadHatchHandle::Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, h_Pipe *p, LEMOverheadHatch *oh)
+{
+	ToggleSwitch::Init(xp, yp, w, h, surf, bsurf, row);
+
+	pipe = p;
+	ovhdHatch = oh;
+}
+
+bool LMOverheadHatchHandle::SwitchTo(int newState, bool dontspring)
+{
+	if (!ovhdHatch->IsOpen())
+	{
+		if (state == 1 || pipe->in->parent->space.Press - pipe->out->parent->space.Press < 0.08 / PSI)
+		{
+			return ToggleSwitch::SwitchTo(newState, dontspring);
+		}
 	}
 
 	return false;

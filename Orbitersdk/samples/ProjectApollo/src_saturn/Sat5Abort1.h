@@ -22,14 +22,17 @@
 
   **************************************************************************/
 
-class Sat5Abort1: public VESSEL {
+class Sat5Abort1: public VESSEL3 {
 
 public:
 
 	Sat5Abort1 (OBJHANDLE hObj, int fmodel);
 	virtual ~Sat5Abort1();
 	void init();
-	void Setup();
+	void Setup(bool sm);
+	virtual void SetState(bool sm);
+
+	void clbkSetClassCaps(FILEHANDLE cfg);
 
 protected:
 

@@ -27,21 +27,17 @@
 
 struct PayloadSettings {
 
-	double LandingLatitude;
-	double LandingLongitude;
-	double LandingAltitude;
 	double AscentFuelKg;
 	double DescentFuelKg;
+	double AscentEmptyKg;
+	double DescentEmptyKg;
 	int MissionNo;
 	double MissionTime;
 	char language[64];
 	char CSMName[64];
 	bool Crewed;
 	bool AutoSlow;
-	int Realism;
-	bool Yaagc;
 	char checklistFile[100];
-	bool checkAutoExecute;
 
 };
 

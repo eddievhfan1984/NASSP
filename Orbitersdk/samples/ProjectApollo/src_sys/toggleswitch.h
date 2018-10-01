@@ -448,17 +448,17 @@ public:
 ///
 class ThreeSourceSwitch : public ThreePosSwitch {
 public:
-	ThreeSourceSwitch() { source1 = source2 = source3 = 0; };
+	ThreeSourceSwitch() { source[0] = source[1] = source[2] = 0; };
 	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, e_object *s1, e_object *s2, e_object *s3);
+	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row);
 	void LoadState(char *line);
 	virtual bool SwitchTo(int newState, bool dontspring = false);
+	void SetSource(int i, e_object *s);
 
 protected:
 	virtual void UpdateSourceState();
 
-	e_object *source1;
-	e_object *source2;
-	e_object *source3;
+	e_object *source[3];
 };
 
 ///
@@ -498,6 +498,27 @@ protected:
 
 	e_object *output1;
 	e_object *output2;
+};
+
+///
+/// A two-position switch which can switch multiple connections between sources and output buses.
+/// \brief N-sources to outputs switch.
+/// \ingroup PanelItems
+///
+class NSourceDestSwitch : public ToggleSwitch {
+public:
+	NSourceDestSwitch(int nSources);
+	~NSourceDestSwitch();
+	void LoadState(char *line);
+	virtual bool SwitchTo(int newState, bool dontspring = false);
+	void WireSourcesToBuses(int bus, e_object* i, DCbus* o);
+
+protected:
+	virtual void UpdateSourceState();
+
+	int nSources;
+	e_object **sources;
+	DCbus **buses;
 };
 
 ///
@@ -672,6 +693,7 @@ public:
 
 	double Voltage();
 	double Current();
+	double Frequency();
 	void DrawPower(double watts);
 
 	///
@@ -845,6 +867,28 @@ protected:
 	int guardXOffset;
 	int guardYOffset;
 	Sound guardClick;
+};
+
+class AGCGuardedToggleSwitch : public GuardedToggleSwitch {
+
+public:
+	AGCGuardedToggleSwitch() { agc = 0; };
+	void Init(int xp, int yp, int w, int h, SURFHANDLE surf, SURFHANDLE bsurf, SwitchRow &row, ApolloGuidance *c);
+
+protected:
+	ApolloGuidance *agc;
+};
+
+class AGCIOGuardedToggleSwitch : public AGCGuardedToggleSwitch {
+public:
+	AGCIOGuardedToggleSwitch() { Channel = 0; Bit = 0; UpValue = false; };
+	void SetChannelData(int chan, int bit, bool value) { Channel = chan; Bit = bit; UpValue = value; };
+	virtual bool SwitchTo(int newState, bool dontspring = false);
+
+protected:
+	bool UpValue;
+	int Channel;
+	int Bit;
 };
 
 class GuardedTwoOutputSwitch : public GuardedToggleSwitch {
@@ -1076,6 +1120,22 @@ protected:
 	e_object *sources[16];
 };
 
+class OrdealRotationalSwitch : public RotationalSwitch {
+
+public:
+	OrdealRotationalSwitch() { value = 100; lastX = 0; mouseDown = false; };
+	virtual void DrawSwitch(SURFHANDLE drawSurface);
+	virtual bool CheckMouseClick(int event, int mx, int my);
+	virtual void SaveState(FILEHANDLE scn);
+	virtual void LoadState(char *line);
+	int GetValue() { return value; }
+
+protected:
+	int value;
+	int lastX;
+	bool mouseDown;
+};
+
 class IndicatorSwitch: public PanelSwitchItem {
 
 public:
@@ -1274,12 +1334,11 @@ public:
 class PanelSwitches {
 
 public:
-	PanelSwitches() { PanelID = 0; RowList = 0; Realism = 0; lastexecutedtime=MINUS_INFINITY;};
+	PanelSwitches() { PanelID = 0; RowList = 0; lastexecutedtime=MINUS_INFINITY;};
 	bool CheckMouseClick(int id, int event, int mx, int my);
 	bool DrawRow(int id, SURFHANDLE DrawSurface, bool FlashOn);
 	void AddRow(SwitchRow *s) { s->SetNext(RowList); RowList = s; };
 	void Init(int id, VESSEL *v, SoundLib *s, PanelSwitchListener *l) { PanelID = id; RowList = 0; vessel = v; soundlib = s; listener = l; };
-	void SetRealism(int r) { Realism = r; };
 	void timestep(double missionTime);
 
 	///
@@ -1302,7 +1361,6 @@ protected:
 	PanelSwitchListener *listener;
 	int	PanelID;
 	SwitchRow *RowList;
-	int Realism;
 	double lastexecutedtime;
 
 	friend class ToggleSwitch;

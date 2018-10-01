@@ -56,6 +56,21 @@
 		07/07/05 RSB	On a resume, now restores 010 on up (rather
 				than 020 on up), on Hugh's advice.
 		09/30/16 MAS	Added initialization of NightWatchman.
+		01/04/17 MAS    Added initialization of ParityFail.
+		01/30/17 MAS    Added support for heuristic loading of ROM files
+						produced with --hardware, by looking for any set
+		                parity bits. If such a file is detected, parity
+		                bit checking is enabled.
+		03/09/17 MAS    Added initialization of SbyStillPressed.
+		03/26/17 MAS    Added initialization of previously-static things
+		                 from agc_engine.c that are now in agc_t.
+		03/27/17 MAS    Fixed a parity-related program loading bug and
+                         added initialization of a new night watchman bit.
+		04/02/17 MAS	Added initialization of a couple of flags used
+						for simulation of the TC Trap hardware bug.
+		04/16/17 MAS    Added initialization of warning filter variables.
+		05/16/17 MAS    Enabled interrupts at startup.
+		07/13/17 MAS	Added initialization of the three HANDRUPT traps.
 */
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1300 ) // Microsoft Visual Studio Version 2003 and higher
@@ -63,6 +78,7 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 #include "agc_engine.h"
 FILE *rfopen (const char *Filename, const char *mode);
 
@@ -114,11 +130,16 @@ agc_load_binfile(agc_t *State, const char *RomImage)
   if (State == NULL)
     goto Done;
 
+  State->CheckParity = 0;
+  memset(&State->Parities, 0, sizeof(State->Parities));
+
   RetVal = 5;
   Bank = 2;
   for (Bank = 2, j = 0, i = 0; i < n; i++)
     {
       unsigned char In[2];
+	  uint8_t Parity;
+	  uint16_t RawValue;
       m = fread (In, 1, 2, fp);
       if (m != 2)
 	goto Done;
@@ -130,7 +151,18 @@ agc_load_binfile(agc_t *State, const char *RomImage)
 	  RetVal = 2;
 	  goto Done;
 	}
-      State->Fixed[Bank][j++] = (In[0] * 256 + In[1]) >> 1;
+	  RawValue = (In[0] * 256 + In[1]);
+	  Parity = RawValue & 1;
+
+	  State->Fixed[Bank][j] = RawValue >> 1;
+	  State->Parities[(Bank * 02000 + j) / 32] |= Parity << (j % 32);
+	  j++;
+
+	  // If any of the parity bits are actually set, this must be a ROM built with
+	  // --hardware. Enable parity checking.
+	  if (Parity)
+	    State->CheckParity = 1;
+
       if (j == 02000)
 	{
 	  j = 0;
@@ -177,8 +209,6 @@ agc_engine_init (agc_t * State, const char *RomImage, const char *CoreDump,
   State->InputChannel[031] = 077777;
   State->InputChannel[032] = 077777;
   State->InputChannel[033] = 077777;
-  // Reset CH33 switches
-  State->Ch33Switches      = 001032;
 
   // Clear erasable memory.
   for (Bank = 0; Bank < 8; Bank++)
@@ -190,8 +220,7 @@ agc_engine_init (agc_t * State, const char *RomImage, const char *CoreDump,
   RetVal = 0;
   State->CycleCounter = 0;
   State->ExtraCode = 0;
-  // I've seen no indication so far of a reset value for interrupt-enable. 
-  State->AllowInterrupt = 0;
+  State->AllowInterrupt = 1; // The GOJAM sequence enables interrupts
   State->InterruptRequests[8] = 1;	// DOWNRUPT.
   //State->RegA16 = 0;
   State->PendFlag = 0;
@@ -203,10 +232,35 @@ agc_engine_init (agc_t * State, const char *RomImage, const char *CoreDump,
   State->VoltageAlarm = 0;
 
   State->NightWatchman = 0;
+  State->NightWatchmanTripped = 0;
   State->RuptLock = 0;
   State->NoRupt = 0;
   State->TCTrap = 0;
   State->NoTC = 0;
+  State->ParityFail = 0;
+
+  State->WarningFilter = 0;
+  State->GeneratedWarning = 0;
+
+  State->RestartLight = 0;
+  State->Standby = 0;
+  State->SbyPressed = 0;
+  State->SbyStillPressed = 0;
+
+  State->NextZ = 0;
+  State->ScalerCounter = 0;
+  State->ChannelRoutineCount = 0;
+
+  State->DskyTimer = 0;
+  State->DskyFlash = 0;
+  State->DskyChannel163 = 0;
+
+  State->TookBZF = 0;
+  State->TookBZMF = 0;
+
+  State->Trap31A = 0;
+  State->Trap31B = 0;
+  State->Trap32 = 0;
 
   if (CoreDump != NULL)
     {

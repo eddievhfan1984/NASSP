@@ -27,13 +27,9 @@
 // To force orbitersdk.h to use <fstream> in any compiler version
 #pragma include_alias( <fstream.h>, <fstream> )
 #include "Orbitersdk.h"
-#include <stdio.h>
-#include <math.h>
-#include "soundlib.h"
-
-#include "nasspdefs.h"
-#include "LVIMU.h"
 #include "papi.h"
+#include "iu.h"
+#include "LVIMU.h"
 
 LVIMU::LVIMU()
 
@@ -55,6 +51,7 @@ void LVIMU::Init()
 	Caged = false;
 	ZeroIMUCDUFlag = false;
 	CoarseAlignEnableFlag = false;
+	Failed = false;
 	
 	RemainingPIPA.X = 0;
 	RemainingPIPA.Y = 0;
@@ -95,7 +92,7 @@ void LVIMU::Init()
 	CDURegisters[LVRegPIPAZ]=0;
 
 	ZeroIMUCDUs();
-	LastTime = -1;
+	LastTime = 0;
 }
 
 bool LVIMU::IsCaged()
@@ -114,6 +111,17 @@ void LVIMU::SetCaged(bool val)
 			ZeroIMUCDUs();
 		}
 	}
+}
+
+bool LVIMU::IsFailed()
+
+{
+	return Failed;
+}
+
+void LVIMU::SetFailed()
+{
+	Failed = true;
 }
 
 //
@@ -147,7 +155,7 @@ bool LVIMU::IsPowered()
 }
 
 
-void LVIMU::Timestep(double simt) 
+void LVIMU::Timestep(double mjd)
 
 {
 	double deltaTime, pulses;
@@ -172,17 +180,17 @@ void LVIMU::Timestep(double simt)
 	}
 	
 	// fill OrbiterData
-	VESSELSTATUS vs;
-	OurVessel->GetStatus(vs);
+	VECTOR3 arot;
+	OurVessel->GetGlobalOrientation(arot);
 
-	Orbiter.Attitude.X = vs.arot.x;
-	Orbiter.Attitude.Y = vs.arot.y;
-	Orbiter.Attitude.Z = vs.arot.z;
+	Orbiter.Attitude.X = arot.x;
+	Orbiter.Attitude.Y = arot.y;
+	Orbiter.Attitude.Z = arot.z;
 
 	// Vessel to Orbiter global transformation
-	MATRIX3	tinv = getRotationMatrixZ(-vs.arot.z);
-	tinv = mul(getRotationMatrixY(-vs.arot.y), tinv);
-	tinv = mul(getRotationMatrixX(-vs.arot.x), tinv);
+	MATRIX3	tinv = getRotationMatrixZ(-arot.z);
+	tinv = mul(getRotationMatrixY(-arot.y), tinv);
+	tinv = mul(getRotationMatrixX(-arot.x), tinv);
 
 	if (!Initialized) {
 		SetOrbiterAttitudeReference();
@@ -192,22 +200,35 @@ void LVIMU::Timestep(double simt)
 		OurVessel->GetWeightVector(w);
 		// Transform to Orbiter global and calculate weight acceleration
 		w = mul(tinv, w) / OurVessel->GetMass();
+
+		//Orbiter 2016 hack
+		if (length(w) == 0.0)
+		{
+			w = GetGravityVector();
+		}
+
 		LastWeightAcceleration = w;
 
 		OurVessel->GetGlobalVel(LastGlobalVel);
 
-		LastTime = simt;
+		LastTime = mjd;
 		Initialized = true;
 	} 
 	else {
-		deltaTime = (simt - LastTime);
-
+		deltaTime = (mjd - LastTime)*86400.0;
 
 		// Calculate accelerations
 		VECTOR3 w, vel;
 		OurVessel->GetWeightVector(w);
 		// Transform to Orbiter global and calculate accelerations
 		w = mul(tinv, w) / OurVessel->GetMass();
+
+		//Orbiter 2016 hack
+		if (length(w) == 0.0)
+		{
+			w = GetGravityVector();
+		}
+
 		OurVessel->GetGlobalVel(vel);
 		VECTOR3 dvel = (vel - LastGlobalVel) / deltaTime;
 
@@ -253,6 +274,12 @@ void LVIMU::Timestep(double simt)
 		  	DriveGimbalY(-newAngles.y - Gimbal.Y);
 		  	DriveGimbalZ(-newAngles.z - Gimbal.Z);
 
+			/*if (Failed)
+			{
+				double failang = 20.0*RAD*deltaTime;
+				Orbiter.AttitudeReference = mul(Orbiter.AttitudeReference, _M(1.0, 0.0, 0.0, 0.0, cos(failang), -sin(failang), 0.0, sin(failang), cos(failang)));
+			}*/
+
 			// PIPAs
 			accel = tmul(Orbiter.AttitudeReference, accel);
 			// sprintf(oapiDebugString(), "accel x %.10f y %.10f z %.10f DT %f", accel.x, accel.y, accel.z, deltaTime);								
@@ -279,7 +306,7 @@ void LVIMU::Timestep(double simt)
 			pulses = (accel.z * deltaTime);
 			PulsePIPA(LVRegPIPAZ, pulses);
 		}
-		LastTime = simt;
+		LastTime = mjd;
 	}	
 }
 
@@ -333,17 +360,17 @@ void LVIMU::DriveGimbal(int index, int RegCDU, double angle)
 	
 	OldGimbal = Gimbals[index];
 	Gimbals[index] += angle;
-	if (Gimbals[index] >= TWO_PI) {
-		Gimbals[index] -= TWO_PI;
+	if (Gimbals[index] >= PI2) {
+		Gimbals[index] -= PI2;
 	}
 	if (Gimbals[index] < 0) {
-		Gimbals[index] += TWO_PI;
+		Gimbals[index] += PI2;
 	}
 	delta = Gimbals[index] - OldGimbal;
 	if(delta > PI)
-		delta -= TWO_PI;
+		delta -= PI2;
 	if(delta < - PI)
-		delta += TWO_PI;
+		delta += PI2;
 	
 	// Gyro pulses to CDU pulses
 	pulses = (int)(((double)radToGyroPulses(Gimbals[index])) / 64.0);
@@ -402,6 +429,78 @@ void LVIMU::SetOrbiterAttitudeReference()
 	Orbiter.AttitudeReference = t;
 }
 
+VECTOR3 LVIMU::GetGravityVector()
+{
+	OBJHANDLE gravref = OurVessel->GetGravityRef();
+	OBJHANDLE hSun = oapiGetObjectByName("Sun");
+	VECTOR3 R, U_R;
+	OurVessel->GetRelativePos(gravref, R);
+	U_R = unit(R);
+	double r = length(R);
+	VECTOR3 R_S, U_R_S;
+	OurVessel->GetRelativePos(hSun, R_S);
+	U_R_S = unit(R_S);
+	double r_S = length(R_S);
+	double mu = GGRAV * oapiGetMass(gravref);
+	double mu_S = GGRAV * oapiGetMass(hSun);
+	int jcount = oapiGetPlanetJCoeffCount(gravref);
+	double JCoeff[5];
+	for (int i = 0; i < jcount; i++)
+	{
+		JCoeff[i] = oapiGetPlanetJCoeff(gravref, i);
+	}
+	double R_E = oapiGetSize(gravref);
+
+	VECTOR3 a_dP;
+
+	a_dP = -U_R;
+
+	if (jcount > 0)
+	{
+		MATRIX3 mat;
+		VECTOR3 U_Z;
+		double costheta, P2, P3;
+
+		oapiGetPlanetObliquityMatrix(gravref, &mat);
+		U_Z = mul(mat, _V(0, 1, 0));
+
+		costheta = dotp(U_R, U_Z);
+
+		P2 = 3.0 * costheta;
+		P3 = 0.5*(15.0*costheta*costheta - 3.0);
+		a_dP += (U_R*P3 - U_Z * P2)*JCoeff[0] * pow(R_E / r, 2.0);
+		if (jcount > 1)
+		{
+			double P4;
+			P4 = 1.0 / 3.0*(7.0*costheta*P3 - 4.0*P2);
+			a_dP += (U_R*P4 - U_Z * P3)*JCoeff[1] * pow(R_E / r, 3.0);
+			if (jcount > 2)
+			{
+				double P5;
+				P5 = 0.25*(9.0*costheta*P4 - 5.0 * P3);
+				a_dP += (U_R*P5 - U_Z * P4)*JCoeff[2] * pow(R_E / r, 4.0);
+			}
+		}
+	}
+	a_dP *= mu / pow(r, 2.0);
+	a_dP -= U_R_S * mu_S / pow(r_S, 2.0);
+
+	if (gravref == oapiGetObjectByName("Moon"))
+	{
+		OBJHANDLE hEarth = oapiGetObjectByName("Earth");
+
+		VECTOR3 R_Ea, U_R_E;
+		OurVessel->GetRelativePos(hEarth, R_Ea);
+		U_R_E = unit(R_Ea);
+		double r_E = length(R_Ea);
+		double mu_E = GGRAV * oapiGetMass(hEarth);
+
+		a_dP -= U_R_E * mu_E / pow(r_E, 2.0);
+	}
+
+	return a_dP;
+}
+
 void LVIMU::ZeroIMUCDUs() 
 
 {
@@ -430,6 +529,7 @@ typedef union
 		unsigned TurnedOn:1;
 		unsigned Initialized:1;
 		unsigned Caged:1;
+		unsigned Failed:1;
 	} u;
 	unsigned long word;
 } IMUState;
@@ -551,7 +651,7 @@ void LVIMU::LoadState(FILEHANDLE scn)
 			sscanf(line + 3, "%lf", &flt);
 			Orbiter.AttitudeReference.m33 = flt;
 		}
-		else if (!strnicmp (line, "LTM", 3)) {
+		else if (!strnicmp(line, "MJD", 3)) {
 			sscanf(line + 3, "%lf", &flt);
 			LastTime = flt;
 		}
@@ -563,6 +663,7 @@ void LVIMU::LoadState(FILEHANDLE scn)
 			Initialized = (state.u.Initialized != 0);
 			TurnedOn = (state.u.TurnedOn != 0);
 			Caged = (state.u.Caged != 0);
+			Failed = (state.u.Failed != 0);
 		}
 	}
 }
@@ -599,7 +700,7 @@ void LVIMU::SaveState(FILEHANDLE scn)
 	papiWriteScenario_double(scn, "M31", Orbiter.AttitudeReference.m31);
 	papiWriteScenario_double(scn, "M32", Orbiter.AttitudeReference.m32);
 	papiWriteScenario_double(scn, "M33", Orbiter.AttitudeReference.m33);
-	papiWriteScenario_double(scn, "LTM", LastTime);
+	papiWriteScenario_double(scn, "MJD", LastTime);
 
 	//
 	// Copy internal state to the structure.
@@ -612,6 +713,7 @@ void LVIMU::SaveState(FILEHANDLE scn)
 	state.u.TurnedOn = TurnedOn;
 	state.u.Initialized = Initialized;
 	state.u.Caged = Caged;
+	state.u.Failed = Failed;
 
 	oapiWriteScenario_int (scn, "STATE", state.word);
 
@@ -632,11 +734,11 @@ double LVIMU::radToDeg(double angle) {
 }
 
 double LVIMU::gyroPulsesToRad(int pulses) {
-	return (((double)pulses) * TWO_PI) / 2097152.0;
+	return (((double)pulses) * PI2) / 2097152.0;
 }
 
 int LVIMU::radToGyroPulses(double angle) {
-	return (int)((angle * 2097152.0) / TWO_PI);
+	return (int)((angle * 2097152.0) / PI2);
 }
 
 MATRIX3 LVIMU::getRotationMatrixX(double angle) {
@@ -770,7 +872,7 @@ LVRG::LVRG() {
 	rates = _V(0,0,0);
 }
 
-void LVRG::Init(VESSEL *v) {
+void LVRG::Init(IUToLVCommandConnector *v) {
 	// Initialize
 	sat = v;
 }

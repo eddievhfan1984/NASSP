@@ -39,16 +39,18 @@ public:
 
 	void Init();
 	void ChannelOutput(int address, ChannelValue value);
-	void Timestep(double simt);
+	void Timestep(double simdt);
 	void SystemTimestep(double simdt); 
 	void TurnOn();
 	void TurnOff();
 	void DriveGimbals(double x, double y, double z);
 	void SetVessel(VESSEL *v, bool LEMFlag);
+	void SetVesselFlag(bool LEMFlag);
 	VECTOR3 GetTotalAttitude();
 
 	void WireToBuses(e_object *a, e_object *b, GuardedToggleSwitch *s);
 	void WireHeaterToBuses(Boiler *heater, e_object *a, e_object *b);
+	void InitThermals(h_HeatLoad *heat, h_Radiator *cas);
 
 	bool IsCaged();
 	bool IsPowered();
@@ -71,6 +73,8 @@ protected:
 	void PulsePIPA(int RegPIPA, int pulses);
 	void SetOrbiterAttitudeReference();
 	void DoZeroIMUCDUs();
+	void DoZeroIMUGimbals();
+	VECTOR3 GetGravityVector();
 
 	//
 	// Logging.
@@ -139,14 +143,20 @@ protected:
 
 	PowerMerge DCPower;
 	PowerMerge DCHeaterPower;
+	h_Radiator *IMUCase;
 	Boiler *IMUHeater;
+	h_HeatLoad *IMUHeat;
 	GuardedToggleSwitch *PowerSwitch;
 
 	double pipaRate;	// PIPA pulse representation of speed change
-	double LastTime;	// in seconds
+	double LastSimDT;	// in seconds
+
+	double IMUTempF;
 
 	// Allow the MFD to touch our privates
 	friend class ProjectApolloMFD;
+	// And the RTCC as well
+	friend class RTCC;
 };
 
 //

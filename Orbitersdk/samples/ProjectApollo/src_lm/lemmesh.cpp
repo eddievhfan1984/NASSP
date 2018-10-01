@@ -37,11 +37,10 @@
 #include "apolloguidance.h"
 #include "LEMcomputer.h"
 #include "lm_channels.h"
-#include "dsky.h"
-#include "IMU.h"
 
 #include "LEM.h"
 #include "leva.h"
+#include "Sat5LMDSC.h"
 
 #include "CollisionSDK/CollisionSDK.h"
 
@@ -52,7 +51,25 @@ static MESHHANDLE hLMAscent ;
 static MESHHANDLE hLMAscent2 ;
 static MESHHANDLE hAstro1 ;
 static MESHHANDLE hLemProbes;
+static MESHHANDLE hLPDgret;
+static MESHHANDLE hLPDgext;
+static MESHHANDLE hFwdHatch;
+static MESHHANDLE hOvhdHatch;
+static MESHHANDLE hLM1;
 
+static PARTICLESTREAMSPEC lunar_dust = {
+	0,		// flag
+	1,	    // size
+	5,      // rate
+	20,	    // velocity
+	1,      // velocity distribution
+	2.0,    // lifetime
+	10,   	// growthrate
+	2.0,    // atmslowdown 
+	PARTICLESTREAMSPEC::DIFFUSE,
+	PARTICLESTREAMSPEC::LVL_LIN, 0, 1,
+	PARTICLESTREAMSPEC::ATM_PLOG, -0.1, 0.1
+};
 
 void LEM::ToggleEVA()
 
@@ -88,7 +105,6 @@ void LEM::ToggleEVA()
 			LEVASettings evas;
 
 			evas.MissionNo = agc.GetApolloNo();
-			evas.Realism = Realism;
 			leva->SetEVAStats(evas);
 		}
 	}
@@ -113,64 +129,114 @@ void LEM::StopEVA()
 
 void LEM::SetLmVesselDockStage()
 
-{	
-	double fuelmass;
-	int mnumber;
+{
 	ClearThrusterDefinitions();
-	agc.SetVesselStats(DPS_ISP, DPS_THRUST, true);
-	//
-	// Changed to reflect mission-specific empty and fuel mass
-	//
-	// From "Apollo by the Numbers"
-	//
-	mnumber=agc.GetApolloNo();
-	if(mnumber < 15) {
-		SetEmptyMass(6565);		
-		fuelmass=8375.;
-	} else {
-		SetEmptyMass(7334);
-		fuelmass=8891.;
-	}
+	SetEmptyMass(AscentFuelMassKg + AscentEmptyMassKg + DescentEmptyMassKg);
 	SetSize (6);
-	// SetPMI (_V(2.8,2.29,2.37));
+	SetVisibilityLimit(1e-3, 4.6401e-4);
 	SetPMI(_V(2.5428, 2.2871, 2.7566));
-	// SetCrossSections (_V(21,23,17));
-	//SetPMI(_V(3.26, 2.22, 3.26));
 	SetCrossSections (_V(24.53,21.92,24.40));
 	SetCW (0.1, 0.3, 1.4, 1.4);
 	SetRotDrag (_V(0.7,0.7,0.7));
 	SetPitchMomentScale (0);
-	SetBankMomentScale (0);
+	SetYawMomentScale (0);
 	SetLiftCoeffFunc (0); 
 	ClearMeshes();
+	ClearBeacons();
 	ClearExhaustRefs();
 	ClearAttExhaustRefs();
-	SetTouchdownPoints (_V(0,0,10), _V(-1,0,-10), _V(1,0,-10));
-    VECTOR3 mesh_dir=_V(0.0,-0.2,0.03);
 
-	UINT meshidx = AddMesh (hLMPKD, &mesh_dir);	
+	double Mass = 15876;
+	double ro = 1;
+	double ro1 = 4;
+	TOUCHDOWNVTX td[7];
+	double x_target = -0.25;
+	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(Mass*stiffness));
+	for (int i = 0; i<7; i++) {
+		td[i].damping = damping;
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+		td[i].stiffness = stiffness;
+	}
+	td[0].pos.x = 0;
+	td[0].pos.y = -3.86;
+	td[0].pos.z = 1 * ro;
+	td[1].pos.x = -cos(30 * RAD)*ro;
+	td[1].pos.y = -3.86;
+	td[1].pos.z = -sin(30 * RAD)*ro;
+	td[2].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.y = -3.86;
+	td[2].pos.z = -sin(30 * RAD)*ro;
+	td[3].pos.x = cos(30 * RAD)*ro1;
+	td[3].pos.y = 0;
+	td[3].pos.z = sin(30 * RAD)*ro1;
+	td[4].pos.x = -cos(30 * RAD)*ro1;
+	td[4].pos.y = 0;
+	td[4].pos.z = sin(30 * RAD)*ro1;
+	td[5].pos.x = 0;
+	td[5].pos.y = 0;
+	td[5].pos.z = -1 * ro1;
+	td[6].pos.x = 0;
+	td[6].pos.y = 3.86;
+	td[6].pos.z = 0;
+
+	SetTouchdownPoints(td, 7);
+
+	VECTOR3 mesh_dir = _V(-0.003, -0.03, 0.004);
+
+	UINT meshidx;
+	if (NoLegs)
+	{
+		meshidx = AddMesh(hLM1, &mesh_dir);
+	}
+	else
+	{
+		meshidx = AddMesh(hLMPKD, &mesh_dir);
+	}
 	SetMeshVisibilityMode (meshidx, MESHVIS_VCEXTERNAL);
-    if (!ph_Dsc)  
-		ph_Dsc  = CreatePropellantResource(fuelmass); //2nd stage Propellant
-	SetDefaultPropellantResource (ph_Dsc); // display 2nd stage propellant level in generic HUD
+	
+	// Forward Hatch
+	VECTOR3 hatch_dir = _V(-0.003, -0.03, 0.004);
+	fwdhatch = AddMesh(hFwdHatch, &hatch_dir);
+	SetFwdHatchMesh();
+
+	// Drogue & Overhead hatch
+	ovhdhatch = AddMesh(hOvhdHatch, &hatch_dir);
+	SetOvhdHatchMesh();
+	
+	if (!ph_Dsc)
+	{
+		ph_Dsc = CreatePropellantResource(DescentFuelMassKg); //2nd stage Propellant
+	}
+	else
+	{
+		SetPropellantMaxMass(ph_Dsc, DescentFuelMassKg);
+	}
+	SetDefaultPropellantResource(ph_Dsc); // display 2nd stage propellant level in generic HUD
 
 	// 133.084001 kg is 293.4 pounds, which is the fuel + oxidizer capacity of one RCS tank.
 	if (!ph_RCSA) {
-		ph_RCSA = CreatePropellantResource(133.084001);
+		ph_RCSA = CreatePropellantResource(LM_RCS_FUEL_PER_TANK);
 	}
 	if (!ph_RCSB) {
-		ph_RCSB = CreatePropellantResource(133.084001);
+		ph_RCSB = CreatePropellantResource(LM_RCS_FUEL_PER_TANK);
 	}
 
 	// orbiter main thrusters
-	th_hover[0] = CreateThruster (_V(0.0  , -3.3,  0.0),  _V(0,1,0), 46706.3, ph_Dsc, 3107);
-	th_hover[1] = CreateThruster (_V(0.013, -3.0, -0.03), _V(0,1,0),     0, ph_Dsc, 0);		//this is a "virtual engine",no thrust and no fuel
+	th_hover[0] = CreateThruster (_V(0.0  , -2.0,  0.0),  _V(0,1,0), 46706.3, ph_Dsc, 3107);
+	th_hover[1] = CreateThruster (_V(0.013, -2.8, -0.03), _V(0,1,0),     0, ph_Dsc, 0);		//this is a "virtual engine",no thrust and no fuel
 																							//needed for visual gimbaling for corrected engine flames
 	DelThrusterGroup(THGROUP_HOVER,true);
 	thg_hover = CreateThrusterGroup(th_hover, 2, THGROUP_HOVER);
-	AddExhaust(th_hover[1], 10.0, 1.2, exhaustTex);
+	
+	EXHAUSTSPEC es_hover[1] = {
+		{ th_hover[1], NULL, NULL, NULL, 10.0, 1.2, 0, 0.1, exhaustTex }
+	};
 
-	SetCameraOffset (_V(-1,1.0,0.0));
+	AddExhaust(es_hover);
+
+	SetCameraOffset(_V(-0.68, 1.65, 1.35));
 	SetEngineLevel(ENGINE_HOVER,0);
 	AddRCS_LMH(-1.85);
 	status = 0;
@@ -183,68 +249,140 @@ void LEM::SetLmVesselDockStage()
 	SetDockParams(dockpos, dockdir, dockrot);
 	hattDROGUE = CreateAttachment(true, dockpos, dockdir, dockrot, "PADROGUE");
 	InitNavRadios (4);
-    LDGswitch=false;
-	ATT2switch=true;
-	ATT3switch=true;
-	ATT1switch=true;
-	AFEED1switch=false;
-	AFEED2switch=false;
-	AFEED3switch=false;
-	AFEED4switch=false;
 
 	// Descent stage attached.
-	agc.SetInputChannelBit(030, DescendStageAttached, true);
+	if (InvertStageBit)
+	{
+		agc.SetInputChannelBit(030, DescendStageAttached, false);
+	}
+	else
+	{
+		agc.SetInputChannelBit(030, DescendStageAttached, true);
+	}
 
-	CheckRCS();
+	//Set part of ascent stage mesh to be visible from LPD window
+	VECTOR3 lpd_dir = _V(-0.191, 1.827, 0.383);
+	lpdgret = AddMesh(hLPDgret, &lpd_dir);
+	lpdgext = -1;
+	SetLPDMeshRet();
+
+	// Exterior lights
+	SetTrackLight();
+	SetDockingLights();
 }
 
 void LEM::SetLmVesselHoverStage()
 {
 	ClearThrusterDefinitions();
-	agc.SetVesselStats(DPS_ISP, DPS_THRUST, true);
 
-	SetEmptyMass(AscentFuelMassKg + 4374.0);
+	SetEmptyMass(AscentFuelMassKg + AscentEmptyMassKg + DescentEmptyMassKg);
 
 	SetSize (7);
-	SetPMI (_V(3.26,2.22,3.26)); 
+	SetVisibilityLimit(1e-3, 5.4135e-4);
+	SetPMI(_V(2.5428, 2.2871, 2.7566));
 	SetCrossSections (_V(24.53,21.92,24.40));
-	// SetPMI (_V(2.8,2.29,2.37));
-	// SetCrossSections (_V(21,23,17));
 	SetCW (0.1, 0.3, 1.4, 1.4);
 	SetRotDrag (_V(0.7,0.7,0.7));
 	SetPitchMomentScale (0);
-	SetBankMomentScale (0);
+	SetYawMomentScale (0);
 	SetLiftCoeffFunc (0); 
 	ClearMeshes();
+	ClearBeacons();
 	ClearExhaustRefs();
 	ClearAttExhaustRefs();
 
-	SetTouchdownPoints (_V(0, -3.86, 5), _V(-5, -3.86, -5), _V(5, -3.86, -5));
-	VSSetTouchdownPoints(GetHandle(), _V(0, -3.86, 5), _V(-5, -3.86, -5), _V(5, -3.86, -5));
+	double Mass = 7137.75;
+	double ro = 4.25;
+	TOUCHDOWNVTX td[8];
+	double x_target = -0.25;
+	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(Mass*stiffness));
+	for (int i = 0; i<8; i++) {
+		if (i < 5) {
+			td[i].damping = damping;
+			td[i].stiffness = stiffness;
+		}
+		else {
+			td[i].damping = damping / 100;
+			td[i].stiffness = stiffness / 100;
+		}
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+	}
+
+	td[0].pos.x = 0;
+	td[0].pos.y = -3.86;
+	td[0].pos.z = ro;
+	td[1].pos.x = -ro;
+	td[1].pos.y = -3.86;
+	td[1].pos.z = 0;
+	td[2].pos.x = 0;
+	td[2].pos.y = -3.86;
+	td[2].pos.z = -ro;
+	td[3].pos.x = ro;
+	td[3].pos.y = -3.86;
+	td[3].pos.z = 0;
+	td[4].pos.x = 0;
+	td[4].pos.y = 3.86;
+	td[4].pos.z = 0;
+	td[5].pos.x = -ro;
+	td[5].pos.y = -5.57;
+	td[5].pos.z = 0;
+	td[6].pos.x = 0;
+	td[6].pos.y = -5.57;
+	td[6].pos.z = -ro;
+	td[7].pos.x = ro;
+	td[7].pos.y = -5.57;
+	td[7].pos.z = 0;
+
+	SetTouchdownPoints(td, 8);
+
+	//VSSetTouchdownPoints(GetHandle(), _V(0, -3.86, 5), _V(-5, -3.86, -5), _V(5, -3.86, -5));
 
 	VECTOR3 mesh_dir=_V(-0.003,-0.03,0.004);	
 	UINT meshidx;
-	if (Landed) {
-		meshidx = AddMesh (hLMLanded, &mesh_dir);
-	}else{
-		UINT probeidx;
-		meshidx = AddMesh (hLMLanded, &mesh_dir);
-		probeidx = AddMesh (hLemProbes, &mesh_dir);
-		SetMeshVisibilityMode (probeidx, MESHVIS_VCEXTERNAL);
+	if (NoLegs)
+	{
+		meshidx = AddMesh(hLM1, &mesh_dir);
+	}
+	else
+	{
+		if (Landed) {
+			meshidx = AddMesh(hLMLanded, &mesh_dir);
+		}
+		else {
+			UINT probeidx;
+			meshidx = AddMesh(hLMLanded, &mesh_dir);
+			probeidx = AddMesh(hLemProbes, &mesh_dir);
+			SetMeshVisibilityMode(probeidx, MESHVIS_VCEXTERNAL);
+		}
 	}
 	SetMeshVisibilityMode (meshidx, MESHVIS_VCEXTERNAL);
-    
+
+	// Forward Hatch
+	VECTOR3 hatch_dir= _V(-0.003, -0.03, 0.004);
+	fwdhatch = AddMesh(hFwdHatch, &hatch_dir);
+	SetFwdHatchMesh();
+
+	// Drogue & Overhead hatch
+	ovhdhatch = AddMesh(hOvhdHatch, &hatch_dir);
+	SetOvhdHatchMesh();
+
 	if (!ph_Dsc){  
 		ph_Dsc  = CreatePropellantResource(DescentFuelMassKg); //2nd stage Propellant
+	}
+	else
+	{
+		SetPropellantMaxMass(ph_Dsc, DescentFuelMassKg);
 	}
 
 	SetDefaultPropellantResource (ph_Dsc); // display 2nd stage propellant level in generic HUD
 
 	if (!ph_RCSA){
-		ph_RCSA = CreatePropellantResource(133.084001);
+		ph_RCSA = CreatePropellantResource(LM_RCS_FUEL_PER_TANK);
 	}
 	if (!ph_RCSB){
-		ph_RCSB = CreatePropellantResource(133.084001);
+		ph_RCSB = CreatePropellantResource(LM_RCS_FUEL_PER_TANK);
 	}
 	
 	// orbiter main thrusters
@@ -253,9 +391,33 @@ void LEM::SetLmVesselHoverStage()
 																							//needed for visual gimbaling for corrected engine flames
     DelThrusterGroup(THGROUP_HOVER,true);
 	thg_hover = CreateThrusterGroup(th_hover, 2, THGROUP_HOVER);
-	AddExhaust (th_hover[1], 10.0, 1.5, exhaustTex);
+	
+	EXHAUSTSPEC es_hover[1] = {
+		{ th_hover[1], NULL, NULL, NULL, 10.0, 1.5, 0, 0.1, exhaustTex }
+	};
+
+	AddExhaust(es_hover);
+
+	// Simulate the dust kicked up near
+	// the lunar surface
+	int i;
+
+	VECTOR3	s_exhaust_pos1 = _V(0, -15, 0);
+	VECTOR3 s_exhaust_pos2 = _V(0, -15, 0);
+	VECTOR3	s_exhaust_pos3 = _V(0, -15, 0);
+	VECTOR3 s_exhaust_pos4 = _V(0, -15, 0);
+
+	th_dust[0] = CreateThruster(s_exhaust_pos1, _V(-1, 0, 1), 0, ph_Dsc);
+	th_dust[1] = CreateThruster(s_exhaust_pos2, _V(1, 0, 1), 0, ph_Dsc);
+	th_dust[2] = CreateThruster(s_exhaust_pos3, _V(1, 0, -1), 0, ph_Dsc);
+	th_dust[3] = CreateThruster(s_exhaust_pos4, _V(-1, 0, -1), 0, ph_Dsc);
+
+	for (i = 0; i < 4; i++) {
+		AddExhaustStream(th_dust[i], &lunar_dust);
+	}
+	thg_dust = CreateThrusterGroup(th_dust, 4, THGROUP_USER);
 		
-	SetCameraOffset (_V(-1,1.0,0.0));
+	SetCameraOffset(_V(-0.68, 1.65, 1.35));
 	status = 1;
 	stage = 1;
 	SetEngineLevel(ENGINE_HOVER,0);
@@ -269,62 +431,132 @@ void LEM::SetLmVesselHoverStage()
 	hattDROGUE = CreateAttachment(true, dockpos, dockdir, dockrot, "PADROGUE");
 	InitNavRadios (4);
 
-	LDGswitch=true;
-	ATT2switch=true;
-	ATT3switch=true;
-	ATT1switch=true;
-	AFEED1switch=false;
-	AFEED2switch=false;
-	AFEED3switch=false;
-	AFEED4switch=false;
-
 	// Descent stage attached.
-	agc.SetInputChannelBit(030, DescendStageAttached, true);
+	if (InvertStageBit)
+	{
+		agc.SetInputChannelBit(030, DescendStageAttached, false);
+	}
+	else
+	{
+		agc.SetInputChannelBit(030, DescendStageAttached, true);
+	}
 
-	CheckRCS();
+	//Set fwd footpad mesh to be visible from LPD window
+	if (NoLegs)
+	{
+		VECTOR3 lpd_dir = _V(-0.191, 1.827, 0.383);
+		lpdgret = AddMesh(hLPDgret, &lpd_dir);
+		lpdgext = -1;
+		SetLPDMeshRet();
+	}
+	else
+	{
+		VECTOR3 lpd_dir = _V(-0.003, -0.03, 0.004);
+		lpdgext = AddMesh(hLPDgext, &lpd_dir);
+		lpdgret = -1;
+		SetLPDMeshExt();
+	}
+
+	// Exterior lights
+	SetTrackLight();
+	SetDockingLights();
 }
-
 
 void LEM::SetLmAscentHoverStage()
 
 {
 	ClearThrusterDefinitions();
-	agc.SetVesselStats(APS_ISP, APS_THRUST, true);
 	ShiftCentreOfMass(_V(0.0,3.0,0.0));
 	SetSize (5);
-	SetCOG_elev (5);
-	SetEmptyMass (1920.0);
+	SetVisibilityLimit(1e-3, 3.8668e-4);
+	SetEmptyMass (AscentEmptyMassKg);
 	SetPMI(_V(2.8, 2.29, 2.37));
 	SetCrossSections (_V(21,23,17));
 	SetCW (0.1, 0.3, 1.4, 1.4);
 	SetRotDrag (_V(0.7,0.7,0.7));
 	SetPitchMomentScale (0);
-	SetBankMomentScale (0);
+	SetYawMomentScale (0);
 	SetLiftCoeffFunc (0); 
 	ClearMeshes();
+	ClearBeacons();
 	ClearExhaustRefs();
 	ClearAttExhaustRefs();
 
 	double tdph = -5.8;
-	SetTouchdownPoints (_V(0, tdph, 5), _V(-5, tdph, -5), _V(5, tdph, -5));
-	VSSetTouchdownPoints(GetHandle(), _V(0, tdph, 5), _V(-5, tdph, -5), _V(5, tdph, -5));
+    double Mass = 4495.0;
+	double ro = 3;
+	TOUCHDOWNVTX td[4];
+	double x_target = -0.5;
+	double stiffness = (-1)*(Mass*9.80655) / (3 * x_target);
+	double damping = 0.9*(2 * sqrt(Mass*stiffness));
+	for (int i = 0; i<4; i++) {
+		td[i].damping = damping;
+		td[i].mu = 3;
+		td[i].mu_lng = 3;
+		td[i].stiffness = stiffness;
+	}
+	td[0].pos.x = 0;
+	td[0].pos.y = tdph;
+	td[0].pos.z = 1 * ro;
+	td[1].pos.x = -cos(30 * RAD)*ro;
+	td[1].pos.y = tdph;
+	td[1].pos.z = -sin(30 * RAD)*ro;
+	td[2].pos.x = cos(30 * RAD)*ro;
+	td[2].pos.y = tdph;
+	td[2].pos.z = -sin(30 * RAD)*ro;
+	td[3].pos.x = 0;
+	td[3].pos.y = 2.8;
+	td[3].pos.z = 0;
 
-	VECTOR3 mesh_dir=_V(-0.191,-0.02,+0.383);	
+	SetTouchdownPoints(td, 4);
+
+	//VSSetTouchdownPoints(GetHandle(), _V(0, tdph, 5), _V(-5, tdph, -5), _V(5, tdph, -5));
+
+	VECTOR3 mesh_dir=_V(-0.191,-0.02,0.383);	
 	UINT meshidx = AddMesh (hLMAscent, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_VCEXTERNAL);
 
-    if (!ph_Asc)  
-		ph_Asc  = CreatePropellantResource(AscentFuelMassKg);	// 2nd stage Propellant
+	// Forward Hatch
+	VECTOR3 hatch_dir= _V(0, -1.88, 0);
+	fwdhatch = AddMesh(hFwdHatch, &hatch_dir);
+	SetFwdHatchMesh();
+
+	// Drogue & Overhead hatch
+	ovhdhatch = AddMesh(hOvhdHatch, &hatch_dir);
+	SetOvhdHatchMesh();
+	
+	if (!ph_Asc)
+	{
+		ph_Asc = CreatePropellantResource(AscentFuelMassKg);	// 2nd stage Propellant
+	}
+	else
+	{
+		SetPropellantMaxMass(ph_Asc, AscentFuelMassKg);
+	}
 	SetDefaultPropellantResource (ph_Asc);			// Display 2nd stage propellant level in generic HUD
+
+													// 133.084001 kg is 293.4 pounds, which is the fuel + oxidizer capacity of one RCS tank.
+	if (!ph_RCSA) {
+		ph_RCSA = CreatePropellantResource(LM_RCS_FUEL_PER_TANK);
+	}
+	if (!ph_RCSB) {
+		ph_RCSB = CreatePropellantResource(LM_RCS_FUEL_PER_TANK);
+	}
+
 	// orbiter main thrusters
     th_hover[0] = CreateThruster (_V( 0.0,  -2.5, 0.0), _V( 0,1,0), APS_THRUST, ph_Asc, APS_ISP);
 	th_hover[1] = CreateThruster (_V( 0.01, -2.0, 0.0), _V( 0,1,0), 0,          ph_Asc, 0);		// this is a "virtual engine",no thrust and no fuel
 																								// needed for visual gimbaling for corrected engine flames
     DelThrusterGroup(THGROUP_HOVER,true);
 	thg_hover = CreateThrusterGroup (th_hover, 2, THGROUP_HOVER);
-	AddExhaust (th_hover[1], 6.0, 0.8, exhaustTex);
 	
-	SetCameraOffset (_V(-1,1.0,0.0));
+	EXHAUSTSPEC es_hover[1] = {
+		{ th_hover[1], NULL, NULL, NULL, 6.0, 0.8, 0, 0.1, exhaustTex }
+	};
+
+	AddExhaust(es_hover);
+	
+	SetCameraOffset(_V(-0.68, -0.195, 1.35));
 	status = 2;
 	stage = 2;
 	SetEngineLevel(ENGINE_HOVER,0);
@@ -336,23 +568,33 @@ void LEM::SetLmAscentHoverStage()
 		ph_Dsc = 0;
 	}
 	
-	VECTOR3 dockpos = {0.0 ,0.58, 0.0};
+	VECTOR3 dockpos = {0.0 ,0.75, 0.0};
 	VECTOR3 dockdir = {0,1,0};
 
 	VECTOR3 dockrot = { -0.8660254, 0, 0.5 };
 	SetDockParams(dockpos, dockdir, dockrot);
 	hattDROGUE = CreateAttachment(true, dockpos, dockdir, dockrot, "PADROGUE");
 	InitNavRadios (4);
-	LDGswitch=false;
-	AFEED1switch=true;
-	AFEED2switch=true;
-	AFEED3switch=true;
-	AFEED4switch=true;
 
-	// Descent stage detached.
-	agc.SetInputChannelBit(030, DescendStageAttached, false);
+	// Descent stage attached.
+	if (InvertStageBit)
+	{
+		agc.SetInputChannelBit(030, DescendStageAttached, true);
+	}
+	else
+	{
+		agc.SetInputChannelBit(030, DescendStageAttached, false);
+	}
 
-	CheckRCS();
+	//Set part of ascent stage mesh to be visible from LPD window
+	VECTOR3 lpd_dir = _V(-0.191, -0.02, 0.383);
+	lpdgret = AddMesh(hLPDgret, &lpd_dir);
+	lpdgext = -1;
+	SetLPDMeshRet();
+
+	// Exterior lights
+	SetTrackLight();
+	SetDockingLights();
 }
 
 void LEM::SeparateStage (UINT stage)
@@ -360,32 +602,83 @@ void LEM::SeparateStage (UINT stage)
 {
 	ResetThrusters();
 
-	VESSELSTATUS vs1;
-	VECTOR3 ofs1 = _V(0,-5,0);
-	VECTOR3 vel1 = _V(0,0,0);
+	VESSELSTATUS2 vs2;
+	memset(&vs2, 0, sizeof(vs2));
+	vs2.version = 2;
 
-	if (stage == 1)	{
-	    GetStatus (vs1);
-		vs1.eng_main = vs1.eng_hovr = 0.0;
-		VECTOR3 rofs1, rvel1 = {vs1.rvel.x, vs1.rvel.y, vs1.rvel.z};
-		Local2Global (ofs1, vs1.rpos);
-		GlobalRot (vel1, rofs1);
-		vs1.rvel.x = rvel1.x+rofs1.x;
-		vs1.rvel.y = rvel1.y+rofs1.y;
-		vs1.rvel.z = rvel1.z+rofs1.z;
-	    vs1.vrot.x = 0.0;	
-		vs1.vrot.y = 0.0;
-		vs1.vrot.z = 0.0;
-		GetStatus (vs1);
-		// Wrong sound, is Saturn staging
-		// StageS.play(NOLOOP, 150);
-
+	if (stage == 0) {
+		ShiftCentreOfMass(_V(0.0, -1.155, 0.0));
+		GetStatusEx(&vs2);
 		char VName[256];
-		strcpy (VName, GetName()); strcat (VName, "-DESCENTSTG");
-		hdsc = oapiCreateVessel(VName, "ProjectApollo/sat5LMDSC", vs1);
+		strcpy(VName, GetName()); strcat(VName, "-DESCENTSTG");
+		hdsc = oapiCreateVesselEx(VName, "ProjectApollo/Sat5LMDSC", &vs2);
+
+		Sat5LMDSC *dscstage = static_cast<Sat5LMDSC *> (oapiGetVesselInterface(hdsc));
+		if (NoLegs)
+		{
+			dscstage->SetState(10);
+		}
+		else
+		{
+			dscstage->SetState(0);
+		}
 
 		SetLmAscentHoverStage();
 	}
+	
+	if (stage == 1)	{
+		ShiftCentreOfMass(_V(0.0, -1.155, 0.0));
+		GetStatusEx(&vs2);
+		
+		if (vs2.status == 1) {
+			vs2.vrot.x = 2.7;
+			char VName[256];
+			strcpy(VName, GetName()); strcat(VName, "-DESCENTSTG");
+			hdsc = oapiCreateVesselEx(VName, "ProjectApollo/Sat5LMDSC", &vs2);
+			
+			Sat5LMDSC *dscstage = static_cast<Sat5LMDSC *> (oapiGetVesselInterface(hdsc));
+			if (Landed) 
+			{
+				dscstage->SetState(1);
+			}
+			else if (NoLegs)
+			{
+				dscstage->SetState(10);
+			}
+			else
+			{
+				dscstage->SetState(11);
+			}
+			
+			vs2.vrot.x = 5.8;
+			DefSetStateEx(&vs2);
+			SetLmAscentHoverStage();
+		}
+		else
+		{
+			char VName[256];
+			strcpy(VName, GetName()); strcat(VName, "-DESCENTSTG");
+			hdsc = oapiCreateVesselEx(VName, "ProjectApollo/Sat5LMDSC", &vs2);
+			
+			Sat5LMDSC *dscstage = static_cast<Sat5LMDSC *> (oapiGetVesselInterface(hdsc));
+			if (Landed)
+			{
+				dscstage->SetState(1);
+			}
+			else if (NoLegs)
+			{
+				dscstage->SetState(10);
+			}
+			else
+			{
+				dscstage->SetState(11);
+			}
+			
+			SetLmAscentHoverStage();
+		}
+	}
+
+	CheckDescentStageSystems();
 }
 
 void LEM::SetLmLandedMesh() {
@@ -395,7 +688,142 @@ void LEM::SetLmLandedMesh() {
 	UINT meshidx = AddMesh (hLMLanded, &mesh_dir);
 	SetMeshVisibilityMode (meshidx, MESHVIS_VCEXTERNAL);
 
+	//Set fwd footpad mesh to be visible from LPD window
+	lpdgext = AddMesh(hLPDgext, &mesh_dir);
+	lpdgret = -1;
+	SetLPDMeshExt();
+
+	// Forward Hatch
+	VECTOR3 hatch_dir = _V(-0.003, -0.03, 0.004);
+	fwdhatch = AddMesh(hFwdHatch, &hatch_dir);
+	SetFwdHatchMesh();
+
+	// Drogue & Overhead hatch
+	ovhdhatch = AddMesh(hOvhdHatch, &hatch_dir);
+	SetOvhdHatchMesh();
+
 	Landed = true;
+}
+
+void LEM::SetLPDMesh() {
+
+	SetLPDMeshRet();
+	SetLPDMeshExt();
+}
+
+void LEM::SetLPDMeshRet() {
+	
+	if (lpdgret == -1)
+		return;
+
+	if (stage == 0 || stage == 2) {
+		if (InPanel && PanelId == LMPANEL_LPDWINDOW) {
+			SetMeshVisibilityMode(lpdgret, MESHVIS_COCKPIT);
+		}
+		else {
+			SetMeshVisibilityMode(lpdgret, MESHVIS_NEVER);
+		}
+	}
+
+	if (stage == 1) {
+		if ((InPanel && PanelId == LMPANEL_LPDWINDOW) && NoLegs) {
+			SetMeshVisibilityMode(lpdgret, MESHVIS_COCKPIT);
+		}
+		else
+		{
+			SetMeshVisibilityMode(lpdgret, MESHVIS_NEVER);
+		}
+	}
+}
+
+void LEM::SetLPDMeshExt() {
+
+	if (lpdgext == -1)
+		return;
+
+	if (stage == 1) {
+		if (InPanel && PanelId == LMPANEL_LPDWINDOW) {
+			SetMeshVisibilityMode(lpdgext, MESHVIS_COCKPIT);
+		}
+		else
+		{
+			SetMeshVisibilityMode(lpdgext, MESHVIS_NEVER);
+		}
+	}
+}
+
+void LEM::SetFwdHatchMesh() {
+	
+	if (fwdhatch == -1)
+		return;
+
+	if (ForwardHatch.IsOpen()) {
+		SetMeshVisibilityMode(fwdhatch, MESHVIS_NEVER);
+	}
+	else {
+		SetMeshVisibilityMode(fwdhatch, MESHVIS_VCEXTERNAL);
+	}
+}
+
+void LEM::SetOvhdHatchMesh() {
+
+	if (ovhdhatch == -1)
+		return;
+
+	if (OverheadHatch.IsOpen()) {
+		SetMeshVisibilityMode(ovhdhatch, MESHVIS_NEVER);
+	}
+	else {
+		SetMeshVisibilityMode(ovhdhatch, MESHVIS_VCEXTERNAL);
+	}
+}
+
+void LEM::SetTrackLight() {
+	
+	static VECTOR3 beaconPos = _V(0.05, 1.44, 2.58);
+	static VECTOR3 beaconPosAsc = _V(0.053, -0.41, 2.576);
+	static VECTOR3 beaconCol = _V(1, 1, 1);
+	trackLight.shape = BEACONSHAPE_STAR;
+	if (stage == 2) {
+		trackLight.pos = &beaconPosAsc;
+	}
+	else {
+		trackLight.pos = &beaconPos;
+	}
+	trackLight.col = &beaconCol;
+	trackLight.size = 0.5;
+	trackLight.falloff = 0.5;
+	trackLight.period = 1.0;
+	trackLight.duration = 0.1;
+	trackLight.tofs = 0;
+	trackLight.active = false;
+	AddBeacon(&trackLight);
+}
+
+void LEM::SetDockingLights() {
+
+	int i;
+	double xoffset = 0.003, yoffset = -1.85, zoffset = -0.004;
+	static VECTOR3 beaconPos[5] = { { 0.32, 1.52, 2.55 },{ 0.05, 1.95, -1.75 },{ -0.22, 1.52, 2.55 },{ -2.805, -0.1, -0.3 },{ 2.1, 0.28, -0.3 } };
+	static VECTOR3 beaconPosAsc[5] = { { 0.32 + xoffset, 1.52 + yoffset, 2.55 + zoffset },{ 0.05 + xoffset, 1.95 + yoffset, -1.75 + zoffset },{ -0.22 + xoffset, 1.52 + yoffset, 2.55 + zoffset },{ -2.805 + xoffset, -0.1 + yoffset, -0.3 + zoffset },{ 2.1 + xoffset, 0.28 + yoffset, -0.3 + zoffset } };
+	static VECTOR3 beaconCol[4] = { { 1, 1, 1 },{ 1, 1, 0 },{ 1, 0, 0 },{ 0, 1, 0 } };
+	for (i = 0; i < 5; i++) {
+		dockingLights[i].shape = BEACONSHAPE_STAR;
+		if (stage == 2) {
+			dockingLights[i].pos = beaconPosAsc+i;
+		}
+		else {
+			dockingLights[i].pos = beaconPos+i;
+		}
+		dockingLights[i].col = (i < 2 ? beaconCol : i < 3 ? beaconCol+1 : i < 4 ? beaconCol+2 : beaconCol+3);
+		dockingLights[i].size = 0.12;
+		dockingLights[i].falloff = 0.8;
+		dockingLights[i].period = 0.0;
+		dockingLights[i].duration = 1.0;
+		dockingLights[i].tofs = 0;
+		dockingLights[i].active = false;
+		AddBeacon(dockingLights+i);
+	}
 }
 
 void LEMLoadMeshes()
@@ -408,6 +836,12 @@ void LEMLoadMeshes()
 	hLMAscent2= oapiLoadMeshGlobal ("ProjectApollo/LM_ascent2");
 	hAstro1= oapiLoadMeshGlobal ("ProjectApollo/Sat5AstroS");
 	hLemProbes = oapiLoadMeshGlobal ("ProjectApollo/LM_ContactProbes");
+	hLPDgret = oapiLoadMeshGlobal("ProjectApollo/LPD_gret");
+	hLPDgext = oapiLoadMeshGlobal("ProjectApollo/LPD_gext");
+	hFwdHatch = oapiLoadMeshGlobal("ProjectApollo/LM_FwdHatch");
+	hOvhdHatch = oapiLoadMeshGlobal("ProjectApollo/LM_Drogue");
+	lunar_dust.tex = oapiRegisterParticleTexture("ProjectApollo/dust");
+	hLM1 = oapiLoadMeshGlobal("ProjectApollo/LM_1");
 }
 
 //

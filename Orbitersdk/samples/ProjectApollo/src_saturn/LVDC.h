@@ -23,8 +23,17 @@
   **************************************************************************/
 
 #pragma once
-#include "LVIMU.h"
-class Saturn1b;
+
+#include <vector>
+
+class LVDA;
+
+struct SwitchSelectorSet
+{
+	double time;
+	int stage;
+	int channel;
+};
 
 /* *******************
  * LVDC++ SV VERSION *
@@ -36,43 +45,75 @@ class Saturn1b;
 /// \ingroup Saturns
 ///
 
-class LVDC {
+class LVDC
+{
 public:
-	LVDC();											// Constructor
-	void Init(Saturn* vs);
-	void TimeStep(double simt, double simdt);
+	LVDC(LVDA &lvd);
+	virtual ~LVDC() {}
+	virtual void TimeStep(double simdt) = 0;
+	virtual void Init() = 0;
+	virtual void SaveState(FILEHANDLE scn) = 0;
+	virtual void LoadState(FILEHANDLE scn) = 0;
+	virtual bool GetGuidanceReferenceFailure() = 0;
+	virtual bool TimebaseUpdate(double dt) = 0;
+	virtual bool GeneralizedSwitchSelector(int stage, int channel) = 0;
+	virtual bool LMAbort() { return false; }
+	virtual bool RestartManeuverEnable() { return false; }
+	virtual bool InhibitAttitudeManeuver() = 0;
+	virtual bool TimeBase8Enable() { return false; }
+	virtual bool EvasiveManeuverEnable() { return false; }
+	virtual bool SIVBIULunarImpact(double tig, double dt, double pitch, double yaw) { return false; }
+	virtual bool ExecuteCommManeuver() { return false; }
+protected:
+
+	LVDA &lvda;
+};
+
+class LVDCSV: public LVDC {
+public:
+	LVDCSV(LVDA &lvd);											// Constructor
+	void Init();
+	void TimeStep(double simdt);
 	void SaveState(FILEHANDLE scn);
 	void LoadState(FILEHANDLE scn);
+	void ReadFlightSequenceProgram(char *fspfile);
+
+	void SwitchSelectorProcessing(std::vector<SwitchSelectorSet> table);
+	bool SwitchSelectorSequenceComplete(std::vector<SwitchSelectorSet> table);
+
+	bool GetGuidanceReferenceFailure() { return GuidanceReferenceFailure; }
 
 	double SVCompare();
 	double LinInter(double x0, double x1, double y0, double y1, double x);
-	LVDCTLIparam GetTLIParams();
-private:
-	Saturn* owner;									// Saturn LV
-	LVIMU lvimu;									// ST-124-M3 IMU (LV version)
-	LVRG lvrg;										// LV rate gyro package
+
+	//DCS Commands
+	bool TimebaseUpdate(double dt);
+	bool GeneralizedSwitchSelector(int stage, int channel);
+	bool RestartManeuverEnable();
+	bool InhibitAttitudeManeuver();
+	bool InhibitSeparationManeuver();
+	bool SeparationManeuverUpdate(double time);
+	bool EvasiveManeuverEnable();
+	bool TimeBase8Enable();
+	bool SIVBIULunarImpact(double tig, double dt, double pitch, double yaw);
+	bool ExecuteCommManeuver();
+private:								// Saturn LV
 	FILE* lvlog;									// LV Log file
+	char FSPFileName[256];
 	bool Initialized;								// Clobberness flag
 
 	int LVDC_Timebase;								// Time Base
 	double LVDC_TB_ETime;                           // Time elapsed since timebase start
 
 	int LVDC_Stop;									// Guidance Program: Program Stop Flag
-	double S1_Sep_Time;								// S1C Separation Counter
-
 
 	// These are boolean flags that are NOT real flags in the LVDC SOFTWARE. (I.E. Hardware flags)
-	bool LVDC_EI_On;								// Engine Indicator lights on
 	bool LVDC_GRR;                                  // Guidance Reference Released
 	bool CountPIPA;									// PIPA Counter Enable
-	bool S2_Startup;								// S2 Engine Start
 	bool directstagereset;							// Direct Stage Reset
+	bool GuidanceReferenceFailure;
 	
 	// These are variables that are not really part of the LVDC software.
-	double GPitch[4],GYaw[4];						// Amount of gimbal to command per thruster
-	double OPitch[4],OYaw[4];						// Previous value of above, for rate limitation
-	double RateGain,ErrorGain;						// Rate Gain and Error Gain values for gimbal control law
-	VECTOR3 AttRate;                                // Attitude Change Rate
 	VECTOR3 AttitudeError;                          // Attitude Error
 	VECTOR3 WV;										// Gravity
 	double sinceLastCycle;							// Time since last IGM run
@@ -80,6 +121,12 @@ private:
 	double IGMInterval;								// IGM Interval
 	int IGMCycle;									// IGM Cycle Counter (for debugging)
 	int OrbNavCycle;								// Orbital cycle counter (for debugging)
+	double t_S1C_CECO;								// Time since launch for S-1C center engine cutoff
+	int CommandSequence;
+	int CommandSequenceStored;
+	bool SIICenterEngineCutoff;
+	bool FixedAttitudeBurn;
+	double t_TB8Start;
 
 	// Event Times
 	double t_fail;									// S1C Engine Failure time
@@ -133,13 +180,23 @@ private:
 	bool GATE5;										// Logic gate that ensures only one pass through cutoff initialization
 	bool GATE6;										// Logic gate that ensures only one pass through separation attitude calculation
 	bool INH,INH1,INH2;								// Dunno yet (INH appears to be the manual XLUNAR INHIBIT signal, at least)
+	bool INH3;										// Permanently inhibit entry to restart preparation
+	bool INH4;										// Inhibit maneuver to separation attitude
+	bool INH5;										// Inhibit maneuver to slingshot attitude in TB7
 	bool TU;										// Gate for processing targeting update
 	bool TU10;										// Gate for processing ten-paramemter targeting update
 	bool first_op;									// switch for first TLI opportunity
 	bool TerminalConditions;						// Use preset terminal conditions (R_T, V_T, gamma_T and G_T) for into-orbit targeting
+	bool PermanentSCControl;						// SC has permanent control of the FCC
+	bool Timebase8Enabled;							// Timebase 8 has been enabled
+	bool SCControlOfSaturn;							// SC has taken control of the Saturn
+	bool ImpactBurnEnabled;							// Lunar impact burn has been enabled
+	bool ImpactBurnInProgress;						// Lunar impact burn is in progress
 
 	// LVDC software variables, PAD-LOADED BUT NOT NECESSARILY CONSTANT!
 	VECTOR3 XLunarAttitude;							// Attitude the SIVB enters when TLI is done, i.e. at start of TB7
+	VECTOR3 XLunarSlingshotAttitude;				// Attitude the SIVB enters for slingshot maneuver.
+	VECTOR3 XLunarCommAttitude;						// Attitude the SIVB enters for communication.
 	double B_11,B_21;								// Coefficients for determining freeze time after S1C engine failure
 	double B_12,B_22;								// Coefficients for determining freeze time after S1C engine failure	
 	double V_ex1,V_ex2,V_ex3;						// IGM Exhaust Velocities
@@ -162,10 +219,15 @@ private:
 	double TB2;										// Time of TB2
 	double TB3;										// Time of TB3
 	double TB4;										// Time of TB4
-	double TB4A;									// Time of TB4a
+	double TB4a;									// Time of TB4a
 	double TB5;										// Time of TB5
+	double TB5a;									// Time of TB5a
 	double TB6;										// Time of TB6
+	double TB6a;									// Time of TB6a
+	double TB6b;									// Time of TB6b
+	double TB6c;									// Time of TB6c
 	double TB7;										// Time of TB7
+	double TB8;										// Time of TB8
 	double T_IGM;									// Time from start of TB6 to IGM start during second SIVB burn
 	double T_RG;									// Time from TB6 start to reignition for second SIVB burn
 	double T_RP;									// Time for restart preparation (TB6 start)
@@ -179,7 +241,10 @@ private:
 	double ROV,ROVs;								// Constant for biasing terminal-range-angle
 	double ROVR;									// Constant for baising terminal-range-angle during out-of-orbit burn
 	double mu;										// Product of G and Earth's mass
-	double phi_L;									// Geodetic latitude of launch site: cos
+	double PHI;										// Geodetic latitude of launch site
+	double PHIP;									// Geocentric latitude of launch site
+	double KSCLNG;									// Longitude of the launch site
+	double R_L;										// Radius from geocentric center of the Earth to the center of the IU on launch pad
 	double dotM_1;									// Mass flowrate of S2 from approximately LET jettison to second MRS
 	double dotM_2;									// Mass flowrate of S2 after second MRS
 	double dotM_2R;									// Mass flow rate of S4B before presumed MRS during out-of-orbit burn
@@ -212,9 +277,21 @@ private:
 	double K_P1, K_P2, K_Y1, K_Y2;					// restart attitude coefficients
 	double K_T3;									// Slope of dT_3 vs. dT_4 curve
 	double omega_E;									// Rotational rate of the Earth
+	double TVRATE;									// Earth rotation rate (0 is used for fixed azimuth missions)
 	double K_pc;									// Constant time used to force MRS in out-of-orbit mode
 	double R_N;										// Nominal radius at SIVB reignition
 	double TI5F2;									// Time in Timebase 5 to maneuver to local reference attitude
+	double TI7AF1;									// Time in Timebase 7 to begin maneuver to slingshot attitude
+	double TI7AF2;									// Time in Timebase 8 to begin maneuver to communications attitude
+	double TI7F10;									// Time in Timebase 7 to begin maneuver to local horizontal attitude
+	double TI7F11;									// Time in Timebase 7 to compute inertial attitude corresponding to locally referenced separation attitude
+	double K_D;										// Orbital drag model constant
+	double rho_c;									// Constant rho for use when altitude is less than h_1
+	double h_1;										// Lower limit of h for atmospheric density polynomial
+	double h_2;										// Upper limit of h for atmospheric density polynomial
+	double BN4;										// Time in Timebase 7 to enter orbit initialize and resume orbit navigation
+	double T_ImpactBurn;							// Time of ignition of lunar impact burn
+	double dT_ImpactBurn;							// Burn duration of lunar impact burn
 	
 	// PAD-LOADED TABLES
 	double Fx[5][5];								// Pre-IGM pitch polynomial
@@ -312,7 +389,7 @@ private:
 	double H;										// coefficient for third zonal gravity harmonic
 	double D;										// coefficient for fourth zonal gravity harmonic
 	double CG;
-	double gamma;									// Computed flight path angle
+	double cos_alpha;								// cosine of the angle of attack
 	double gamma_T;									// Desired terminal flight path angle
 	double alpha_D;									// Angle from perigee to DN vector
 	bool alpha_D_op;								// Option to determine alpha_D or load it
@@ -360,6 +437,16 @@ private:
 	double cos_chi_Yit;
 	double sin_chi_Zit;
 	double cos_chi_Zit;
+	double h;										// Altitude of the vehicle above the oblate spheroid of the earth
+
+	//Switch Selector Tables
+	std::vector<SwitchSelectorSet> SSTTB[9];
+	std::vector<SwitchSelectorSet> SSTTB4A;
+	std::vector<SwitchSelectorSet> SSTTB5A;
+	std::vector<SwitchSelectorSet> SSTTB6A;
+	std::vector<SwitchSelectorSet> SSTTB6B;
+	std::vector<SwitchSelectorSet> SSTTB6C;
+
 	// TABLE15
 	/*
 		These tables store the precomputed out-of-orbit targeting data for the Saturn V launches.
@@ -375,6 +462,10 @@ private:
 		double T_ST;				// Time after launch for the out-of-orbit targeting to perform the S*T_P test (determine injection validity and restart time)
 		double f;					// True anomaly at cutoff of transfer ellipse
 		double R_N;					// Restart radius
+		double T2IR;				// Nominal Duration of fourth stage of IGM
+		double T3PR;				// IGM phase 5 time-to-go
+		double TAU3R;				// Time to deplete S-IVB mass from S-IVB EMR
+		double dV_BR;				// Thrust decay velocity bias
 
 		//This data structure stores the actual launch tables. Array indexing should make it easier to iterate through the launch times and select the desired launch information.
 		struct target_table {
@@ -391,66 +482,58 @@ private:
 	}TABLE15[2];
 	int tgt_index;				// Non-LVDC variable to enable selecting the correct set of injection parameters
 
-	//flight control computer
-	double a_0p;									// pitch error gain
-	double a_0y;									// yaw error gain
-	double a_0r;									// roll error gain
-	double a_1p;									// pitch rate gain
-	double a_1y;									// yaw rate gain
-	double a_1r;									// roll rate gain
-	double beta_pc;									// commanded pitch thrust direction
-	double beta_yc;									// commanded yaw thrust direction
-	double beta_rc;									// commanded roll thrust direction
-	double beta_p1c;								// commanded actuator angles in pitch/yaw for resp. engine
-	double beta_p2c;
-	double beta_p3c;
-	double beta_p4c;
-	double beta_y1c;
-	double beta_y2c;
-	double beta_y3c;
-	double beta_y4c;
-	double eps_p;									//error command for APS engines: pitch
-	double eps_ypr;									//error command for APS engines: yaw mixed +roll
-	double eps_ymr;									//error command for APS engines: yaw mixed -roll
 	// TABLE25 is apparently only used on direct-ascent
 
 	friend class MCC;
 	friend class ApolloRTCCMFD;
+	friend class RTCC;
 };
 
 /* ********************
  * LVDC++ S1B VERSION *
  ******************** */
 
-class LVDC1B {
+class LVDC1B: public LVDC {
 public:
-	LVDC1B();										// Constructor
-	void init(Saturn* own);
-	void TimeStep(double simt, double simdt);
+	LVDC1B(LVDA &lvd);										// Constructor
+	void Init();
+	void TimeStep(double simdt);
 	void SaveState(FILEHANDLE scn);
 	void LoadState(FILEHANDLE scn);
+
+	void ReadFlightSequenceProgram(char *fspfile);
+
+	void SwitchSelectorProcessing(std::vector<SwitchSelectorSet> table);
+	bool SwitchSelectorSequenceComplete(std::vector<SwitchSelectorSet> table);
+
+	bool GetGuidanceReferenceFailure() { return GuidanceReferenceFailure; }
+
+	double SVCompare();
+
+	//DCS Commands
+	bool TimebaseUpdate(double dt);
+	bool GeneralizedSwitchSelector(int stage, int channel);
+	bool LMAbort();
+	bool InhibitAttitudeManeuver();
 private:
 	bool Initialized;								// Clobberness flag
 	FILE* lvlog;									// LV Log file
-	Saturn* owner;
-	LVIMU lvimu;									// ST-124-M3 IMU (LV version)
-	LVRG lvrg;										// LV rate gyro package
+	char FSPFileName[256];
 
 	bool LVDC_Stop;									// Program Stop Flag
 	int LVDC_Timebase;								// Time Base
 	double LVDC_TB_ETime;                           // Time elapsed since timebase start
-	double S1B_Sep_Time;							// S1B Separation Counter
 	int IGMCycle;									// IGM Cycle Counter (for debugging)
 
 	// These are boolean flags that are NOT real flags in the LVDC SOFTWARE. (I.E. Hardware flags)
-	bool LVDC_EI_On;								// Engine Indicator lights on
 	bool LVDC_GRR;                                  // Guidance Reference Released
 	bool CountPIPA;									// PIPA Counter Enable
+	bool GuidanceReferenceFailure;
 	
 	// These are variables that are not really part of the LVDC software.
-	VECTOR3 AttRate;                                // Attitude Change Rate
 	VECTOR3 AttitudeError;                          // Attitude Error
 	VECTOR3 DeltaAtt;
+	int CommandSequence;
 
 	// Event Times
 	double t_fail;									// S1C Engine Failure time
@@ -477,6 +560,7 @@ private:
 	bool poweredflight;								// Powered flight flag
 	bool liftoff;									// lift-off flag
 	bool S1B_Engine_Out;							// S1C Engine Failure Flag
+	bool S1B_CECO_Commanded;
 	bool HSL;										// High-Speed Loop flag
 	int  T_EO1,T_EO2;								// Pre-IGM Engine-Out Constant
 	int  UP;										// IGM target parameters updated
@@ -487,8 +571,11 @@ private:
 	bool GATE5;										// Logic gate that ensures only one pass through cutoff initialization
 	bool INH,INH1,INH2;								// Dunno yet
 	bool TerminalConditions;						// Use preset terminal conditions (R_T, V_T, gamma_T and G_T) for into-orbit targeting
-	
+	bool PermanentSCControl;						// SC has permanent control of the FCC
+	bool SCControlOfSaturn;							// SC has taken control of the Saturn
+
 	// LVDC software variables, PAD-LOADED BUT NOT NECESSARILY CONSTANT!
+	double A_zL;									// Position I Azimuth
 	double B_11,B_21;								// Coefficients for determining freeze time after S1C engine failure
 	double B_12,B_22;								// Coefficients for determining freeze time after S1C engine failure	
 	double V_ex1,V_ex2;								// IGM Exhaust Velocities
@@ -501,12 +588,13 @@ private:
 	double eps_2;									// Guidance option selection time
 	double eps_3;									// Terminal condition freeze time
 	double eps_4;									// Time for cutoff logic entry
-	double ROV,ROVs;								// Constant for biasing terminal-range-angle
+	double ROV;										// Constant for biasing terminal-range-angle
 	double mu;										// Product of G and Earth's mass
-	double sin_phi_L;								// Geodetic latitude of launch site: sin
-	double cos_phi_L;								// Geodetic latitude of launch site: cos
-	double phi_lng;
-	double phi_lat;
+	double PHI;										// Geodetic latitude of launch site
+	double PHIP;									// Geocentric latitude of launch site
+	double KSCLNG;									// Longitude of the launch site
+	double R_L;										// Radius from geocentric center of the Earth to the center of the IU on launch pad
+	double omega_E;									// Rotational rate of the Earth
 	double dotM_1;									// Mass flowrate of S2 from approximately LET jettison to second MRS
 	double dotM_2;									// Mass flowrate of S2 after second MRS
 	double t_B1;									// Transition time for the S2 mixture ratio to shift from 5.5 to 4.7
@@ -624,26 +712,12 @@ private:
 	double sin_chi_Zit;
 	double cos_chi_Zit;
 
-	//flight control computer
-	double a_0p;									// pitch error gain
-	double a_0y;									// yaw error gain
-	double a_0r;									// roll error gain
-	double a_1p;									// pitch rate gain
-	double a_1y;									// yaw rate gain
-	double a_1r;									// roll rate gain
-	double beta_pc;									// commanded pitch thrust direction
-	double beta_yc;									// commanded yaw thrust direction
-	double beta_rc;									// commanded roll thrust direction
-	double beta_p1c;								// commanded actuator angles in pitch/yaw for resp. engine
-	double beta_p2c;
-	double beta_p3c;
-	double beta_p4c;
-	double beta_y1c;
-	double beta_y2c;
-	double beta_y3c;
-	double beta_y4c;
-	double eps_p;									//error command for APS engines: pitch
-	double eps_ypr;									//error command for APS engines: yaw mixed +roll
-	double eps_ymr;									//error command for APS engines: yaw mixed -roll
+	//Switch Selector Tables
+	std::vector<SwitchSelectorSet> SSTTB[4];
+	std::vector<SwitchSelectorSet> SSTALT1;
+
 	// TABLE25 is apparently only used on direct-ascent
 };
+
+#define LVDC_START_STRING "LVDC_BEGIN"
+#define LVDC_END_STRING "LVDC_END"

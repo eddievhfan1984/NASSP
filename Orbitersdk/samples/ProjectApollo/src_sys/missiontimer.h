@@ -26,13 +26,30 @@
 #if !defined(_PA_MISSIONTIMER_H)
 #define _PA_MISSIONTIMER_H
 
+#define MISSIONTIMER_2_START_STRING "MISSIONTIMER2_START"
+#define MISSIONTIMER_306_START_STRING "MISSIONTIMER306_START"
+#define MISSIONTIMER_END_STRING "MISSIONTIMER_END"
+#define EVENTTIMER_2_START_STRING "EVENTTIMER2_START"
+#define EVENTTIMER_306_START_STRING "EVENTTIMER306_START"
+#define EVENTTIMER_END_STRING "EVENTTIMER_END"
+
+class Saturn;
+class RotationalSwitch;
+
 class MissionTimer : public e_object {
 
 public:
-	MissionTimer();
+	MissionTimer(PanelSDK &p);
 	virtual ~MissionTimer();
 
-	void Timestep(double simt, double deltat);
+	void Init(e_object *a, e_object *b, RotationalSwitch *dimmer, e_object *c);
+	void Timestep(double simt, double deltat, bool persistent);
+	virtual void SystemTimestep(double simdt);
+	void SaveState(FILEHANDLE scn, char *start_str, char *end_str, bool persistent);
+	void LoadState(FILEHANDLE scn, char *end_str);
+	void DCWireTo(e_object *a, e_object *b) { DCPower.WireToBuses(a, b); };
+
+	Saturn *sat;
 
 	void SetTime(double t);
 	double GetTime();
@@ -41,18 +58,19 @@ public:
 	void UpdateHours(int n);
 	void UpdateSeconds(int n);
 	void Reset();
+	void Garbage();
+	bool IsPowered();
+	bool IsDisplayPowered();
 	void SetRunning(bool run) { Running = run; };
 	bool IsRunning() { return Running; };
-	void SetEnabled(bool run) { Enabled = run; };
-	bool IsEnabled() { return Enabled; };
 	void SetCountUp(int val) { CountUp = val; };
 	int GetCountUp() { return CountUp; };
 	int GetHours(){ return hours; }
 	int GetMinutes(){ return minutes; }
 	int GetSeconds(){ return seconds; }
-	bool IsPowered() { return Voltage() > 25.0; };
 
 	virtual void Render(SURFHANDLE surf, SURFHANDLE digits, bool csm = false);
+	virtual void Render90(SURFHANDLE surf, SURFHANDLE digits, bool csm = false);
 
 protected:
 	//
@@ -65,12 +83,15 @@ protected:
 	double extra;
 
 	bool Running;
-	bool Enabled;
+	bool TimerTrash;
 	int CountUp;
 
 	//
 	// Don't need to be saved.
 	//
+
+	RotationalSwitch *DimmerRotationalSwitch;
+	PowerMerge DCPower;
 };
 
 //
@@ -79,8 +100,11 @@ protected:
 
 class EventTimer: public MissionTimer {
 public:
-	EventTimer();
+	EventTimer(PanelSDK &p);
+	virtual ~EventTimer();
 	void Render(SURFHANDLE surf, SURFHANDLE digits);
+	void Render90(SURFHANDLE surf, SURFHANDLE digits);
+	void SystemTimestep(double simdt);
 
 protected:
 };
@@ -91,7 +115,10 @@ protected:
 
 class LEMEventTimer: public EventTimer {
 public:
+	LEMEventTimer(PanelSDK &p);
+	virtual ~LEMEventTimer();
 	void Render(SURFHANDLE surf, SURFHANDLE digits);
+	void SystemTimestep(double simdt);
 
 protected:
 };

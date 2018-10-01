@@ -22,29 +22,188 @@
 
   **************************************************************************/
 
+#pragma once
+
+#include "yaAGS/aea_engine.h"
+#include <queue>
+
+class LEM_DEDA;
+
+// AGS Channel 04, Input Discretes
+enum AGSChannelValue04_Bits {
+	AGSAbortStageDiscrete = 9,
+	AGSAbortDiscrete,
+	AGSAscentEngineOnDiscrete,
+	AGSDescentEngineOnDiscrete,
+	AGSAutomaticDiscrete,
+	AGSFollowUpDiscrete,
+	AGSOutputTelemetryStopDiscrete,
+	AGSDownlinkTelemetryStopDiscrete
+};
+
+// AGS Channel 05, Input Discretes
+enum AGSChannelValue05_Bits {
+	DEDAReadoutDiscrete = 10,
+	DEDAEnterDiscrete,
+	DEDAHoldDiscrete,
+	DEDAClearDiscrete,
+	GSEDiscrete1,
+	GSEDiscrete2,
+	GSEDiscrete3
+};
+
+// AGS Channel 40, Output Discretes
+enum AGSChannelValue40_Bits {
+	RippleCarryInhibit = 0,
+	AGSAltitude,
+	AGSAltitudeRate,
+	DEDAShiftIn,
+	DEDAShiftOut,
+	GSEDiscrete4,
+	GSEDiscrete5,
+	GSEDiscrete6,
+	AGSTestModeFailure,
+	AGSEngineOff,
+	AGSEngineOn
+};
+
+typedef std::bitset<11> AGSChannelValue40;
+
 // ABORT SENSOR ASSEMBLY (ASA)
 class LEM_ASA{
 public:
 	LEM_ASA();							// Cons
-	void Init(LEM *s, Boiler *hb, h_Radiator *hr); // Init
+	void Init(LEM *l, ThreePosSwitch *s, Boiler *fastht, Boiler *fineht, h_Radiator *hr, h_HeatLoad *asah); // Init
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
-	void TimeStep(double simdt);
+	void Timestep(double simdt);
+	void SystemTimestep(double simdt);
+	bool IsHeaterPowered();
+	bool IsPowered();
+	double GetASATempF();
+	double GetASA12V();
+	double GetASAFreq();
+	double GetASA28V();
+
+	void PulseTimestep(int* AttPulses);
+	MATRIX3 transpose_matrix(MATRIX3 a);
+	VECTOR3 MatrixToEuler(MATRIX3 mat);
 	LEM *lem;					// Pointer at LEM
 protected:
+
+	void TurnOn();
+	void TurnOff();
+
+	VECTOR3 GetGravityVector();
+
 	h_Radiator *hsink;			// Case (Connected to primary coolant loop)
-	Boiler *heater;				// Heater
+	Boiler *fastheater;				// Fast Warmup Heater
+	Boiler *fineheater;				// Fine Control Heater
+	h_HeatLoad *asaHeat;
+	ThreePosSwitch *PowerSwitch;
+
+	bool PulsesSent;
+	bool Initialized;
+	bool Operate;
+
+	double LastSimDT;
+	MATRIX3 CurrentRotationMatrix;
+	VECTOR3 EulerAngles;
+	VECTOR3 RemainingDeltaVel;
+	VECTOR3 LastWeightAcceleration;
+	VECTOR3 LastGlobalVel;
+
+	const double AttPulsesScal = pow(2.0, 16.0);
+	const double AccPulsesScal = 1.0 / 0.003125 / 0.3048;
 };
 
 // ABORT ELECTRONICS ASSEMBLY (AEA)
 class LEM_AEA{
 public:
-	LEM_AEA();							// Cons
-	void Init(LEM *s); // Init
+	LEM_AEA(PanelSDK &p, LEM_DEDA &display);							// Cons
+	void Init(LEM *s, h_HeatLoad *aeah, h_HeatLoad *secaeah); // Init
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
-	void TimeStep(double simdt);
+	void Timestep(double simt, double simdt);
+	void SystemTimestep(double simdt);
+	void InitVirtualAGS(char *binfile);
+	void SetInputPortBit(int port, int bit, bool val);
+	void SetInputPort(int port, int val);
+	void SetOutputChannel(int Type, int Data);
+	unsigned int GetOutputChannel(int channel);
+	unsigned int GetInputChannel(int channel);
+	bool GetInputChannelBit(int channel, int bit);
+	void SetMissionInfo(int MissionNo);
+	void SetFlightProgram(int FP);
+	void PadLoad(unsigned int address, unsigned int value);
+	void WriteMemory(unsigned int loc, int val);
+	bool ReadMemory(unsigned int loc, int &val);
+	void SetAGSAttitude(int Type, int Data);
+	void SetAGSAttitudeError(int Type, int Data);
+	void SetLateralVelocity(int Data);
+	void SetAltitudeAltitudeRate(int Data);
+	void SetPGNSIntegratorRegister(int channel, int val);
+	void SetDownlinkTelemetryRegister(int val);
+	void PGNCSDownlinkStopPulse();
+
+	double GetLateralVelocity();
+	double GetAltitude();
+	double GetAltitudeRate();
+	VECTOR3 GetTotalAttitude();
+	VECTOR3 GetAttitudeError();
+
+	void ResetDEDAShiftIn();
+	void ResetDEDAShiftOut();
+
+	void WireToBuses(e_object *a, e_object *b, ThreePosSwitch *s);
+	bool IsPowered();
+	bool IsACPowered();
+	bool GetTestModeFailure();
 	LEM *lem;					// Pointer at LEM
+	h_HeatLoad *aeaHeat;
+	h_HeatLoad *secaeaHeat;
+
+protected:
+	ags_t vags;
+	PowerMerge DCPower;
+	ThreePosSwitch *PowerSwitch;
+
+	LEM_DEDA &deda;
+
+#define MAX_INPUT_PORTS		020
+#define MAX_OUTPUT_PORTS	021
+
+	unsigned int OutputPorts[MAX_OUTPUT_PORTS];
+
+	int FlightProgram;
+	bool AEAInitialized;
+	double LastCycled;
+	int ASACycleCounter;
+
+	//AEA attitude display
+	double sin_theta;
+	double cos_theta;
+	double sin_phi;
+	double cos_phi;
+	double sin_psi;
+	double cos_psi;
+
+	//AEA attitude error
+	VECTOR3 AGSAttitudeError;
+
+	//AEA lateral velocity in feet
+	double AGSLateralVelocity;
+
+	double Altitude;
+	double AltitudeRate;
+
+	std::queue<uint16_t> ags_queue;
+
+	const double ATTITUDESCALEFACTOR = pow(2.0, -17.0);
+	const double ATTITUDEERRORSCALEFACTOR = 0.5113269e-3*pow(2.0, -8.0);
+	const double LATVELSCALEFACTOR = 100.0*pow(2.0, -16.0);
+	const double ALTSCALEFACTOR = 0.3048*2.345*pow(2.0, -3.0);
+	const double ALTRATESCALEFACTOR = 0.3048*pow(2.0, -4.0);
 };
 
 // DATA ENTRY and DISPLAY ASSEMBLY (DEDA)
@@ -52,7 +211,7 @@ public:
 class LEM_DEDA : public e_object
 {
 public:
-	LEM_DEDA(LEM *lem, SoundLib &s, LEM_AEA &computer, int IOChannel = 015);
+	LEM_DEDA(LEM *lem, SoundLib &s, LEM_AEA &computer);
 	virtual ~LEM_DEDA();
 
 	void Init(e_object *powered);
@@ -73,14 +232,16 @@ public:
 	// Timestep to run programs.
 	//
 
-	void TimeStep(double simt);
+	void Timestep(double simt);
 	void SystemTimestep(double simdt);
+
+	void ProcessChannel27(int val);
+	void ProcessChannel40(AGSChannelValue40 val);
 
 	//
 	// Keypad interface.
 	//
 
-	void KeyRel();
 	void EnterPressed();
 	void ClearPressed();
 	void HoldPressed();
@@ -89,6 +250,7 @@ public:
 	void MinusPressed();
 	void NumberPressed(int n);
 
+	void HoldCallback(PanelSwitchItem* s);
 	void EnterCallback(PanelSwitchItem* s);
 	void ClearCallback(PanelSwitchItem* s);
 	void ReadOutCallback(PanelSwitchItem* s);
@@ -119,8 +281,6 @@ public:
 	// Helper functions.
 	//
 
-	void LightsOff();
-
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
 
@@ -149,9 +309,6 @@ protected:
 	// Keyboard state.
 	//
 
-	bool KbInUse;
-	bool Held;
-
 	bool KeyDown_Plus;
 	bool KeyDown_Minus;
 	bool KeyDown_0;
@@ -178,23 +335,15 @@ protected:
 	// Internal variables.
 	//
 
-	char Adr[3];
-	char Data[6];
-
-	int	EnterPos;
-	int EnterVal;
+	int ShiftRegister[9];
+	char Adr[4];
+	char Data[7];
 
 	//
-	// AGC we're connected to.
+	// AGS we're connected to.
 	//
 
 	LEM_AEA &ags;
-
-	//
-	// I/O channel to use for key-codes.
-	//
-
-	int KeyCodeIOChannel;
 
 	//
 	// Sound library.
@@ -209,7 +358,10 @@ protected:
 	// Local helper functions.
 	//
 
+	void SetAddress();
+	void SetData();
 	char ValueChar(unsigned val);
+	char ValueCharSign(unsigned val);
 	void ResetKeyDown();
 	void SendKeyCode(int val);
 
@@ -227,5 +379,7 @@ protected:
 
 #define DEDA_START_STRING	"DEDA_BEGIN"
 #define DEDA_END_STRING		"DEDA_END"
+
+#define AEA_MEM_ENTRIES	(04000)			///< Number of memory values to simulate
 
 

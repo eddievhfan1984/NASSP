@@ -26,33 +26,43 @@
 // To force orbitersdk.h to use <fstream> in any compiler version
 #pragma include_alias( <fstream.h>, <fstream> )
 #include "Orbitersdk.h"
-#include "stdio.h"
-#include "math.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
 
 #include "soundlib.h"
 #include "nasspsound.h"
 
+#include "toggleswitch.h"
 #include "powersource.h"
 #include "missiontimer.h"
+#include "papi.h"
 
-MissionTimer::MissionTimer()
-
+MissionTimer::MissionTimer(PanelSDK &p) : DCPower(0, p)
 {
-	Reset();
-
 	Running = false;
-	Enabled = true;
 	CountUp = TIMER_COUNT_UP;
+	TimerTrash = false;
+	DimmerRotationalSwitch = NULL;
+	srand((unsigned int) time(NULL));
+
+	Reset();
 }
 
 MissionTimer::~MissionTimer()
-
 {
 	// Nothing for now.
 }
 
-void MissionTimer::Reset()
+void MissionTimer::Init(e_object *a, e_object *b, RotationalSwitch *dimmer, e_object *c)
+{
+	DCPower.WireToBuses(a, b);
+	WireTo(c);
+	DimmerRotationalSwitch = dimmer;
+}
 
+void MissionTimer::Reset()
 {
 	hours = 0;
 	minutes = 0;
@@ -60,8 +70,15 @@ void MissionTimer::Reset()
 	extra = 0.0;
 }
 
-void MissionTimer::UpdateHours(int n)
+void MissionTimer::Garbage()
+{
+	hours = rand() % 1000;
+	minutes = rand() % 60;
+	seconds = rand() % 60;
+	TimerTrash = true;
+}
 
+void MissionTimer::UpdateHours(int n)
 {
 	if (!IsPowered())
 		return;
@@ -82,7 +99,6 @@ void MissionTimer::UpdateHours(int n)
 }
 
 void MissionTimer::UpdateMinutes(int n)
-
 {
 	if (!IsPowered())
 		return;
@@ -103,7 +119,6 @@ void MissionTimer::UpdateMinutes(int n)
 }
 
 void MissionTimer::UpdateSeconds(int n)
-
 {
 	if (!IsPowered())
 		return;
@@ -123,36 +138,81 @@ void MissionTimer::UpdateSeconds(int n)
 	}
 }
 
+bool MissionTimer::IsPowered()
+{
+	if (DCPower.Voltage() < SP_MIN_DCVOLTAGE)
+		return false;
+
+	return true;
+}
+
+bool MissionTimer::IsDisplayPowered()
+{
+	if (Voltage() < SP_MIN_ACVOLTAGE || DimmerRotationalSwitch->GetState() == 0)
+		return false;
+	
+	return true;
+}
+
+void MissionTimer::SystemTimestep(double simdt)
+{
+	if (IsPowered())
+		DCPower.DrawPower(11.2);
+
+	if (IsDisplayPowered())
+		DrawPower(7.0 * 7.0 * 0.022);
+}
+
+void EventTimer::SystemTimestep(double simdt)
+{
+	if (IsPowered()) {
+		if (Running)
+			DCPower.DrawPower(5.0);
+		else
+			DCPower.DrawPower(1.0);
+	}
+}
+
+
+void LEMEventTimer::SystemTimestep(double simdt)
+{
+	if (IsPowered())
+		DCPower.DrawPower(11.2);
+
+	if (IsDisplayPowered())
+		DrawPower(4.0 * 7.0 * 0.022);
+}
+
 //
 // This isn't really the most efficient way to update the clock, but the original
 // design didn't allow counting down. We might want to rewrite this at some point.
 //
 
-void MissionTimer::Timestep(double simt, double deltat)
-
+void MissionTimer::Timestep(double simt, double deltat, bool persistent)
 {
-	if (!IsPowered())
-		return;
+	//sprintf(oapiDebugString(), "Timer status. Garbage: %d Powered: %d DC: %f AC: %f", TimerTrash, IsPowered(), DCPower.Voltage(), Voltage());
+	if (!IsPowered()) {
+		if (!TimerTrash && !persistent)
+			Garbage();
 
-	if (Running && Enabled && (CountUp != TIMER_COUNT_NONE)) {
+		return;
+	}
+
+	TimerTrash = false;
+
+	if (Running && (CountUp != TIMER_COUNT_NONE)) {
 		double t = GetTime();
 
-		if (CountUp) {
+		if (CountUp)
 			t += deltat;
-		}
-		else {
+		else
 			t -= deltat;
-		}
-
-		if (t < 0.0)
-			t = 0.0;
 
 		SetTime(t);
 	}
 }
 
 double MissionTimer::GetTime()
-
 {
 	double t;
 
@@ -165,7 +225,6 @@ double MissionTimer::GetTime()
 //
 
 void MissionTimer::SetTime(double t)
-
 {
 	if (t < 0.0) {
 		Reset();
@@ -177,16 +236,17 @@ void MissionTimer::SetTime(double t)
 
 	hours = (secs / 3600);
 	secs -= (hours * 3600);
+
 	while (hours > 999)
 		hours -= 1000;
+
 	minutes = (secs / 60);
 	seconds = secs - (60 * minutes);
 }
 
 void MissionTimer::Render(SURFHANDLE surf, SURFHANDLE digits, bool csm)
-
 {
-	if (!IsPowered())
+	if (!IsPowered() || !IsDisplayPowered())
 		return;
 
 	int Curdigit, Curdigit2;
@@ -223,11 +283,96 @@ void MissionTimer::Render(SURFHANDLE surf, SURFHANDLE digits, bool csm)
 	oapiBlt(surf, digits,0+123,0, 19*(Curdigit-(Curdigit2*10)),0,19,21);
 }
 
-void LEMEventTimer::Render(SURFHANDLE surf, SURFHANDLE digits)
+void MissionTimer::Render90(SURFHANDLE surf, SURFHANDLE digits, bool csm)
+{
+	if (!IsPowered() || !IsDisplayPowered())
+		return;
 
+	int Curdigit, Curdigit2;
+
+	// Hour display on three digit
+	Curdigit = hours / 100;
+	Curdigit2 = hours / 1000;
+	oapiBlt(surf, digits, 0, 0, 21 * (Curdigit - (Curdigit2 * 10)), 0, 21, 19);
+
+	Curdigit = hours / 10;
+	Curdigit2 = hours / 100;
+	oapiBlt(surf, digits, 0, 0 + 20, 21 * (Curdigit - (Curdigit2 * 10)), 0, 21, 19);
+
+	Curdigit = hours;
+	Curdigit2 = hours / 10;
+	oapiBlt(surf, digits, 0, 0 + 39, 21 * (Curdigit - (Curdigit2 * 10)), 0, 21, 19);
+
+	// Minute display on two digit
+	Curdigit = minutes / 10;
+	Curdigit2 = minutes / 100;
+	oapiBlt(surf, digits, 0, 0 + 62, 21 * (Curdigit - (Curdigit2 * 10)), 0, 21, 19);
+
+	Curdigit = minutes;
+	Curdigit2 = minutes / 10;
+	oapiBlt(surf, digits, 0, 0 + 81, 21 * (Curdigit - (Curdigit2 * 10)), 0, 21, 19);
+
+	// second display on two digit
+	Curdigit = seconds / 10;
+	Curdigit2 = seconds / 100;
+	oapiBlt(surf, digits, 0, 0 + 104, 21 * (Curdigit - (Curdigit2 * 10)), 0, 21, 19);
+
+	Curdigit = seconds;
+	Curdigit2 = seconds / 10;
+	oapiBlt(surf, digits, 0, 0 + 123, 21 * (Curdigit - (Curdigit2 * 10)), 0, 21, 19);
+}
+
+void MissionTimer::SaveState(FILEHANDLE scn, char *start_str, char *end_str, bool persistent)
+{
+	oapiWriteLine(scn, start_str);
+	papiWriteScenario_bool(scn, "RUNNING", Running);
+	oapiWriteScenario_int(scn, "COUNTUP", CountUp);
+	if (!persistent)
+		papiWriteScenario_bool(scn, "TIMERTRASH", TimerTrash);
+	papiWriteScenario_double(scn, "MTD", GetTime());
+	oapiWriteLine(scn, end_str);
+}
+
+void MissionTimer::LoadState(FILEHANDLE scn, char *end_str)
+{
+	char *line;
+	int tmp = 0; // Used in boolean type loader
+	int end_len = strlen(end_str);
+	float ftcp;
+
+	while (oapiReadScenario_nextline(scn, line)) {
+		if (!strnicmp(line, end_str, end_len))
+			break;
+
+		if (!strnicmp(line, "MTD", 3)) {
+			sscanf(line + 3, "%f", &ftcp);
+			SetTime(ftcp);
+		}
+
+		papiReadScenario_bool(line, "RUNNING", Running);
+		papiReadScenario_int(line, "COUNTUP", CountUp);
+		papiReadScenario_bool(line, "TIMERTRASH", TimerTrash);
+	}
+}
+
+LEMEventTimer::LEMEventTimer(PanelSDK &p) : EventTimer(p)
+{
+	//
+	// Nothing for now
+	//
+}
+
+LEMEventTimer::~LEMEventTimer()
+{
+	//
+	// Nothing for now
+	//
+}
+
+void LEMEventTimer::Render(SURFHANDLE surf, SURFHANDLE digits)
 {
 	// Don't do this if not powered.
-	if (!IsPowered())
+	if (!IsPowered() || !IsDisplayPowered())
 		return;
 
 	//
@@ -245,7 +390,7 @@ void LEMEventTimer::Render(SURFHANDLE surf, SURFHANDLE digits)
 	Curdigit2 = minutes / 10;
 	oapiBlt(surf, digits, 20, 0, 19 * (Curdigit-(Curdigit2*10)), 0, 19,21);
 
-	//oapiBlt(surf, digits, 37,0, 192,0,4,19);
+	//oapiBlt(surf, digits, 37, 0, 192, 0, 4, 19);
 
 	// second display on two digit
 	Curdigit = seconds / 10;
@@ -257,16 +402,19 @@ void LEMEventTimer::Render(SURFHANDLE surf, SURFHANDLE digits)
 	oapiBlt(surf, digits, 62, 0, 19 * (Curdigit-(Curdigit2*10)), 0, 19,21);
 }
 
-EventTimer::EventTimer()
-
+EventTimer::EventTimer(PanelSDK &p) : MissionTimer(p)
 {
-	MissionTimer();
-	// See http://history.nasa.gov/ap16fj/aoh_op_procs.htm, Backup Crew Prelaunch Checks, Pdf page 19
-	Enabled = false;
+
+}
+
+EventTimer::~EventTimer()
+{
+	//
+	// Nothing for now
+	//
 }
 
 void EventTimer::Render(SURFHANDLE surf, SURFHANDLE digits)
-
 {
 	//
 	// Digits are 13x18.
@@ -291,4 +439,31 @@ void EventTimer::Render(SURFHANDLE surf, SURFHANDLE digits)
 	Curdigit = seconds;
 	Curdigit2 = seconds/10;
 	oapiBlt(surf, digits, 58, 0, 13 * (Curdigit-(Curdigit2*10)), 0, 13, 18);
+}
+
+void EventTimer::Render90(SURFHANDLE surf, SURFHANDLE digits)
+{
+	//
+	// Digits are 13x18.
+	//
+
+	int Curdigit, Curdigit2;
+
+	// Minute display on two digit
+	Curdigit = minutes / 10;
+	Curdigit2 = minutes / 100;
+	oapiBlt(surf, digits, 0, 0, 19 * (Curdigit - (Curdigit2 * 10)), 0, 18, 13);
+
+	Curdigit = minutes;
+	Curdigit2 = minutes / 10;
+	oapiBlt(surf, digits, 0, 13, 19 * (Curdigit - (Curdigit2 * 10)), 0, 18, 13);
+
+	// second display on two digit
+	Curdigit = seconds / 10;
+	Curdigit2 = seconds / 100;
+	oapiBlt(surf, digits, 0, 45, 19 * (Curdigit - (Curdigit2 * 10)), 0, 18, 13);
+
+	Curdigit = seconds;
+	Curdigit2 = seconds / 10;
+	oapiBlt(surf, digits, 0, 58, 19 * (Curdigit - (Curdigit2 * 10)), 0, 18, 13);
 }

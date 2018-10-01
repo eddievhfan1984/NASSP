@@ -34,10 +34,7 @@
 #include "nasspdefs.h"
 #include "toggleswitch.h"
 #include "apolloguidance.h"
-#include "dsky.h"
 #include "csmcomputer.h"
-#include "IMU.h"
-#include "lvimu.h"
 #include "ioChannels.h"
 
 #include "saturn.h"
@@ -105,7 +102,7 @@ void CabinPressureRegulator::SystemTimestep(double simdt) {
 		if (emergencyCabinPressureTestSwitch->GetState() != 0) 
 			emergencyCabinPressureRegulator->P_max = 1000. / PSI; // i.e. disabled
 		else
-			emergencyCabinPressureRegulator->P_max = 4.6 / PSI;
+			emergencyCabinPressureRegulator->P_max = 4.6 / PSI;	
 		emergencyCabinPressureRegulator->flowMax = 40.2 / LBH; // 0.67 lb/min max, see AOH
 	}
 }
@@ -590,6 +587,8 @@ void O2SMSupply::SystemTimestep(double simdt) {
 	}
 
 	// Surge tank
+	o2SurgeTank->BoilAllAndSetTemp(285);	//Needs to be done later by a heat exchanger
+
 	if (surgeTankValve->GetState() == 0) {
 		o2SurgeTank->OUT_valve.Close();
 		o2SurgeTank->IN_valve.Close();
@@ -641,7 +640,7 @@ void O2SMSupply::SystemTimestep(double simdt) {
 			*o2SMSupply += o2SMSupplyO2;
 			o2SMSupplyVoid = false;
 		}
-		o2SMSupply->BoilAllAndSetTemp(285);
+		o2SMSupply->BoilAllAndSetTemp(285);	//Needs to be done later by a heat exchanger
 		// O2 main regulator
 		if (mainRegulatorASwitch->GetState() && mainRegulatorBSwitch->GetState()) {
 			o2MainRegulator->IN_valve.Close();
@@ -665,7 +664,8 @@ void O2SMSupply::SystemTimestep(double simdt) {
 	}
 
 	// Repress package outlet
-	o2RepressPackageOutlet->BoilAllAndSetTemp(285);
+	o2RepressPackage->BoilAllAndSetTemp(285);	//Needs to be done later by a heat exchanger
+	o2RepressPackageOutlet->BoilAllAndSetTemp(285);	//Needs to be done later by a heat exchanger
 	if (repressO2Valve->GetState() == THREEPOSSWITCH_UP) {
 		o2RepressPackageOutlet->OUT_valve.Open();
 		o2RepressPackageOutletPipe->flowMax = 300. / LBH;	// cabin pressure 0 to 3 psi in about one minute
@@ -831,7 +831,7 @@ void CrewStatus::Timestep(double simdt) {
 		}
 	} else {
 		VECTOR3 v;
-		saturn->GetHorizonAirspeedVector(v);
+		saturn->GetAirspeedVector(FRAME_HORIZON, v);
 		lastVerticalVelocity = v.y;
 	}
 }
@@ -900,7 +900,7 @@ void SaturnSideHatch::Timestep(double simdt) {
 	if (toggle > 0) {
 		toggle--;
 		if (toggle == 0) {
-			saturn->PanelRefreshHatch();
+			saturn->PanelRefreshSideHatch();
 		}
 	}
 }
@@ -1218,4 +1218,173 @@ void SaturnGlycolCoolingController::CabinTempSwitchToggled(PanelSwitchItem *s) {
 
 	saturn->CabinHeater->valueMin = targetTemp - 1.0;
 	saturn->CabinHeater->valueMax = targetTemp;		
+}
+
+SaturnLMTunnelVent::SaturnLMTunnelVent()
+{
+	LMTunnelVentSwitch = NULL;
+	TunnelVentValve = NULL;
+	TunnelPressValve = NULL;
+}
+
+void SaturnLMTunnelVent::Init(h_Valve *tvv, h_Valve *tpv, RotationalSwitch *lmtvs)
+{
+	TunnelVentValve = tvv;
+	TunnelPressValve = tpv;
+	LMTunnelVentSwitch = lmtvs;
+}
+
+void SaturnLMTunnelVent::SystemTimestep(double simdt)
+{
+	if (!TunnelVentValve || !TunnelPressValve) return;
+
+	// Valve in motion
+	if (TunnelVentValve->pz) return;
+	if (TunnelPressValve->pz) return;
+
+	//OFF
+	if (LMTunnelVentSwitch->GetState() == 0)
+	{
+		TunnelVentValve->Close();
+		TunnelPressValve->Close();
+	}
+	//LM PRESS
+	else if (LMTunnelVentSwitch->GetState() == 1)
+	{
+		TunnelVentValve->Close();
+		TunnelPressValve->Open();
+	}
+	//LM/CM DELTA P
+	else if (LMTunnelVentSwitch->GetState() == 2)
+	{
+		TunnelVentValve->Close();
+		TunnelPressValve->Close();
+	}
+	//LM TUNNEL VENT
+	else if (LMTunnelVentSwitch->GetState() == 3)
+	{
+		TunnelVentValve->Open();
+		TunnelPressValve->Close();
+	}
+}
+
+SaturnForwardHatch::SaturnForwardHatch(Sound &opensound, Sound &closesound) :
+	OpenSound(opensound), CloseSound(closesound)
+{
+	open = false;
+	toggle = 0;
+	pipe = NULL;
+	saturn = NULL;
+}
+
+SaturnForwardHatch::~SaturnForwardHatch()
+{
+
+}
+
+void SaturnForwardHatch::Init(Saturn *s, h_Pipe *p)
+{
+	saturn = s;
+	pipe = p;
+}
+
+void SaturnForwardHatch::Toggle()
+{
+	if (!pipe) return;
+
+	if (toggle == 0)
+	{
+		if (open == false)
+		{
+			if (pipe->in->parent->space.Press - pipe->out->parent->space.Press < 0.08 / PSI)
+			{
+				open = true;
+				toggle = 2;
+				OpenSound.play();
+				//TBD: Mesh?
+			}
+		}
+		else
+		{
+			open = false;
+			toggle = 2;
+			CloseSound.play();
+			//TBD: Mesh?
+		}
+	}
+}
+
+void SaturnForwardHatch::Timestep(double simdt) {
+
+	if (toggle > 0) {
+		toggle--;
+		if (toggle == 0) {
+			saturn->PanelRefreshForwardHatch();
+		}
+	}
+}
+
+void SaturnForwardHatch::LoadState(char *line) {
+
+	int i1;
+
+	sscanf(line + 12, "%d %d", &i1, &toggle);
+	open = (i1 != 0);
+}
+
+void SaturnForwardHatch::SaveState(FILEHANDLE scn) {
+
+	char buffer[100];
+
+	sprintf(buffer, "%i %i", (open ? 1 : 0), toggle);
+	oapiWriteScenario_string(scn, "FORWARDHATCH", buffer);
+}
+
+SaturnPressureEqualizationValve::SaturnPressureEqualizationValve()
+{
+	PressureEqualizationSwitch = NULL;
+	PressureEqualizationValve = NULL;
+	ForwardHatch = NULL;
+}
+
+void SaturnPressureEqualizationValve::Init(h_Pipe *pev, RotationalSwitch *pes, SaturnForwardHatch *h)
+{
+	PressureEqualizationSwitch = pes;
+	PressureEqualizationValve = pev;
+	ForwardHatch = h;
+}
+
+void SaturnPressureEqualizationValve::SystemTimestep(double simdt)
+{
+	if (!PressureEqualizationValve) return;
+
+	// Valve in motion
+	if (PressureEqualizationValve->in->pz) return;
+
+	if (ForwardHatch->IsOpen())
+	{
+		//FORWARD HATCH
+
+		PressureEqualizationValve->in->Open();
+		PressureEqualizationValve->in->size = (float) 1000.0;
+		PressureEqualizationValve->flowMax = 2000.0 / LBH;
+	}
+	else
+	{
+		//PRESSURE EQUALIZATION VALVE
+
+		//CLOSED
+		if (PressureEqualizationSwitch->GetState() == 3)
+		{
+			PressureEqualizationValve->in->Close();
+		}
+		else
+		{
+			double f = (double)(3 - PressureEqualizationSwitch->GetState());
+
+			PressureEqualizationValve->in->Open();
+			PressureEqualizationValve->in->size = (float)(0.15*f);
+			PressureEqualizationValve->flowMax = 220.0 / LBH * f;
+		}
+	}
 }

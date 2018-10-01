@@ -39,8 +39,6 @@
 #include "apolloguidance.h"
 #include "dsky.h"
 #include "csmcomputer.h"
-#include "IMU.h"
-#include "lvimu.h"
 #include "saturn.h"
 #include "saturnv.h"
 #include "tracer.h"
@@ -102,8 +100,6 @@ bool Saturn::RegisterVC()
 		//oapiVCRegisterArea (areaidentifier, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_"event1"|PANEL_MOUSE_"event2");
 		//oapiVCSetAreaClickmode_Spherical (areaidentifier, _V(#x,#y,#z,#radius);
 		//oapiVCSetAreaClickmode_Quadrilateral (areaidentifier, _V(uplftvect), _V(uprtvect), _V(lwrlftvect), _V(lwrrtvect));
-		oapiVCRegisterArea (AID_ABORT_BUTTON, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN);
-			oapiVCSetAreaClickmode_Spherical (AID_ABORT_BUTTON, _V(0.05,-0.303,0.593),0.02);
 		oapiVCRegisterArea (AID_MASTER_ALARM, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN | PANEL_MOUSE_UP);
 			oapiVCSetAreaClickmode_Spherical (AID_MASTER_ALARM, _V(-0.205,-0.243,0.61),0.015);
 		oapiVCRegisterArea (AID_DSKY_KEY, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN | PANEL_MOUSE_UP);
@@ -118,8 +114,6 @@ bool Saturn::RegisterVC()
 		//oapiVCRegisterArea (areaidentifier, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_"event1"|PANEL_MOUSE_"event2");
 		//oapiVCSetAreaClickmode_Spherical (areaidentifier, _V(#x,#y,#z,#radius);
 		//oapiVCSetAreaClickmode_Quadrilateral (areaidentifier, _V(uplftvect), _V(uprtvect), _V(lwrlftvect), _V(lwrrtvect));
-		oapiVCRegisterArea (AID_ABORT_BUTTON, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN);
-			oapiVCSetAreaClickmode_Spherical (AID_ABORT_BUTTON, _V(0.55,0.6,0.44),0.02);
 		oapiVCRegisterArea (AID_MASTER_ALARM, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN | PANEL_MOUSE_UP);
 			oapiVCSetAreaClickmode_Spherical (AID_MASTER_ALARM, _V(0.804,0.653,0.463),0.015);
 		oapiVCRegisterArea (AID_DSKY_KEY, PANEL_REDRAW_ALWAYS, PANEL_MOUSE_DOWN | PANEL_MOUSE_UP);
@@ -184,11 +178,6 @@ bool Saturn::clbkVCMouseEvent (int id, int event, VECTOR3 &p)
 		//blah blah blah
 		//return true;
 	//}
-	case AID_ABORT_BUTTON:
-		sprintf(oapiDebugString(), "Aborting...");
-		bAbort = true;
-		ButtonClick();
-		return true;
 
 	case AID_MASTER_ALARM:
 	//case AID_MASTER_ALARM2:
@@ -438,11 +427,18 @@ void Saturn::SetView(double offset, bool update_direction)
 		if (PanelId == SATPANEL_LEFT_RNDZ_WINDOW) {
 			v = _V(-0.710051624, 1.305366408, offset - 3.0);
 
+		} else if (PanelId == SATPANEL_LEFT_317_WINDOW) {
+			v = _V(-0.710051624, 1.305366408, offset - 3.0);
+
 		} else if (PanelId == SATPANEL_RIGHT_RNDZ_WINDOW) {
 			v = _V(0.710051624, 1.305366408, offset - 3.0);
 
 		} else if (PanelId == SATPANEL_HATCH_WINDOW) {
 			v = _V(0, 0, offset + 1.0);
+
+		} else if (PanelId == SATPANEL_LOWER_MAIN) {
+			// Calibrated for best view with forward hatch open
+			v = _V(0, 0, offset + 0.7);
 
 		} else {
 			// "Calibrated" for optics cover jettison as seen through the scanning telescope 

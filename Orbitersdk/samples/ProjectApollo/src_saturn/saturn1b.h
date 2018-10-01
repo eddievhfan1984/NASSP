@@ -22,7 +22,8 @@
 
   **************************************************************************/
 #pragma once
-#include "LVDC.h"
+
+#include "s1bsystems.h"
 
 ///
 /// \brief Saturn V launch vehicle class.
@@ -62,15 +63,21 @@ public:
 	///
 	void clbkPostStep (double simt, double simdt, double mjd);
 
-	///
-	/// \brief Set up J2 engines as fuel venting thruster.
-	///
-	virtual void SetVentingJ2Thruster();
-
 	/// 
 	/// \brief LVDC "Switch Selector" staging support utility function
 	/// 
 	void SwitchSelector(int item);
+	void SISwitchSelector(int channel);
+
+	void SIEDSCutoff(bool cut);
+	void GetSIThrustOK(bool *ok);
+	bool GetSIInboardEngineOut();
+	bool GetSIOutboardEngineOut();
+	bool GetSIPropellantDepletionEngineCutoff();
+	bool GetSIBLowLevelSensorsDry();
+	void SetSIEngineStart(int n);
+	void SetSIThrusterDir(int n, double yaw, double pitch);
+	double GetSIThrustLevel();
 
 protected:
 
@@ -78,13 +85,8 @@ protected:
 
 	OBJHANDLE hSoyuz;
 	OBJHANDLE hAstpDM;
-	LVDC1B* lvdc;
-	double LiftCoeff (double aoa);
 
 	void SetupMeshes();
-	void AttitudeLaunch1();
-	void AttitudeLaunch4();
-	void AutoPilot(double autoT);
 	void SetFirstStage ();
 	void SetFirstStageMeshes(double offset);
 	void SetFirstStageEngines ();
@@ -95,21 +97,27 @@ protected:
 	void ConfigureStageMeshes(int stage_state);
 	void ConfigureStageEngines(int stage_state);
 	void CreateStageOne();
-	void SaveLVDC(FILEHANDLE scn);
-	void LoadLVDC(FILEHANDLE scn);
 	void SaveVehicleStats(FILEHANDLE scn);
+	void LoadIU(FILEHANDLE scn);
+	void LoadLVDC(FILEHANDLE scn);
+	void LoadSIVB(FILEHANDLE scn);
+	void SaveSI(FILEHANDLE scn);
+	void LoadSI(FILEHANDLE scn);
 	void SeparateStage (int stage);
 	void DoFirstTimestep(double simt);
 	void Timestep (double simt, double simdt, double mjd);
-	void StageOne(double simt, double simdt);
-	void StageLaunchSIVB(double simt);
 	void SetVehicleStats();
 	void CalculateStageMass ();
-	void SetSIVBMixtureRatio(double ratio);
 	void ActivateStagingVent();
 	void DeactivateStagingVent();
 	void ActivatePrelaunchVenting();
 	void DeactivatePrelaunchVenting();
+	void SetRandomFailures();
+	void SetEngineFailure(int failstage, int faileng, double failtime);
+
+	SIBSystems sib;
+
+	Pyro SIBSIVBSepPyros;
 };
 
 
