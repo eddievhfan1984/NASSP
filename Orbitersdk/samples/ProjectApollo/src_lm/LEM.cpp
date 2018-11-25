@@ -266,8 +266,6 @@ void LEM::Init()
 {
 	DebugLineClearTimer = 0;
 
-	ABORT_IND=false;
-
 	bModeDocked=false;
 	bModeHover=false;
 	ToggleEva=false;
@@ -536,7 +534,10 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 				case OAPI_KEY_NUMPAD0:
 					dsky.NumberPressed(0);
 					break;
-				
+				case OAPI_KEY_K:
+					//kill rotation
+					SetAngularVel(_V(0, 0, 0));
+					break;
 			}
 		}else{
 			// KEY UP
@@ -544,6 +545,71 @@ int LEM::clbkConsumeBufferedKey(DWORD key, bool down, char *keystate) {
 				case OAPI_KEY_END:
 					dsky.ProgReleased();
 					break;
+
+			}
+		}
+		return 0;
+	}
+	else if (KEYMOD_CONTROL(keystate)) {
+		// Do DEDA stuff
+		if (down) {
+			switch (key) {
+			case OAPI_KEY_DECIMAL:
+				deda.ClearPressed();
+				break;
+			case OAPI_KEY_NUMPADENTER:
+				deda.EnterPressed();
+				break;
+			case OAPI_KEY_DIVIDE:
+				deda.HoldPressed();
+				break;
+			case OAPI_KEY_MULTIPLY:
+				deda.ReadOutPressed();
+				break;
+			case OAPI_KEY_ADD:
+				deda.PlusPressed();
+				break;
+			case OAPI_KEY_SUBTRACT:
+				deda.MinusPressed();
+				break;
+			case OAPI_KEY_NUMPAD1:
+				deda.NumberPressed(1);
+				break;
+			case OAPI_KEY_NUMPAD2:
+				deda.NumberPressed(2);
+				break;
+			case OAPI_KEY_NUMPAD3:
+				deda.NumberPressed(3);
+				break;
+			case OAPI_KEY_NUMPAD4:
+				deda.NumberPressed(4);
+				break;
+			case OAPI_KEY_NUMPAD5:
+				deda.NumberPressed(5);
+				break;
+			case OAPI_KEY_NUMPAD6:
+				deda.NumberPressed(6);
+				break;
+			case OAPI_KEY_NUMPAD7:
+				deda.NumberPressed(7);
+				break;
+			case OAPI_KEY_NUMPAD8:
+				deda.NumberPressed(8);
+				break;
+			case OAPI_KEY_NUMPAD9:
+				deda.NumberPressed(9);
+				break;
+			case OAPI_KEY_NUMPAD0:
+				deda.NumberPressed(0);
+				break;
+			}
+		}
+		else {
+			// KEY UP
+			switch (key) {
+			case OAPI_KEY_DECIMAL:
+				deda.ResetKeyDown();
+				break;
 
 			}
 		}
@@ -897,11 +963,6 @@ void LEM::clbkPostStep(double simt, double simdt, double mjd)
 			SetLmLandedMesh();
 		}
 
-		if (CPswitch && EVAswitch && GroundContact()){
-			ToggleEva = true;
-			EVAswitch = false;
-		}
-
 		//sprintf (oapiDebugString(),"FUEL %d",GetPropellantMass(ph_Dsc));
 	}
 
@@ -1240,6 +1301,9 @@ void LEM::GetScenarioState(FILEHANDLE scn, void *vs)
 		}
 		else if (!strnicmp(line, "LEM_LR_START", sizeof("LEM_LR_START"))) {
 			LR.LoadState(scn, "LEM_LR_END");
+		}
+		else if (!strnicmp(line, "RADARTAPE_START", sizeof("RADARTAPE_START"))) {
+			RadarTape.LoadState(scn, "RADARTAPE_END");
 		}
 		else if (!strnicmp(line, LMOPTICS_START_STRING, sizeof(LMOPTICS_START_STRING))) {
 			optics.LoadState(scn);
@@ -1580,6 +1644,7 @@ void LEM::clbkSaveState (FILEHANDLE scn)
 	eds.SaveState(scn,"LEM_EDS_START","LEM_EDS_END");
 	RR.SaveState(scn,"LEM_RR_START","LEM_RR_END");
 	LR.SaveState(scn, "LEM_LR_START", "LEM_LR_END");
+	RadarTape.SaveState(scn, "RADARTAPE_START", "RADARTAPE_END");
 
 	//Save Optics
 	optics.SaveState(scn);
@@ -1667,7 +1732,7 @@ bool LEM::SetupPayload(PayloadSettings &ls)
 
 	// Sounds are initialized during the first timestep
 	// or here
-	SetLmVesselDockStage();
+	SetLmVesselDockStage(true);
 	PostLoadSetup();
 
 	return true;

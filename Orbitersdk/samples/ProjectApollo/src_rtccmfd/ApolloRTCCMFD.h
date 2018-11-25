@@ -43,6 +43,7 @@ public:
 	void set_t1_PDI(double t1);
 	void t2dialogue();
 	void set_t2(double t2, bool t1dep);
+	void set_lambertWT(double wt);
 	void SPQtimedialogue();
 	void set_SPQtime(double tig);
 	void DHdialogue();
@@ -132,7 +133,6 @@ public:
 	void menuCycleTwoImpulseOption();
 	void menuSwitchHeadsUp();
 	void menuManDirection();
-	void menuSwitchPDIPADDirect();
 	void menuCalcManPAD();
 	void menuSetManPADPage();
 	void menuCalcEntryPAD();
@@ -140,7 +140,6 @@ public:
 	void menuSwitchCritical();
 	void menuSwitchFlybyType();
 	void menuSwitchEntryPADOpt();
-	void menuSwitchEntryPADDirect();
 	void menuManPADTIG();
 	void set_ManPADTIG(double ManPADTIG);
 	void menusextantstartime();
@@ -154,13 +153,14 @@ public:
 	void set_LSLat(double lat);
 	void menuLSLng();
 	void set_LSLng(double lng);
-	void menuREFSMMATdirect();
 	void menuSetSVTime();
 	void set_SVtime(double SVtime);
 	void menuSetAGSKFactor();
 	void set_AGSKFactor(double time);
 	void menuCalcMapUpdate();
 	void menuSwitchMapUpdate();
+	void menuSetMapUpdateGET();
+	void set_MapUpdateGET(double time);
 	void menuSwitchUplinkInhibit();
 	void menuCycleSPQMode();
 	void set_CDHtimemode();
@@ -210,6 +210,8 @@ public:
 	void set_LOIAzi(double inc);
 	void menuSetTLAND();
 	void menuLOICalc();
+	void menuSetLOIGET();
+	void set_LOI2EarliestGET(double time);
 	void menuRequestLTMFD();
 	void menuSetLandmarkTrkPage();
 	void menuSetLmkTime();
@@ -370,11 +372,16 @@ public:
 	void set_FIDOOrbitDigitalsGETL(double getl);
 	void menuSetFIDOOrbitDigitalsL();
 	void set_FIDOOrbitDigitalsL(double lng);
+	void menuSetFIDOOrbitDigitalsGETBV();
+	void set_FIDOOrbitDigitalsGETBV(double getbv);
 	void menuSetMCCDisplaysPage();
 	void menuSetSpaceDigitalsPage();
 	void menuUpdateSpaceDigitals();
 	void menuSetSpaceDigitalsGET();
 	void set_SpaceDigitalsGET(double get);
+	void menuSetMPTPage();
+	void menuMPTCycleActive();
+	void menuMPTDeleteManeuver();
 	void GMPManeuverTypeName(char *buffer, int typ);
 	void GMPManeuverPointName(char *buffer, int point);
 	void GMPManeuverCodeName(char *buffer, int code);
@@ -391,6 +398,7 @@ protected:
 	} screenData;
 private:
 	ARCore* G;
+	AR_GCore* GC;
 	ApolloRTCCMFDButtons coreButtons;	
 };
 

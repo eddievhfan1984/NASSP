@@ -944,7 +944,7 @@ void LEMPrimGlycolPumpController::LoadState(char *line)
 
 	PressureSwitch = (i != 0);
 	GlycolAutoTransferRelay = (j != 0);
-	GlycolPumpFailRelay = (j != 0);
+	GlycolPumpFailRelay = (k != 0);
 }
 
 void LEMPrimGlycolPumpController::SaveState(FILEHANDLE scn)
@@ -1028,6 +1028,7 @@ LEM_ECS::LEM_ECS(PanelSDK &p) : sdk(p)
 	Asc_Water1 = 0;
 	Asc_Water2 = 0;
 	Des_Water = 0;
+	Des_Water_Press = 0;
 	//Des_Water2 = 0; Using LM-8 Systems Handbook, only 1 DES H2O tank
 	Primary_CL_Glycol_Press = 0;						// Zero this, system will fill from accu
 	Secondary_CL_Glycol_Press = 0;						// Zero this, system will fill from accu
@@ -1051,6 +1052,8 @@ LEM_ECS::LEM_ECS(PanelSDK &p) : sdk(p)
 	Secondary_Glycol_Loop2 = 0;							// Loop 2 mass
 	Secondary_Glycol_EvapIn = 0;						// Evap inlet mass
 	Secondary_Glycol_EvapOut = 0;						// Evap outlet mass
+	Primary_Glycol_Accu_Press = 0;
+	PLSS_O2_Fill_Press = 0;
 
 	// Open valves as would be for IVT
 	Des_O2 = 0;
@@ -1063,7 +1066,8 @@ LEM_ECS::LEM_ECS(PanelSDK &p) : sdk(p)
 	Water_Sep1_RPM = 0; Water_Sep2_RPM = 0;
 	Suit_Circuit_Relief = 0;
 	Cabin_Gas_Return = 0;
-	Asc_Water1Temp = 0; Asc_Water2Temp = 0;
+	Asc_Water1Temp = 0; Asc_Water2Temp = 0; WB_Prim_Water_Temp = 0;
+	WB_Prim_Gly_In_Temp = 0; WB_Prim_Gly_Out_Temp = 0;
 }
 
 void LEM_ECS::Init(LEM *s) {
@@ -1153,6 +1157,8 @@ double LEM_ECS::AscentOxyTank2QuantityLBS() {
 }
 
 double LEM_ECS::GetCabinPressurePSI() {
+	if (!lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
+
 	if (!Cabin_Press) {
 		Cabin_Press = (double*)sdk.GetPointerByString("HYDRAULIC:CABIN:PRESS");
 	}
@@ -1184,6 +1190,7 @@ double LEM_ECS::GetSensorCO2MMHg() {
 
 double LEM_ECS::DescentWaterTankQuantity() {
 	if (!lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
+	if (lem->stage > 1) return 0.0;
 
 	if (!Des_Water) {
 		Des_Water = (double*)sdk.GetPointerByString("HYDRAULIC:DESH2OTANK:MASS");
@@ -1327,6 +1334,16 @@ double LEM_ECS::GetSelectedGlycolTempF()
 	return GetPrimaryGlycolTempF();
 }
 
+double LEM_ECS::GetSelectedGlycolPressure()
+{
+	if (lem->GlycolRotary.GetState() == 0)
+	{
+		return GetSecondaryGlycolPressure();
+	}
+
+	return GetPrimaryGlycolPressure();
+}
+
 double LEM_ECS::GetWaterSeparatorRPM()
 {
 	if (!lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
@@ -1441,4 +1458,61 @@ bool LEM_ECS::GetGlycolPump2Failure()
 	}
 
 	return false;
+}
+
+double LEM_ECS::GetPrimWBWaterInletTempF()
+{
+	if (!WB_Prim_Water_Temp) {
+		WB_Prim_Water_Temp = (double*)sdk.GetPointerByString("HYDRAULIC:PRIMWATERBOILER:TEMP");
+	}
+	return KelvinToFahrenheit(*WB_Prim_Water_Temp);
+}
+
+double LEM_ECS::GetPrimWBGlycolInletTempF()
+{
+	if (!WB_Prim_Gly_In_Temp) {
+		WB_Prim_Gly_In_Temp = (double*)sdk.GetPointerByString("HYDRAULIC:PRIMEVAPINLET:TEMP");
+	}
+	return KelvinToFahrenheit(*WB_Prim_Gly_In_Temp);
+}
+
+double LEM_ECS::GetPrimWBGlycolOutletTempF()
+{
+	if (!WB_Prim_Gly_Out_Temp) {
+		WB_Prim_Gly_Out_Temp = (double*)sdk.GetPointerByString("HYDRAULIC:PRIMEVAPOUTLET:TEMP");
+	}
+	return KelvinToFahrenheit(*WB_Prim_Gly_Out_Temp);
+}
+
+double LEM_ECS::GetPrimaryGlycolPumpDP()
+{
+	if (!lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
+
+	if (!Primary_CL_Glycol_Press) {
+		Primary_CL_Glycol_Press = (double*)sdk.GetPointerByString("HYDRAULIC:PRIMGLYCOLPUMPMANIFOLD:PRESS");
+	}
+	if (!Primary_Glycol_Accu_Press) {
+		Primary_Glycol_Accu_Press = (double*)sdk.GetPointerByString("HYDRAULIC:PRIMGLYCOLACCUMULATOR:PRESS");
+	}
+	return (*Primary_CL_Glycol_Press - *Primary_Glycol_Accu_Press)*PSI;
+}
+
+double LEM_ECS::GetPLSSFillPressurePSI()
+{
+	if (!lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
+
+	if (!PLSS_O2_Fill_Press) {
+		PLSS_O2_Fill_Press = (double*)sdk.GetPointerByString("HYDRAULIC:PLSSO2FILLVALVE:PRESS");
+	}
+	return (*PLSS_O2_Fill_Press)*PSI;
+}
+
+double LEM_ECS::DescentWaterTankPressure() {
+	if (!lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
+	if (lem->stage > 1) return 0.0;
+
+	if (!Des_Water_Press) {
+		Des_Water_Press = (double*)sdk.GetPointerByString("HYDRAULIC:DESH2OTANK:PRESS");
+	}
+	return (*Des_Water_Press)*PSI;
 }

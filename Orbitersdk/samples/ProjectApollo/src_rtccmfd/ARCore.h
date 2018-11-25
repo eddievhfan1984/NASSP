@@ -27,9 +27,34 @@ struct ApolloRTCCMFDData {  // global data storage
 	Saturn *progVessel;
 };
 
+class AR_GCore
+{
+public:
+	AR_GCore(VESSEL* v);
+
+	MPTable mptable;
+	bool MissionPlanningActive;
+	double GETbase;			//Launch MJD
+	int mission;				//0=manual, 7 = Apollo 7, 8 = Apollo 8, 9 = Apollo 9, etc.
+	double LSLat, LSLng, LSAlt;	//Landing Site coordinates
+	double t_Land;				//Time of landing
+	double LOIazi;
+	double TLCCFreeReturnEMPLat, TLCCNonFreeReturnEMPLat;
+	//Initial guess of pericynthion GET
+	double TLCCPeriGET;
+	double LOIapo, LOIperi;
+	int LOIEllipseRotation;	//0 = Choose the lowest DV solution, 1 = solution 1, 2 = solution 2
+	double TLCCFlybyPeriAlt, TLCCLAHPeriAlt;
+	double TLCCNodeLat, TLCCNodeLng, TLCCNodeAlt, TLCCNodeGET;
+	int DOI_N;							//Number of revolutions between DOI and PDI
+	int DOI_option;						//0 = DOI from circular orbit, 1 = DOI as LOI-2
+	double DOI_PeriAng;					//Angle from landing site to PDI position
+	double DOI_alt;						//perilune altitude above landing site
+};
+
 class ARCore {
 public:
-	ARCore(VESSEL* v);
+	ARCore(VESSEL* v, AR_GCore* gcin);
 	~ARCore();
 	void lambertcalc();
 	void CDHcalc();
@@ -62,6 +87,7 @@ public:
 	void CycleFIDOOrbitDigitals();
 	void FIDOOrbitDigitalsCalculateLongitude();
 	void FIDOOrbitDigitalsCalculateGETL();
+	void FIDOOrbitDigitalsApoPeriRequest();
 	void UpdateSpaceDigitals();
 	void CycleSpaceDigitals();
 	void SpaceDigitalsGET();
@@ -118,15 +144,11 @@ public:
 	int targetnumber;		//Vessel index for target
 
 	//GENERAL PARAMETERS
-	double GETbase;			//Launch MJD
 	double AGCEpoch;
-	int mission;				//0=manual, 7 = Apollo 7, 8 = Apollo 8, 9 = Apollo 9
 	double P30TIG;				//Maneuver GET
 	VECTOR3 dV_LVLH;			//LVLH maneuver vector
 	int vesseltype;				//0=CSM, 1=CSM/LM docked, 2 = LM, 3 = LM/CSM docked
 	bool lemdescentstage;		//0 = ascent stage, 1 = descent stage
-	double LSLat, LSLng, LSAlt;	//Landing Site coordinates
-	double t_Land;				//Time of landing
 	bool inhibUplLOS;
 	bool PADSolGood;
 	int enginetype;				// 0 = RCS, 1 = SPS or DPS or APS
@@ -146,6 +168,10 @@ public:
 	int twoimpulsemode;		//0 = General, 1 = NCC/NSR, 2 = TPI/TPF
 	double TwoImpulse_TPI;	//TPI time calculated by the NCC/NSR option
 	double TwoImpulse_PhaseAngle;	//Phase angle of chaser relative to target at T2 time
+	int lambertElevOpt;		//0 = T1 on time, 1 = search for elevation angle
+	int lambertTPFOpt;		//0 = T2 on time, 1 = use DT from T1, 2 = use travel angle
+	double lambertDT;		//DT from T1 to T2
+	double lambertWT;		//travel angle of passive vehicle between T1 and T2
 
 	//DOCKING INITIATION
 	double DKI_TIG;		//Impulsive time of ignition
@@ -216,11 +242,10 @@ public:
 	//REFSMMAT PAGE
 	double REFSMMATTime;
 	MATRIX3 REFSMMAT;
-	int REFSMMATopt; //Displayed REFSMMAT page: 0 = P30 Maneuver, 1 = P30 Retro, 2= LVLH, 3= Lunar Entry, 4 = Launch, 5 = Landing Site, 6 = PTC, 7 = LOI-2, 8 = LS during TLC
+	int REFSMMATopt; //Displayed REFSMMAT page: 0 = P30 Maneuver, 1 = P30 Retro, 2 = LVLH, 3 = Lunar Entry, 4 = Launch, 5 = Landing Site, 6 = PTC, 7 = Attitude, 8 = LS during TLC
 	int REFSMMAToct[20];
 	int REFSMMATcur; //Currently saved REFSMMAT
 	int REFSMMATupl; //0 = Desired REFSMMAT, 1 = REFSMMAT
-	bool REFSMMATdirect;
 	bool REFSMMATHeadsUp;
 
 	//ENTY PAGE	
@@ -240,7 +265,7 @@ public:
 	int landingzone; //0 = Mid Pacific, 1 = East Pacific, 2 = Atlantic Ocean, 3 = Indian Ocean, 4 = West Pacific
 	int entryprecision; //0 = conic, 1 = precision, 2 = PeA=-30 solution
 	int returnspeed; //0 = slow return, 1 = normal return, 2 = fast return
-	int FlybyType;	//1 = Flyby, 2 = PC+2
+	int FlybyType;	//0 = Flyby, 1 = PC+2
 	double FlybyPeriAlt;
 
 	//STATE VECTOR PAGE
@@ -267,19 +292,18 @@ public:
 	double sxtstardtime;
 	TLIPAD tlipad;
 	AP11PDIPAD pdipad;
-	bool PDIPADdirect;
 
 	///ENTRY PAD PAGE
 	AP11ENT lunarentrypad;
 	AP7ENT earthentrypad;
 	int entrypadopt; //0 = Earth Entry Update, 1 = Lunar Entry
 	double EntryRTGO;
-	bool EntryPADdirect;
 
 	//MAP UPDATE PAGE
 	AP10MAPUPDATE mapupdate;
 	double GSAOSGET, GSLOSGET;
 	int mappage, mapgs;
+	double mapUpdateGET;
 
 	//TLCC PAGE
 
@@ -287,15 +311,11 @@ public:
 	//5 = Non Free BAP Fixed LPO, 6 = Non Free BAP Free LPO, 7 = Circumlunar free-return flyby, specified H_PC and phi_PC
 	int TLCCmaneuver;
 	VECTOR3 TLCC_dV_LVLH;
-	//Initial guess of pericynthion GET
-	double TLCCPeriGET;
 	//Corrected time of pericynthion
 	double TLCCPeriGETcor;
 	//Initial guess and corrected TIG
 	double TLCC_GET, TLCC_TIG;
-	double TLCCFlybyPeriAlt, TLCCLAHPeriAlt;
-	double TLCCFreeReturnEMPLat, TLCCNonFreeReturnEMPLat, TLCCReentryGET, TLCCFRIncl, TLCCEMPLatcor;
-	double TLCCNodeLat, TLCCNodeLng, TLCCNodeAlt, TLCCNodeGET;
+	double TLCCReentryGET, TLCCFRIncl, TLCCEMPLatcor;
 	double TLCCFRLat, TLCCFRLng;
 	VECTOR3 R_TLI, V_TLI;
 	bool TLCCSolGood;
@@ -306,12 +326,12 @@ public:
 	double TLCCPostDOIPeriAlt, TLCCPostDOIApoAlt;
 
 	//LOI PAGE
-	int LOImaneuver; //0 = LOI-1 (w/ MCC), 1 = LOI-1 (w/o MCC), 2 = LOI-2
+	int LOImaneuver; //0 = LOI-1, 1 = LOI-2
 	int LOIOption;	//0 = Fixed LPO, 1 = LOI at Peri
-	double LOIapo, LOIperi, LOIazi, LOI2Alt;
+	double LOI2Alt;
 	VECTOR3 LOI_dV_LVLH;
 	double LOI_TIG;
-	int LOIEllipseRotation;	//0 = Choose the lowest DV solution, 1 = solution 1, 2 = solution 2
+	double LOI2_EarliestGET;
 
 	//LANDMARK TRACKING PAGE
 	AP11LMARKTRKPAD landmarkpad;
@@ -325,14 +345,10 @@ public:
 	VECTOR3 VECangles;	//IMU angles
 
 	//DOI Page
-	int DOI_N;							//Number of revolutions between DOI and PDI
 	double DOIGET;						//Initial guess for the DOI TIG
 	double DOI_TIG;						//Integrated DOI TIG
 	VECTOR3 DOI_dV_LVLH;				//Integrated DV Vector
 	double DOI_t_PDI, DOI_CR;			//Time of PDI, cross range at PDI
-	double DOI_PeriAng;					//Angle from landing site to 
-	int DOI_option;						//0 = DOI from circular orbit, 1 = DOI as LOI-2
-	double DOI_alt;						//perilune altitude above landing site
 
 	//Skylab Page
 	int Skylabmaneuver;					//0 = Presettings, 1 = NC1, 2 = NC2, 3 = NCC, 4 = NSR, 5 = TPI, 6 = TPM, 7 = NPC
@@ -416,7 +432,7 @@ public:
 		int GetPowEngType();
 
 private:
-	//VECTOR3 RA2, VA2, RP2, VP2;
+	AR_GCore* GC;
 };
 
 

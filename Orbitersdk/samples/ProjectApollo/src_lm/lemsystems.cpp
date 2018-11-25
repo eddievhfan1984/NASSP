@@ -433,6 +433,7 @@ void LEM::SystemsInit()
 	COASLights.Init(this, &COAS_DC_CB, &CDRCOASSwitch, (h_HeatLoad *)Panelsdk.GetPointerByString("HYDRAULIC:CABINHEAT"));
 	FloodLights.Init(this, &LTG_FLOOD_CB, &FloodSwitch, &FloodRotary, &LtgFloodOhdFwdKnob, (h_HeatLoad *)Panelsdk.GetPointerByString("HYDRAULIC:CABINHEAT"));
 	AOTLampFeeder.WireToBuses(&AOT_LAMP_ACA_CB, &AOT_LAMP_ACB_CB);
+	pfira.Init(this);
 
 	// LGC and DSKY
 	agc.WirePower(&LGC_DSKY_CB, NULL);
@@ -503,7 +504,6 @@ void LEM::SystemsInit()
 
 	// Rdz Radar
 	RR.Init(this, &PGNS_RNDZ_RDR_CB, &RDZ_RDR_AC_CB, (h_Radiator *)Panelsdk.GetPointerByString("HYDRAULIC:LEM-RR-Antenna"), (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:LEM-RR-Antenna-Heater"), (Boiler *)Panelsdk.GetPointerByString("ELECTRIC:LEM-RR-Antenna-StbyHeater"), (h_HeatLoad *)Panelsdk.GetPointerByString("HYDRAULIC:RREHEAT"), (h_HeatLoad *)Panelsdk.GetPointerByString("HYDRAULIC:SECRREHEAT"), (h_HeatLoad *)Panelsdk.GetPointerByString("HYDRAULIC:RRHEAT"));
-	RadarTape.Init(this, &RNG_RT_ALT_RT_DC_CB, &RNG_RT_ALT_RT_AC_CB);
 	crossPointerLeft.Init(this, &CDR_XPTR_CB, &LeftXPointerSwitch, &RateErrorMonSwitch);
 	crossPointerRight.Init(this, &SE_XPTR_DC_CB, &RightXPointerSwitch, &RightRateErrorMonSwitch);
 
@@ -1546,6 +1546,7 @@ void LEM::SystemsTimestep(double simt, double simdt)
 	UtilLights.Timestep(simdt);
 	COASLights.Timestep(simdt);
 	FloodLights.Timestep(simdt);
+	pfira.Timestep(simdt);
 
 	// Do this toward the end so we can see current system state
 	scera1.Timestep();
@@ -2082,20 +2083,27 @@ void LEM::GetECSStatus(LEMECSStatus &ecs)
 
 	if (CDRSuited->number == 1)
 	{
-		ecs.cdrInSuit = true;
+		ecs.cdrStatus = 1;
 	}
 	else
 	{
-		ecs.cdrInSuit = false;
+		if (CDREVA_IP)
+		{
+			ecs.cdrStatus = 2;
+		}
+		else
+		{
+			ecs.cdrStatus = 0;
+		}
 	}
 
 	if (LMPSuited->number == 1)
 	{
-		ecs.lmpInSuit = true;
+		ecs.lmpStatus = 1;
 	}
 	else
 	{
-		ecs.lmpInSuit = false;
+		ecs.lmpStatus = 0;
 	}
 
 	ecs.crewNumber = CrewInCabin->number + CDRSuited->number + LMPSuited->number;
@@ -2108,7 +2116,7 @@ void LEM::SetCrewNumber(int number)
 {
 	int crewsuited = CDRSuited->number + LMPSuited->number;
 
-	if (number + crewsuited <= 3)
+	if (number + crewsuited + (CDREVA_IP ? 1 : 0) <= 3)
 	{
 		CrewInCabin->number = number;
 	}
@@ -2116,15 +2124,18 @@ void LEM::SetCrewNumber(int number)
 
 void LEM::SetCDRInSuit()
 {
-	if (CrewInCabin->number >= 1 && CDRSuited->number == 0)
+	if (!CDREVA_IP)
 	{
-		CrewInCabin->number--;
-		CDRSuited->number = 1;
-	}
-	else if (CDRSuited->number == 1)
-	{
-		CrewInCabin->number++;
-		CDRSuited->number = 0;
+		if (CrewInCabin->number >= 1 && CDRSuited->number == 0)
+		{
+			CrewInCabin->number--;
+			CDRSuited->number = 1;
+		}
+		else if (CDRSuited->number == 1)
+		{
+			CrewInCabin->number++;
+			CDRSuited->number = 0;
+		}
 	}
 }
 
@@ -2139,6 +2150,13 @@ void LEM::SetLMPInSuit()
 	{
 		CrewInCabin->number++;
 		LMPSuited->number = 0;
+	}
+}
+
+void LEM::StartEVA()
+{
+	if (ForwardHatch.IsOpen() && GroundContact() && CDRSuited->number == 1) {
+		ToggleEva = true;
 	}
 }
 
@@ -2279,8 +2297,25 @@ void LEM_LR::Timestep(double simdt){
 		if(val33[LRVelocityDataGood]){ clobber = TRUE; val33[LRVelocityDataGood] = 0; }
 		if(val33[LRPos1]){ clobber = TRUE; val33[LRPos1] = 0; }
 		if(val33[LRPos2]){ clobber = TRUE; val33[LRPos2] = 0; }
-		if(val33[LRRangeLowScale]){ clobber = TRUE; val33[LRRangeLowScale] = 0; }
+		if(val33[LRRangeLowScale] == 0){ clobber = TRUE; val33[LRRangeLowScale] = 1; }
 		if(clobber == TRUE){ lem->agc.SetInputChannel(033, val33); }
+		rangeGood = 0;
+		velocityGood = 0;
+		if (val13[RadarActivity] == 1) {
+			int radarBits = 0;
+			if (val13[RadarA] == 1) { radarBits |= 1; }
+			if (val13[RadarB] == 1) { radarBits |= 2; }
+			if (val13[RadarC] == 1) { radarBits |= 4; }
+			switch (radarBits) {
+			case 1:
+			case 3:
+			case 5:
+			case 7:
+				lem->agc.SetInputChannelBit(013, RadarActivity, 0);
+				lem->agc.GenerateRadarupt();
+				break;
+			}
+		}
 		return;
 	}	
 
@@ -2621,10 +2656,12 @@ LEM_RadarTape::LEM_RadarTape()
 	lgc_altrate = 0;
 }
 
-void LEM_RadarTape::Init(LEM *s, e_object * dc_src, e_object *ac_src){
+void LEM_RadarTape::Init(LEM *s, e_object * dc_src, e_object *ac_src, SURFHANDLE surf1, SURFHANDLE surf2){
 	lem = s;
 	dc_source = dc_src;
 	ac_source = ac_src;
+	tape1 = surf1;
+	tape2 = surf2;
 }
 
 void LEM_RadarTape::Timestep(double simdt) {
@@ -2671,9 +2708,18 @@ void LEM_RadarTape::Timestep(double simdt) {
 	}
 	//
 	//  Missing code to smooth out tape scrolling
-	if( reqRange < (120000.0 * 0.3048) ) {
+	TapeSwitch = false;
+	if (reqRange < (1000.0 * 0.3048))
+	{
+		TapeSwitch = true;
+		dispRange = 2086 - 82 - (int)((reqRange * 3.2808399) * 40.0 * 50.0 / 1000.0);
+	}
+	else if (reqRange < (120000.0 * 0.3048) )
+	{
 		dispRange = 6443 - 82 - (int)((reqRange * 3.2808399) * 40.0 / 1000.0);
-	} else {
+	}
+	else
+	{
 		dispRange = 81 + 1642 - 82 - (int)((reqRange * 0.000539956803*100.0)  * 40.0 / 1000.0);
 	}
 	dispRate  = 2881 - 82 -  (int)(reqRate * 3.2808399 * 40.0 * 100.0 / 1000.0);
@@ -2735,6 +2781,7 @@ void LEM_RadarTape::SaveState(FILEHANDLE scn,char *start_str,char *end_str){
 	oapiWriteLine(scn, start_str);
 	oapiWriteScenario_int(scn, "RDRTAPE_RANGE", dispRange);
 	oapiWriteScenario_float(scn, "RDRTAPE_RATE", dispRate);
+	papiWriteScenario_bool(scn, "TAPE_SWITCH", TapeSwitch);
 	oapiWriteLine(scn, end_str);
 }
 
@@ -2754,17 +2801,27 @@ void LEM_RadarTape::LoadState(FILEHANDLE scn,char *end_str){
 			sscanf(line + 12, "%d", &value);
 			dispRate = value;
 		}
+		if (!strnicmp(line, "TAPE_SWITCH", 11)) {
+			sscanf(line + 11, "%d", &value);
+			TapeSwitch = value;
+		}
 	}
 }
 
-void LEM_RadarTape::RenderRange(SURFHANDLE surf, SURFHANDLE tape)
-{
-    oapiBlt(surf,tape,0,0,0, dispRange ,43,163, SURF_PREDEF_CK); 
+void LEM_RadarTape::RenderRange(SURFHANDLE surf) {
+	if (TapeSwitch)
+	{
+		oapiBlt(surf, tape2, 0, 0, 0, dispRange, 43, 163, SURF_PREDEF_CK);
+	}
+	else
+	{
+		oapiBlt(surf, tape1, 0, 0, 0, dispRange, 43, 163, SURF_PREDEF_CK);
+	}
 }
 
-void LEM_RadarTape::RenderRate(SURFHANDLE surf, SURFHANDLE tape)
+void LEM_RadarTape::RenderRate(SURFHANDLE surf)
 {
-    oapiBlt(surf,tape,0,0,42, dispRate ,35,163, SURF_PREDEF_CK); 
+    oapiBlt(surf,tape1,0,0,42, dispRate ,35,163, SURF_PREDEF_CK);
 }
 
 double LEM_RR::GetAntennaTempF(){

@@ -97,8 +97,8 @@ enum LMRCSThrusters
 typedef struct {
 	int crewNumber;
 	int crewStatus;
-	bool cdrInSuit;
-	bool lmpInSuit;
+	int cdrStatus;	//0 = cabin, 1 = suit, 2 = EVA
+	int lmpStatus;
 } LEMECSStatus;
 
 // Systems things
@@ -138,15 +138,15 @@ public:
 class LEM_RadarTape : public e_object {
 public:
 	LEM_RadarTape();
-	void Init(LEM *s, e_object * dc_src, e_object *ac_src);
+	void Init(LEM *s, e_object * dc_src, e_object *ac_src, SURFHANDLE surf1, SURFHANDLE surf2);
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
 	void Timestep(double simdt);
 	void SystemTimestep(double simdt);
 	void setRange(double range) { reqRange = range; };
 	void setRate(double rate) { reqRate = rate ; }; 
-	void RenderRange(SURFHANDLE surf, SURFHANDLE tape);
-	void RenderRate(SURFHANDLE surf, SURFHANDLE tape);
+	void RenderRange(SURFHANDLE surf);
+	void RenderRate(SURFHANDLE surf);
 	void SetLGCAltitude(int val);
 	void SetLGCAltitudeRate(int val);
 
@@ -160,6 +160,8 @@ private:
 	int  dispRange;
 	int  dispRate;
 	double lgc_alt, lgc_altrate;
+	SURFHANDLE tape1, tape2;
+	bool TapeSwitch;
 };
 
 class CrossPointer
@@ -338,6 +340,7 @@ public:
 		SRF_DIGITALDISP2,
 		SRF_RR_NOTRACK,
 		SRF_RADAR_TAPE,
+		SRF_RADAR_TAPE2,
 		SRF_ORDEAL_PANEL,
 		SRF_ORDEAL_ROTARY,
 		SRF_TW_NEEDLE,
@@ -361,6 +364,7 @@ public:
 	    SRF_LEM_INTLK_OVRD,
 		SRF_RED_INDICATOR,
 		SRF_LEM_MASTERALARM,
+		SRF_PWRFAIL_LIGHT,
 
 		//
 		// NSURF MUST BE THE LAST ENTRY HERE. PUT ANY NEW SURFACE IDS ABOVE THIS LINE
@@ -373,7 +377,7 @@ public:
 
 	void Init();
 	void SetStateEx(const void *status);
-	void SetLmVesselDockStage();
+	void SetLmVesselDockStage(bool ovrdDPSProp = false);
 	void SetLmVesselHoverStage();
 	void SetLmAscentHoverStage();
 	void SetLmLandedMesh();
@@ -429,6 +433,7 @@ public:
 	virtual void SetCrewNumber(int number);
 	virtual void SetCDRInSuit();
 	virtual void SetLMPInSuit();
+	virtual void StartEVA();
 
 	h_Tank *DesO2Tank;
 	h_Tank *AscO2Tank1;
@@ -485,6 +490,7 @@ public:
 	virtual void PadLoad(unsigned int address, unsigned int value);
 	virtual void AEAPadLoad(unsigned int address, unsigned int value);
 	virtual void StopEVA();
+	virtual bool IsForwardHatchOpen() { return ForwardHatch.IsOpen(); }
 
 	char *getOtherVesselName() { return agc.OtherVesselName;};
 	APSPropellantSource *GetAPSPropellant() { return &APSPropellant; };
@@ -767,7 +773,6 @@ protected:
 	SwitchRow RCSXfeedSwitchRow;
 	ThreePosSwitch RCSXFeedSwitch;
 
-	// DS20060406 RCS MAIN SHUTOFF VALVES
 	SwitchRow RCSMainSOVTBRow;
 	LEMSCEATalkback RCSMainSovATB;
 	LEMSCEATalkback RCSMainSovBTB;
@@ -1076,7 +1081,7 @@ protected:
 	ToggleSwitch EDStageRelay;
 	ThreePosSwitch EDDesFuelVent;
 	ThreePosSwitch EDDesOxidVent;
-	IndicatorSwitch EDLGTB;
+	LEMSCEATalkback EDLGTB;
 	LEMDPSValveTalkback EDDesFuelVentTB;
 	LEMDPSValveTalkback EDDesOxidVentTB;
 	// Audio section
@@ -1094,10 +1099,6 @@ protected:
 	ThumbwheelSwitch CDRAudMasterVol;
 	ThumbwheelSwitch CDRAudVOXSens;
 	ThreePosSwitch CDRCOASSwitch;
-
-	bool CPswitch;
-
-	bool EVAswitch;
 
 	bool COASswitch;
 
@@ -1403,10 +1404,6 @@ protected:
 
 	bool FirstTimestep;
 
-	bool LAUNCHIND[8];
-	bool ABORT_IND;
-	bool ENGIND[7];
-
 	bool bModeDocked;
 	bool bModeHover;
 	bool ToggleEva;
@@ -1705,6 +1702,7 @@ protected:
 	LEM_UtilLights UtilLights;
 	LEM_COASLights COASLights;
 	LEM_FloodLights FloodLights;
+	LEM_PFIRA pfira;
 
 	// ECS
 	LEM_ECS ecs;
@@ -1843,6 +1841,7 @@ protected:
 	friend class EngineStopButton;
 	friend class EngineStartButton;
 	friend class LEM_LCA;
+	friend class LEM_PFIRA;
 
 	friend class ApolloRTCCMFD;
 	friend class ProjectApolloMFD;

@@ -251,6 +251,12 @@ bool LEM_EDRelayBox::GetStageRelayMonitor()
 	return false;
 }
 
+bool LEM_EDRelayBox::GetEDRelayMonitor()
+{
+	return !RCSPropPressRelay && !LandingGearDeployRelay && !DescentEngineOnRelay && !AscentPropPressTank1Relay && !AscentPropPressTank2Relay && 
+		!AscentPropCompValvesRelay && !DescentPropVentRelay && !DescentPropPressRelay && !DescentTankIsolValvesRelay;
+}
+
 void LEM_EDRelayBox::SaveState(FILEHANDLE scn, char *start_str, char *end_str) {
 	oapiWriteLine(scn, start_str);
 
@@ -598,11 +604,6 @@ void LEM_EDS::Timestep(double simdt) {
 		(pyroB ? &lem->ED28VBusB : NULL));
 	lem->RCSHeliumSupplyBPyrosFeeder.WireToBuses((pyroA ? &lem->ED28VBusA : NULL),
 		(pyroB ? &lem->ED28VBusB : NULL));
-	
-	// Set TBs
-	// BP when descent stage detached
-	if (LG_Deployed == TRUE && lem->status < 2) { lem->EDLGTB.SetState(1); }
-	else { lem->EDLGTB.SetState(0); }
 
 	// PROCESS THESE IN THIS ORDER:
 	// Landing Gear Deployment

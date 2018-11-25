@@ -52,6 +52,7 @@ public:
 	double GetFuelTankUllagePressurePSI();
 	double GetOxidizerTankUllagePressurePSI();
 	double GetHeliumRegulator1OutletPressurePSI();
+	double GetHeliumRegulator2OutletPressurePSI();
 	double GetFuelTrimOrificeOutletPressurePSI() { return FuelTrimOrificeOutletPressurePSI; }
 	double GetOxidTrimOrificeOutletPressurePSI() { return OxidTrimOrificeOutletPressurePSI; }
 	bool GetFuelLowLevel() { return fuelLevelLow; }
@@ -92,6 +93,8 @@ public:
 	void SaveState(FILEHANDLE scn, char *start_str, char *end_str);
 	void LoadState(FILEHANDLE scn, char *end_str);
 	void Timestep(double simdt);
+
+	double GetThrustChamberPressurePSI();
 
 	LEM *lem;					// Pointer at LEM
 	bool thrustOn;

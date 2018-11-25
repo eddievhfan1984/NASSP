@@ -51,6 +51,7 @@ public:
 	void SetStagingRelay() { StagingRelay = true; }
 
 	bool GetStageRelayMonitor();
+	bool GetEDRelayMonitor();
 protected:
 
 	bool HasDCPower();
@@ -114,6 +115,7 @@ public:
 	void LoadState(FILEHANDLE scn, char *end_str);
 	void Timestep(double simdt);
 	bool GetHeliumPressDelayContactClosed() { return HeliumPressurizationDelayA.ContactClosed() || HeliumPressurizationDelayB.ContactClosed(); }
+	bool GetLGDeployed() { return LG_Deployed; }
 
 	LEM *lem;					// Pointer at LEM
 	bool LG_Deployed;           // Landing Gear Deployed Flag

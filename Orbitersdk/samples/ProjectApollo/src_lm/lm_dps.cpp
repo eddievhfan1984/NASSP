@@ -79,6 +79,10 @@ DPSPropellantSource::DPSPropellantSource(PROPELLANT_HANDLE &ph, PanelSDK &p) :
 	FuelTankUllagePressurePSI = 0.0;
 	OxidTankUllagePressurePSI = 0.0;
 	FuelEngineInletPressurePSI = 0.0;
+	OxidEngineInletPressurePSI = 0.0;
+	supercriticalHeliumMass = 22.0;	//48.5 pounds
+	supercriticalHeliumTemp = 12.35186667;	//Kelvin, based on loading temp of -453°F, should give 400PSI at liftoff
+	ambientHeliumMass = 0.4808079;	//1.06 lbm
 
 	fuel1LevelLow = false;
 	fuel2LevelLow = false;
@@ -115,14 +119,17 @@ void DPSPropellantSource::Timestep(double simt, double simdt)
 		FuelTankUllagePressurePSI = 0.0;
 		OxidTankUllagePressurePSI = 0.0;
 		FuelEngineInletPressurePSI = 0.0;
+		OxidEngineInletPressurePSI = 0.0;
 	}
 	else {
 		p = our_vessel->GetPropellantMass(source_prop);
 		pmax = DPS_DEFAULT_PROPELLANT;
 		double pMaxForPressures = our_vessel->GetPropellantMaxMass(source_prop);
 
-		ambientHeliumPressurePSI = 1600.0;
-		supercriticalHeliumPressurePSI = 400.0;
+		ambientHeliumPressurePSI = 3327.732344*ambientHeliumMass;
+
+		supercriticalHeliumTemp += 7.5352301587e-5*simdt;
+		supercriticalHeliumPressurePSI = 1.471989512*supercriticalHeliumMass*supercriticalHeliumTemp;
 
 		double InletPressure1, InletPressure2;
 		InletPressure1 = InletPressure2 = 0.0;
@@ -187,15 +194,32 @@ void DPSPropellantSource::Timestep(double simt, double simdt)
 		}
 
 		FuelEngineInletPressurePSI = FuelTankUllagePressurePSI - 15.0;
+		OxidEngineInletPressurePSI = OxidTankUllagePressurePSI - 15.0;
 
 		//Propellant Venting
 		if (OxidVentValve1.IsOpen() && OxidVentValve2.IsOpen())
 		{
-			//TBD: Vent Helium and Oxidizer
+			double dMass = 0.01*p*simdt;
+			p -= dMass;
+			our_vessel->SetPropellantMass(source_prop, p);
+
+			if (AmbientHeIsolValve.IsOpen() && OxidCompatibilityValve.IsOpen())
+			{
+				dMass = 0.01*ambientHeliumMass*simdt;
+				ambientHeliumMass -= dMass;
+			}
 		}
 		if (FuelVentValve1.IsOpen() && FuelVentValve2.IsOpen())
 		{
-			// TBD: Vent Helium and Fuel
+			double dMass = 0.01*p*simdt;
+			p -= dMass;
+			our_vessel->SetPropellantMass(source_prop, p);
+
+			if (AmbientHeIsolValve.IsOpen() && FuelCompatibilityValve.IsOpen())
+			{
+				dMass = 0.01*ambientHeliumMass*simdt;
+				ambientHeliumMass -= dMass;
+			}
 		}
 
 		//Ambient Helium Isolation Valve
@@ -263,6 +287,8 @@ void DPSPropellantSource::Timestep(double simt, double simdt)
 	}
 	else
 	{
+		propellantMassToDisplay = 0.0;
+
 		fuel1LevelLow = false;
 		fuel2LevelLow = false;
 		oxid1LevelLow = false;
@@ -334,6 +360,22 @@ double DPSPropellantSource::GetOxidizerTankUllagePressurePSI()
 	return 0.0;
 }
 
+double DPSPropellantSource::GetFuelEngineInletPressurePSI()
+{
+	if (our_vessel->INST_SIG_SENSOR_CB.IsPowered())
+		return FuelEngineInletPressurePSI;
+
+	return 0.0;
+}
+
+double DPSPropellantSource::GetOxidizerEngineInletPressurePSI()
+{
+	if (our_vessel->INST_SIG_SENSOR_CB.IsPowered())
+		return OxidEngineInletPressurePSI;
+
+	return 0.0;
+}
+
 bool DPSPropellantSource::IsGaugingPowered() {
 
 	if (GaugingPower->Voltage() < SP_MIN_DCVOLTAGE) return false;
@@ -384,6 +426,9 @@ void DPSPropellantSource::SaveState(FILEHANDLE scn)
 	papiWriteScenario_double(scn, "AMBIENTHELIUMPRESSUREPSI", ambientHeliumPressurePSI);
 	papiWriteScenario_double(scn, "SUPERCRITICALHELIUMPRESSUREPSI", supercriticalHeliumPressurePSI);
 	papiWriteScenario_double(scn, "HELIUMREGULATORMANIFOLDPRESSUREPSI", heliumRegulatorManifoldPressurePSI);
+	papiWriteScenario_double(scn, "SUPERCRITICALHELIUMMASS", supercriticalHeliumMass);
+	papiWriteScenario_double(scn, "SUPERCRITICALHELIUMTEMP", supercriticalHeliumTemp);
+	papiWriteScenario_double(scn, "AMBIENTHELIUMMASS", ambientHeliumMass);
 
 	papiWriteScenario_bool(scn, "PRIMREGHELIUMVALVE_ISOPEN", PrimaryHeRegulatorShutoffValve.IsOpen());
 	papiWriteScenario_bool(scn, "SECREGHELIUMVALVE_ISOPEN", SecondaryHeRegulatorShutoffValve.IsOpen());
@@ -418,6 +463,9 @@ void DPSPropellantSource::LoadState(FILEHANDLE scn)
 		papiReadScenario_double(line, "AMBIENTHELIUMPRESSUREPSI", ambientHeliumPressurePSI);
 		papiReadScenario_double(line, "SUPERCRITICALHELIUMPRESSUREPSI", supercriticalHeliumPressurePSI);
 		papiReadScenario_double(line, "HELIUMREGULATORMANIFOLDPRESSUREPSI", heliumRegulatorManifoldPressurePSI);
+		papiReadScenario_double(line, "SUPERCRITICALHELIUMMASS", supercriticalHeliumMass);
+		papiReadScenario_double(line, "SUPERCRITICALHELIUMTEMP", supercriticalHeliumTemp);
+		papiReadScenario_double(line, "AMBIENTHELIUMMASS", ambientHeliumMass);
 
 		if (papiReadScenario_bool(line, "PRIMREGHELIUMVALVE_ISOPEN", isOpen))			PrimaryHeRegulatorShutoffValve.SetState(isOpen);
 		if (papiReadScenario_bool(line, "SECREGHELIUMVALVE_ISOPEN", isOpen))			SecondaryHeRegulatorShutoffValve.SetState(isOpen);
@@ -440,6 +488,8 @@ LEM_DPS::LEM_DPS(THRUSTER_HANDLE *dps) :
 	engPreValvesArm = 0;
 	engArm = 0;
 	thrustcommand = 0;
+	ThrustChamberPressurePSI = 0.0;
+	ActuatorValves = 0.0;
 }
 
 void LEM_DPS::Init(LEM *s) {
@@ -472,8 +522,6 @@ void LEM_DPS::Timestep(double simt, double simdt) {
 	if (lem == NULL) { return; }
 	if (lem->stage > 1) { return; }
 
-	double ActuatorValves;
-
 	if ((lem->SCS_DECA_PWR_CB.IsPowered() && lem->deca.GetK10()) || (lem->SCS_DES_ENG_OVRD_CB.IsPowered() && lem->scca3.GetK5()))
 	{
 		engPreValvesArm = true;
@@ -503,7 +551,7 @@ void LEM_DPS::Timestep(double simt, double simdt) {
 
 	if (thrustOn)
 	{
-		double ActuatorPressure = lem->GetDPSPropellant()->GetFuelEngineInletPressurePSI();
+		double ActuatorPressure = lem->GetDPSPropellant()->GetActuatorValvesPressurePSI();
 		if (ActuatorPressure > 110.0)
 		{
 			ActuatorValves = 1.0;
@@ -547,6 +595,13 @@ void LEM_DPS::Timestep(double simt, double simdt) {
 			lem->SetThrusterLevel(dpsThruster[0], 0.0);
 			lem->SetThrusterLevel(dpsThruster[1], 0.0);
 		}
+
+		//105PSI at FTP
+		ThrustChamberPressurePSI = lem->GetThrusterLevel(dpsThruster[0])*113.5135135;
+	}
+	else
+	{
+		ThrustChamberPressurePSI = 0.0;
 	}
 
 	// Do GDA time steps
@@ -571,6 +626,36 @@ void LEM_DPS::Timestep(double simt, double simdt) {
 void LEM_DPS::SystemTimestep(double simdt) {
 	pitchGimbalActuator.SystemTimestep(simdt);
 	rollGimbalActuator.SystemTimestep(simdt);
+}
+
+double LEM_DPS::GetPitchGimbalPosition()
+{
+	if (lem->DECA_GMBL_AC_CB.IsPowered() && lem->deca.GetK25())
+		return pitchGimbalActuator.GetPosition();
+
+	return 0.0;
+}
+
+double LEM_DPS::GetRollGimbalPosition()
+{
+	if (lem->DECA_GMBL_AC_CB.IsPowered() && lem->deca.GetK25())
+		return rollGimbalActuator.GetPosition();
+
+	return 0.0;
+}
+
+double LEM_DPS::GetThrustChamberPressurePSI()
+{
+	if (lem->stage > 1 || !lem->INST_SIG_SENSOR_CB.IsPowered()) return 0.0;
+
+	return ThrustChamberPressurePSI;
+}
+
+double LEM_DPS::GetInjectorActuatorPosition()
+{
+	if (lem->stage > 1) return 0.0;
+
+	return ActuatorValves;
 }
 
 void LEM_DPS::SaveState(FILEHANDLE scn, char *start_str, char *end_str) {

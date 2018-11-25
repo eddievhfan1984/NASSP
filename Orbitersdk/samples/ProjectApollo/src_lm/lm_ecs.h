@@ -332,12 +332,19 @@ public:
 	double GetSecondaryGlycolQuantity();
 	double GetPrimaryGlycolPressure();
 	double GetSecondaryGlycolPressure();
+	double GetSelectedGlycolPressure();
+	double DescentWaterTankPressure();
 	double GetPrimaryGlycolTempF();
 	double GetSecondaryGlycolTempF();
 	double GetSelectedGlycolTempF();
 	double GetWaterSeparatorRPM();
 	double GetAscWaterTank1TempF();
 	double GetAscWaterTank2TempF();
+	double GetPrimWBWaterInletTempF();
+	double GetPrimWBGlycolInletTempF();
+	double GetPrimWBGlycolOutletTempF();
+	double GetPrimaryGlycolPumpDP();
+	double GetPLSSFillPressurePSI();
 	bool GetSuitFan1Failure();
 	bool GetSuitFan2Failure();
 	bool GetPrimGlycolLowLevel();
@@ -349,8 +356,8 @@ public:
 	LEM *lem;													// Pointer at LEM
 	double *Cabin_Press, *Cabin_Temp;					// Cabin Atmosphere
 	double *Suit_Press, *Suit_Temp, *SuitCircuit_CO2, *HX_CO2;					// Suit Circuit Atmosphere
-	double *Asc_Water1, *Asc_Water2, *Des_Water;					// Water tanks
-	double *Asc_Water1Temp, *Asc_Water2Temp;						// Water tank temperatures
+	double *Asc_Water1, *Asc_Water2, *Des_Water, *Des_Water_Press;	// Water tanks
+	double *Asc_Water1Temp, *Asc_Water2Temp, *WB_Prim_Water_Temp;	// Water tank temperatures
 	double *Asc_Oxygen1, *Asc_Oxygen2, *Des_Oxygen;				// Oxygen tanks
 	double *Asc_Oxygen1Press, *Asc_Oxygen2Press, *Des_OxygenPress;  // Oxygen Tank Pressures
 	double *Primary_CL_Glycol_Press;							// Pressure before and after pumps
@@ -376,6 +383,9 @@ public:
 	double *Secondary_Glycol_EvapIn;							// Evap inlet mass
 	double *Secondary_Glycol_EvapOut;							// Evap outlet mass
 	double *Water_Sep1_RPM, *Water_Sep2_RPM;					// Water separators RPM
+	double *WB_Prim_Gly_In_Temp, *WB_Prim_Gly_Out_Temp;			// Primary WB glycol temperatures
+	double *Primary_Glycol_Accu_Press;							// Primary glycol accumulator pressure
+	double *PLSS_O2_Fill_Press;									// PLSS O2 fill pressure
 	int *Asc_H2O_To_PLSS, *Des_H2O_To_PLSS;						// PLSS Water Fill valves
 	int *Water_Tank_Selector;									// WT selection valve
 	int *Pri_Evap_Flow_1, *Pri_Evap_Flow_2;						// Primary evaporator flow valves

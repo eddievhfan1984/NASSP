@@ -1426,6 +1426,8 @@ void Saturn::clbkSaveState(FILEHANDLE scn)
 	oapiWriteLine(scn, BMAG2_START_STRING);
 	bmag2.SaveState(scn);
 
+	sce.SaveState(scn);
+
 	// save the internal systems 
 	oapiWriteScenario_int(scn, "SYSTEMSSTATE", systemsState);
 	papiWriteScenario_double(scn, "LSYSTEMSMISSNTIME", lastSystemsMissionTime);
@@ -2111,6 +2113,9 @@ bool Saturn::ProcessConfigFileLine(FILEHANDLE scn, char *line)
 		}
 		else if (!strnicmp(line, CMRCSPROPELLANT_2_START_STRING, sizeof(CMRCSPROPELLANT_2_START_STRING))) {
 			CMRCS2.LoadState(scn);
+		}
+		else if (!strnicmp(line, SCE_START_STRING, sizeof(SCE_START_STRING))) {
+			sce.LoadState(scn);
 		}
 	    else if (!strnicmp (line, "CABINPRESSUREREGULATOR", 22)) {
 		    CabinPressureRegulator.LoadState(line);
@@ -2902,6 +2907,10 @@ int Saturn::clbkConsumeBufferedKey(DWORD key, bool down, char *kstate) {
 					break;
 				case OAPI_KEY_E: // Minimum impulse controller, roll right
 					agc.SetInputChannelBit(032, PlusRollMinimumImpulse,1);
+					break;
+				case OAPI_KEY_K:
+					//kill rotation
+					SetAngularVel(_V(0, 0, 0));
 					break;
 			}
 		}else{

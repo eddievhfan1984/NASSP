@@ -83,7 +83,6 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		entopt.TIGguess = TIG;
 		entopt.type = RTCC_ENTRY_ABORT;
 		entopt.vessel = calcParams.src;
-		entopt.useSV = true;
 		entopt.RV_MCC = sv1;
 
 		EntryTargeting(&entopt, &res); //Target Load for uplink
@@ -150,10 +149,12 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 	case 3: //TLI PAD
 	{
 		TLIPADOpt opt;
+		SV sv;
 		double GETbase;
 
 		TLIPAD * form = (TLIPAD *)pad;
 
+		sv = StateVectorCalc(calcParams.src);
 		GETbase = getGETBase();
 
 		opt.dV_LVLH = DeltaV_LVLH;
@@ -165,6 +166,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		opt.TLI = calcParams.TLI;
 		opt.vessel = calcParams.src;
 		opt.SeparationAttitude = _V(PI, 120.0*RAD, 40.0*RAD);
+		opt.sv0 = sv;
 		opt.uselvdc = true;
 
 		TLI_PAD(&opt, *form);
@@ -301,6 +303,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		opt.LOIh_peri = 60.0*1852.0;
 		opt.LSlat = LSLat;
 		opt.LSlng = LSLng;
+		opt.RV_MCC = sv;
 		opt.t_land = calcParams.TLAND;
 		opt.vessel = calcParams.src;
 
@@ -412,6 +415,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		entopt.GETbase = GETbase;
 		entopt.returnspeed = 0;
 		entopt.FlybyType = 0;
+		entopt.RV_MCC = sv;
 		entopt.TIGguess = calcParams.LOI - 5.0*3600.0;
 		entopt.vessel = calcParams.src;
 
@@ -462,7 +466,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		LOIMan loiopt;
 		MCCNodeMan opt;
 		VECTOR3 dV_LVLH, dV_LOI;
-		SV sv, sv_peri, sv_node, sv_postLOI;
+		SV sv, sv_peri, sv_node;
 		double GETbase, MCCGET, P30TIG, r_M, TIG_LOI, h_peri, h_node;
 
 		AP11MNV * form = (AP11MNV *)pad;
@@ -480,10 +484,11 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		loiopt.impulsive = RTCC_IMPULSIVE;
 		loiopt.lat = LSLat;
 		loiopt.lng = LSLng;
+		loiopt.RV_MCC = sv;
 		loiopt.t_land = calcParams.TLAND;
 		loiopt.vessel = calcParams.src;
 
-		LOITargeting(&loiopt, dV_LOI, TIG_LOI, sv_node, sv_postLOI);
+		LOITargeting(&loiopt, dV_LOI, TIG_LOI, sv_node);
 
 		sv_peri = FindPericynthion(sv);
 
@@ -516,6 +521,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		}
 		else
 		{
+			TLMCCResults res;
 			char buffer1[1000];
 			char buffer2[1000];
 
@@ -528,9 +534,12 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 			opt.csmlmdocked = true;
 			opt.GETbase = GETbase;
 			opt.MCCGET = MCCGET;
+			opt.RV_MCC = sv;
 			opt.vessel = calcParams.src;
 
-			TranslunarMidcourseCorrectionTargetingNodal(&opt, dV_LVLH, P30TIG);
+			TranslunarMidcourseCorrectionTargetingNodal(opt, res);
+			P30TIG = res.P30TIG;
+			dV_LVLH = res.dV_LVLH;
 
 			manopt.dV_LVLH = dV_LVLH;
 			manopt.enginetype = SPSRCSDecision(SPS_THRUST / calcParams.src->GetMass(), dV_LVLH);
@@ -561,7 +570,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		LOIMan loiopt;
 		REFSMMATOpt refsopt;
 		VECTOR3 dV_LVLH, dV_LOI;
-		SV sv, sv_peri, sv_node, sv_postLOI;
+		SV sv, sv_peri, sv_node;
 		MATRIX3 REFSMMAT;
 		double GETbase, MCCGET, P30TIG, r_M, TIG_LOI, h_peri, h_node;
 
@@ -580,10 +589,11 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		loiopt.impulsive = RTCC_IMPULSIVE;
 		loiopt.lat = LSLat;
 		loiopt.lng = LSLng;
+		loiopt.RV_MCC = sv;
 		loiopt.t_land = calcParams.TLAND;
 		loiopt.vessel = calcParams.src;
 
-		LOITargeting(&loiopt, dV_LOI, TIG_LOI, sv_node, sv_postLOI);
+		LOITargeting(&loiopt, dV_LOI, TIG_LOI, sv_node);
 
 		sv_peri = FindPericynthion(sv);
 
@@ -630,6 +640,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		{
 			AP11ManPADOpt manopt;
 			MCCNodeMan opt;
+			TLMCCResults res;
 			char buffer1[1000];
 			char buffer2[1000];
 			char buffer3[1000];
@@ -643,9 +654,12 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 			opt.csmlmdocked = true;
 			opt.GETbase = GETbase;
 			opt.MCCGET = MCCGET;
+			opt.RV_MCC = sv;
 			opt.vessel = calcParams.src;
 
-			TranslunarMidcourseCorrectionTargetingNodal(&opt, dV_LVLH, P30TIG);
+			TranslunarMidcourseCorrectionTargetingNodal(opt, res);
+			P30TIG = res.P30TIG;
+			dV_LVLH = res.dV_LVLH;
 
 			manopt.dV_LVLH = dV_LVLH;
 			manopt.enginetype = SPSRCSDecision(SPS_THRUST / calcParams.src->GetMass(), dV_LVLH);
@@ -678,16 +692,19 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		RTEFlybyOpt entopt;
 		EntryResults res;
 		AP11ManPADOpt opt;
+		SV sv;
 		double GETbase;
 
 		AP11MNV * form = (AP11MNV *)pad;
 
+		sv = StateVectorCalc(calcParams.src);
 		GETbase = getGETBase();
 
 		entopt.EntryLng = -165.0*RAD;
 		entopt.returnspeed = 2;
 		entopt.GETbase = GETbase;
 		entopt.FlybyType = 1;
+		entopt.RV_MCC = sv;
 		entopt.vessel = calcParams.src;
 
 		RTEFlybyTargeting(&entopt, &res);//dV_LVLH, P30TIG, latitude, longitude, RET, RTGO, VIO, EntryAng);
@@ -711,7 +728,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 
 			refsopt.dV_LVLH = res.dV_LVLH;
 			refsopt.GETbase = GETbase;
-			refsopt.P30TIG = res.P30TIG;
+			refsopt.REFSMMATTime = res.P30TIG;
 			refsopt.REFSMMATopt = 0;
 			refsopt.vessel = calcParams.src;
 
@@ -744,7 +761,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		AP11ManPADOpt manopt;
 		double GETbase, P30TIG;
 		VECTOR3 dV_LVLH;
-		SV sv, sv_n, sv_postLOI;
+		SV sv, sv_n;
 
 		AP11MNV * form = (AP11MNV *)pad;
 
@@ -760,10 +777,11 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		opt.azi = LSAzi;
 		opt.lat = LSLat;
 		opt.lng = LSLng;
+		opt.RV_MCC = sv;
 		opt.t_land = calcParams.TLAND;
 		opt.vessel = calcParams.src;
 
-		LOITargeting(&opt, dV_LVLH, P30TIG, sv_n, sv_postLOI);
+		LOITargeting(&opt, dV_LVLH, P30TIG, sv_n);
 
 		manopt.alt = LSAlt;
 		manopt.dV_LVLH = dV_LVLH;
@@ -819,6 +837,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		opt.csmlmdocked = true;
 		opt.GETbase = GETbase;
 		opt.h_circ = 60.0*1852.0;
+		opt.RV_MCC = sv;
 		opt.vessel = calcParams.src;
 
 		LOI2Targeting(&opt, dV_LVLH, P30TIG);
@@ -967,7 +986,6 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		entopt.GETbase = GETbase;
 		entopt.returnspeed = 1;
 		entopt.RV_MCC = sv2;
-		entopt.useSV = true;
 		entopt.vessel = calcParams.src;
 
 		TEITargeting(&entopt, &res);
@@ -1157,11 +1175,14 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 	case 57: //REV 30 LANDMARK TRACKING PADs
 	{
 		LMARKTRKPADOpt opt;
+		SV sv0;
 
 		AP11LMARKTRKPAD * form = (AP11LMARKTRKPAD *)pad;
 
+		sv0 = StateVectorCalc(calcParams.src);
+
 		opt.GETbase = getGETBase();
-		opt.vessel = calcParams.src;
+		opt.sv0 = sv0;
 
 		if (fcn == 50)
 		{
@@ -1932,7 +1953,6 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		}
 
 		GETbase = getGETBase();
-
 		sv = StateVectorCalc(calcParams.src); //State vector for uplink
 
 		entopt.entrylongmanual = true;
@@ -1940,6 +1960,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		entopt.impulsive = RTCC_NONIMPULSIVE;
 		entopt.lng = -165.0*RAD;
 		entopt.ReA = 0;
+		entopt.RV_MCC = sv;
 		entopt.TIGguess = MCCtime;
 		entopt.vessel = calcParams.src;
 
@@ -1965,11 +1986,10 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		{
 			REFSMMATOpt refsopt;
 			refsopt.GETbase = GETbase;
-			refsopt.dV_LVLH = res.dV_LVLH;
-			refsopt.P30TIG = res.P30TIG;
-			refsopt.REFSMMATdirect = false;
 			refsopt.REFSMMATopt = 3;
 			refsopt.vessel = calcParams.src;
+			refsopt.useSV = true;
+			refsopt.RV_MCC = res.sv_postburn;
 
 			REFSMMAT = REFSMMATCalc(&refsopt);
 		}
@@ -2101,6 +2121,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		TimeofIgnition = res.P30TIG;
 		SplashLatitude = res.latitude;
 		SplashLongitude = res.longitude;
+		calcParams.SVSTORE1 = res.sv_postburn;
 	}
 	break;
 	case 96: //ENTRY PAD (ASSUMES NO MCC-6, but MCC-7)
@@ -2135,11 +2156,10 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		{
 			REFSMMATOpt refsopt;
 			refsopt.GETbase = GETbase;
-			refsopt.dV_LVLH = DeltaV_LVLH;
-			refsopt.P30TIG = TimeofIgnition;
-			refsopt.REFSMMATdirect = false;
 			refsopt.REFSMMATopt = 3;
 			refsopt.vessel = calcParams.src;
+			refsopt.useSV = true;
+			refsopt.RV_MCC = calcParams.SVSTORE1;
 
 			REFSMMAT = REFSMMATCalc(&refsopt);
 		}
@@ -2150,6 +2170,7 @@ bool RTCC::CalculationMTP_F(int fcn, LPVOID &pad, char * upString, char * upDesc
 		entopt.lng = SplashLongitude;
 		entopt.P30TIG = TimeofIgnition;
 		entopt.REFSMMAT = REFSMMAT;
+		entopt.sv0 = sv;
 		entopt.vessel = calcParams.src;
 
 		LunarEntryPAD(&entopt, *form);

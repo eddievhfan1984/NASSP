@@ -105,7 +105,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		refsopt.vessel = calcParams.src;
 		refsopt.GETbase = GETbase;
 		refsopt.dV_LVLH = res.dV_LVLH;
-		refsopt.P30TIG = res.P30TIG;
+		refsopt.REFSMMATTime = res.P30TIG;
 		refsopt.REFSMMATopt = 1;
 
 		REFSMMAT = REFSMMATCalc(&refsopt); //REFSMMAT for uplink
@@ -376,8 +376,9 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 	break;
 	case 9: //MISSION C NSR MANEUVER
 	{
-		CDHOpt cdhopt;
+		SPQOpt spqopt;
 		AP7ManPADOpt opt;
+		SPQResults res;
 		double P30TIG, GETbase;
 		VECTOR3 dV_LVLH;
 		SV sv_A, sv_P;
@@ -391,15 +392,15 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 
 		AP7MNV * form = (AP7MNV *)pad;
 
-		cdhopt.GETbase = GETbase;
-		cdhopt.impulsive = RTCC_NONIMPULSIVE;
-		cdhopt.CDHtimemode = 1;
-		cdhopt.DH = 8 * 1852;
-		cdhopt.TIG = 28 * 60 * 60;
-		cdhopt.target = calcParams.tgt;
-		cdhopt.vessel = calcParams.src;
-
-		CDHcalc(&cdhopt, dV_LVLH, P30TIG);
+		spqopt.E = 27.45*RAD;
+		spqopt.GETbase = GETbase;
+		spqopt.maneuver = 1;
+		spqopt.sv_A = sv_A;
+		spqopt.sv_P = sv_P;
+		spqopt.t_TIG = FindDH(sv_A, sv_P, GETbase, 28.0*3600.0, 8.0*1852.0);
+		
+		ConcentricRendezvousProcessor(&spqopt, res);
+		PoweredFlightProcessor(sv_A, GETbase, res.t_CDH, RTCC_VESSELTYPE_CSM, RTCC_ENGINETYPE_SPSDPS, 0.0, res.dV_CDH, true, P30TIG, dV_LVLH);
 
 		opt.GETbase = GETbase;
 		opt.vessel = calcParams.src;
@@ -433,24 +434,31 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		TwoImpulseResuls res;
 		AP7TPIPADOpt opt;
 		SV sv_A, sv_P;
-		double T1, T2, GETbase;
+		double GETbase;
 
 		AP7TPI * form = (AP7TPI *)pad;
 
 		sv_A = StateVectorCalc(calcParams.src);
 		sv_P = StateVectorCalc(calcParams.tgt);
 		GETbase = getGETBase();
-		T1 = lambertelev(calcParams.src, calcParams.tgt, GETbase, 27.45*RAD);
-		T2 = T1 + 35.0*60.0;
 
-		lambert = set_lambertoptions(sv_A, sv_P, GETbase, T1, T2, 0, RTCC_LAMBERT_MULTIAXIS, RTCC_LAMBERT_PERTURBED, _V(0, 0, 0), 0);
+		lambert.axis = RTCC_LAMBERT_MULTIAXIS;
+		lambert.DT = 35.0*60.0;
+		lambert.Elevation = 27.45*RAD;
+		lambert.elevOpt = 1;
+		lambert.GETbase = GETbase;
+		lambert.N = 0;
+		lambert.Perturbation = RTCC_LAMBERT_PERTURBED;
+		lambert.sv_A = sv_A;
+		lambert.sv_P = sv_P;
+		lambert.TPFOpt = 1;
 
 		LambertTargeting(&lambert, res);
 
 		opt.dV_LVLH = res.dV_LVLH;
 		opt.GETbase = GETbase;
 		opt.target = calcParams.tgt;
-		opt.TIG = T1;
+		opt.TIG = res.T1;
 		opt.vessel = calcParams.src;
 
 		AP7TPIPAD(&opt, *form);
@@ -602,7 +610,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 
 		refsopt.dV_LVLH = dV_LVLH;
 		refsopt.GETbase = GETbase;
-		refsopt.P30TIG = P30TIG;
+		refsopt.REFSMMATTime = P30TIG;
 		refsopt.REFSMMATopt = 0;
 		refsopt.vessel = calcParams.src;
 
@@ -882,7 +890,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 
 		refsopt.dV_LVLH = dV_LVLH;
 		refsopt.GETbase = GETbase;
-		refsopt.P30TIG = P30TIG;
+		refsopt.REFSMMATTime = P30TIG;
 		refsopt.REFSMMATopt = 0;
 		refsopt.vessel = calcParams.src;
 
@@ -1030,7 +1038,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 
 		refsopt.dV_LVLH = dV_LVLH;
 		refsopt.GETbase = GETbase;
-		refsopt.P30TIG = P30TIG;
+		refsopt.REFSMMATTime = P30TIG;
 		refsopt.REFSMMATopt = 0;
 		refsopt.vessel = calcParams.src;
 
@@ -1156,7 +1164,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 
 		refsopt.dV_LVLH = dV_LVLH;
 		refsopt.GETbase = GETbase;
-		refsopt.P30TIG = P30TIG;
+		refsopt.REFSMMATTime = P30TIG;
 		refsopt.REFSMMATopt = 0;
 		refsopt.vessel = calcParams.src;
 
@@ -1260,7 +1268,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		refsopt.vessel = calcParams.src;
 		refsopt.GETbase = GETbase;
 		refsopt.dV_LVLH = res.dV_LVLH;
-		refsopt.P30TIG = res.P30TIG;
+		refsopt.REFSMMATTime = res.P30TIG;
 		refsopt.REFSMMATopt = 1;
 
 		REFSMMAT = REFSMMATCalc(&refsopt); //REFSMMAT for uplink
@@ -1301,7 +1309,7 @@ bool RTCC::CalculationMTP_C(int fcn, LPVOID &pad, char * upString, char * upDesc
 		refsopt.vessel = calcParams.src;
 		refsopt.GETbase = getGETBase();
 		refsopt.dV_LVLH = DeltaV_LVLH;
-		refsopt.P30TIG = TimeofIgnition;
+		refsopt.REFSMMATTime = TimeofIgnition;
 		refsopt.REFSMMATopt = 1;
 
 		REFSMMAT = REFSMMATCalc(&refsopt);

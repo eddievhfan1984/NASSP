@@ -68,12 +68,15 @@ public:
 	double GetHeliumRegulatorManifoldPressurePSI();
 	double GetFuelTankUllagePressurePSI();
 	double GetOxidizerTankUllagePressurePSI();
-	double GetFuelEngineInletPressurePSI() { return FuelEngineInletPressurePSI; }
+	double GetFuelEngineInletPressurePSI();
+	double GetOxidizerEngineInletPressurePSI();
 	double GetOxidizerTank1BulkTempF();
 	double GetOxidizerTank2BulkTempF();
 	double GetFuelTank1BulkTempF();
 	double GetFuelTank2BulkTempF();
 	bool PropellantLevelLow();
+
+	double GetActuatorValvesPressurePSI() { return FuelEngineInletPressurePSI; }
 
 	DPSValve *GetHeliumValve1() { return &PrimaryHeRegulatorShutoffValve; }
 	DPSValve *GetHeliumValve2() { return &SecondaryHeRegulatorShutoffValve; }
@@ -93,6 +96,10 @@ protected:
 	double FuelTankUllagePressurePSI;
 	double OxidTankUllagePressurePSI;
 	double FuelEngineInletPressurePSI;
+	double OxidEngineInletPressurePSI;
+	double supercriticalHeliumMass;
+	double supercriticalHeliumTemp;
+	double ambientHeliumMass;
 
 	bool fuel1LevelLow;
 	bool fuel2LevelLow;
@@ -160,11 +167,19 @@ public:
 
 	void ThrottleActuator(double manthrust, double autothrust);
 
+	double GetPitchGimbalPosition();
+	double GetRollGimbalPosition();
+	double GetThrustChamberPressurePSI();
+	double GetInjectorActuatorPosition();
+
 	LEM *lem;					// Pointer at LEM
 	bool thrustOn;				// Engine "On" Command
 	bool engArm;				// Engine Arm Command
 	bool engPreValvesArm;		// Engine Prevalves Arm Command
 	double thrustcommand;		// DPS Thrust Command
+	double ActuatorValves;
+
+	double ThrustChamberPressurePSI;
 
 	DPSGimbalActuator pitchGimbalActuator;
 	DPSGimbalActuator rollGimbalActuator;

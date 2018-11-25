@@ -384,16 +384,9 @@ void LMGlycolPressMeter::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 }
 
 double LMGlycolPressMeter::QueryValue()
-
 {
 	if(!lem){ return 0; }
-	if(lem->GlycolRotary.GetState() == 0){
-		// Secondary
-		return(lem->ecs.GetSecondaryGlycolPressure());
-	}else{
-		// Primary
-		return(lem->ecs.GetPrimaryGlycolPressure());
-	}
+	return (lem->ecs.GetSelectedGlycolPressure());
 }
 
 void LMGlycolPressMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -701,7 +694,7 @@ double TempMonitorInd::QueryValue()
 	case 5: // Quad 4
 		return lem->scera1.GetVoltage(20, 1) * 23.0 + 50.0;  //Scaled for the right hand scale of the display
 	case 6: // S-Band
-		return lem->scera2.GetVoltage(21, 1) * 80.0 - 200.0;
+		return lem->scera2.GetVoltage(21, 2) * 80.0 - 200.0;
 	default:
 		return 0.0;
 	}
@@ -729,16 +722,8 @@ void EngineThrustInd::Init(SURFHANDLE surf, SwitchRow &row, LEM *s)
 }
 
 double EngineThrustInd::QueryValue()
-
 {
-	if (lem->stage < 2 && lem->th_hover[0])
-	{
-		return lem->GetThrusterLevel(lem->th_hover[0])*100.0;
-	}
-	else
-	{
-		return 0;
-	}
+	return lem->DPS.GetThrustChamberPressurePSI()*100.0 / 113.5135135;
 }
 
 void EngineThrustInd::DoDrawSwitch(double v, SURFHANDLE drawSurface)
@@ -1225,7 +1210,7 @@ double LEMDCVoltMeter::QueryValue()
 			return(lem->scera1.GetVoltage(18, 3) * 8.0);
 			break;
 		case 8: // LMP DC BUS
-			return(lem->scera2.GetVoltage(8, 3) * 8.0);
+			return(lem->scera2.GetVoltage(8, 4) * 8.0);
 			break;
 		case 9: // AC BUS
 			return((lem->scera1.GetVoltage(18, 2) * 25.0)/3.125);	//3.125 factor from AOH
@@ -1771,7 +1756,7 @@ void LEMDPSDigitalMeter::Init(SURFHANDLE surf, SwitchRow &row, LEM *l)
 void LEMDPSDigitalMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 {
 	if (lem->stage > 1) return;
-	if (Voltage() < SP_MIN_DCVOLTAGE || lem->PROP_PQGS_CB.Voltage() < SP_MIN_DCVOLTAGE || lem->QTYMonSwitch.IsDown()) return;
+	if (Voltage() < SP_MIN_DCVOLTAGE || lem->QTYMonSwitch.IsDown() || lem->PROP_PQGS_CB.Voltage() < SP_MIN_DCVOLTAGE ||  lem->lca.GetNumericVoltage() < 25.0) return;
 
 	double percent = v * 100.0;
 
@@ -1840,7 +1825,7 @@ double LEMDigitalHeliumPressureMeter::QueryValue()
 
 void LEMDigitalHeliumPressureMeter::DoDrawSwitch(double v, SURFHANDLE drawSurface)
 {
-	if (Voltage() < SP_MIN_DCVOLTAGE || source->GetState() == 0) return;
+	if (Voltage() < SP_MIN_DCVOLTAGE || source->GetState() == 0 || lem->lca.GetNumericVoltage() < 25.0) return;
 
 	int Curdigit4 = (int)v;
 	int Curdigit3 = (int)v / 10;

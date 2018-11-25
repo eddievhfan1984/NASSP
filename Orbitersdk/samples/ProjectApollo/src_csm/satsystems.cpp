@@ -406,6 +406,7 @@ void Saturn::SystemsInit() {
 	pcm.Init(this);
 	vhfranging.Init(this, &VHFStationAudioRCB, &VHFRangingSwitch, &VHFRNGSwitch, &vhftransceiver);
 	vhftransceiver.Init(&VHFAMASwitch, &VHFAMBSwitch, &RCVOnlySwitch, &VHFStationAudioCTRCB);
+	sce.Init(this);
 
 	// Optics initialization
 	optics.Init(this);
@@ -616,6 +617,7 @@ void Saturn::SystemsTimestep(double simt, double simdt, double mjd) {
 		omnid.TimeStep();
 		if (!NoVHFRanging) vhfranging.TimeStep(simdt);
 		vhftransceiver.Timestep();
+		sce.Timestep();
 		dataRecorder.TimeStep( MissionTime, simdt );
 
 		//
@@ -1336,6 +1338,7 @@ void Saturn::SystemsInternalTimestep(double simdt)
 		usb.SystemTimestep(tFactor);
 		hga.SystemTimestep(tFactor);
 		vhfranging.SystemTimestep(tFactor);
+		sce.SystemTimestep();
 		ems.SystemTimestep(tFactor);
 		els.SystemTimestep(tFactor);
 		ordeal.SystemTimestep(tFactor);
@@ -2746,6 +2749,19 @@ void Saturn::GetSECSStatus( SECSStatus &ss )
 	ss.RCSActivateSignalB = secs.MESCB.RCSActivateSignal;
 	ss.SLASepRelayB = secs.MESCB.SLASepRelay;
 	ss.FwdHeatshieldJettB = secs.MESCB.FwdHeatshieldJett;
+	ss.DrogueSepRelayA = els.ELSCA.GetDrogueParachuteDeployRelay() && els.pcvb.GetDrogueChuteDeployA();
+	ss.DrogueSepRelayB = els.ELSCB.GetDrogueParachuteDeployRelay() && els.pcvb.GetDrogueChuteDeployB();
+	ss.MainChuteDiscRelayA = els.pcvb.GetMainChuteReleaseA();
+	ss.MainChuteDiscRelayB = els.pcvb.GetMainChuteReleaseB();
+	ss.MainDeployRelayA = els.ELSCA.GetMainParachuteDeployRelay() && els.pcvb.GetMainChuteDeployA();
+	ss.MainDeployRelayB = els.ELSCB.GetMainParachuteDeployRelay() && els.pcvb.GetMainChuteDeployB();
+	ss.EDSAbortLogicInput1 = iuCommandConnector.GetEDSAbort(1);
+	ss.EDSAbortLogicInput2 = iuCommandConnector.GetEDSAbort(2);
+	ss.EDSAbortLogicInput3 = iuCommandConnector.GetEDSAbort(3);
+	ss.CrewAbortA = secs.MESCA.CrewAbortSignal;
+	ss.CrewAbortB = secs.MESCB.CrewAbortSignal;
+	ss.CSMLEMLockRingSepRelaySignalA = secs.LDECA.CSM_LEM_LockRingSepRelaySignal;
+	ss.CSMLEMLockRingSepRelaySignalB = secs.LDECB.CSM_LEM_LockRingSepRelaySignal;
 }
 
 void Saturn::GetPyroStatus( PyroStatus &ps )

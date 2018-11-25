@@ -269,13 +269,17 @@ public:
 
 	void ProcessKeyPress(int mx, int my);
 	void ProcessKeyRelease(int mx, int my);
+	void ResetKeyDown();
 	void RenderOprErr(SURFHANDLE surf, SURFHANDLE lights);
 	void RenderAdr(SURFHANDLE surf, SURFHANDLE digits, int xoffset = 0, int yoffset = 0);
 	void RenderData(SURFHANDLE surf, SURFHANDLE digits, int xoffset = 0, int yoffset = 0);
 	void RenderKeys(SURFHANDLE surf, SURFHANDLE keys, int xoffset = 0, int yoffset = 0);
 
 	void KeyClick();
-	bool IsPowered() { return Voltage() > 25.0; };
+	bool IsPowered();
+	bool HasAnnunPower();
+	bool HasNumPower();
+	bool HasIntglPower();
 
 	//
 	// Helper functions.
@@ -362,7 +366,6 @@ protected:
 	void SetData();
 	char ValueChar(unsigned val);
 	char ValueCharSign(unsigned val);
-	void ResetKeyDown();
 	void SendKeyCode(int val);
 
 	void DEDAKeyBlt(SURFHANDLE surf, SURFHANDLE keys, int dstx, int dsty, int srcx, int srcy, bool lit, int xOffset, int yOffset); 

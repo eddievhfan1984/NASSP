@@ -88,6 +88,7 @@ void LEM::ToggleEVA()
 		if (vs1.status != 1) return;
 
 		CDREVA_IP = true;
+		CDRSuited->number = 0;
 
 		OBJHANDLE hbody = GetGravityRef();
 		double radius = oapiGetSize(hbody);
@@ -125,9 +126,10 @@ void LEM::StopEVA()
 {
 	// Called by LEVA vessel during destruction
 	CDREVA_IP = false;
+	CDRSuited->number = 1;
 }
 
-void LEM::SetLmVesselDockStage()
+void LEM::SetLmVesselDockStage(bool ovrdDPSProp)
 
 {
 	ClearThrusterDefinitions();
@@ -204,7 +206,7 @@ void LEM::SetLmVesselDockStage()
 	// Drogue & Overhead hatch
 	ovhdhatch = AddMesh(hOvhdHatch, &hatch_dir);
 	SetOvhdHatchMesh();
-	
+
 	if (!ph_Dsc)
 	{
 		ph_Dsc = CreatePropellantResource(DescentFuelMassKg); //2nd stage Propellant
@@ -212,6 +214,10 @@ void LEM::SetLmVesselDockStage()
 	else
 	{
 		SetPropellantMaxMass(ph_Dsc, DescentFuelMassKg);
+		if (ovrdDPSProp)
+		{
+			SetPropellantMass(ph_Dsc, DescentFuelMassKg);
+		}
 	}
 	SetDefaultPropellantResource(ph_Dsc); // display 2nd stage propellant level in generic HUD
 
